@@ -568,6 +568,16 @@ Module Implementation : ExecutionMemory.
       + apply maximum_lt in Hin; lia.
   Qed.
 
+  Definition convert: value * mtyp * mtyp -> value :=
+    fun argument =>
+      match argument with
+      | (v, κ, κ') => if (mtyp_eqb κ κ') && (storable v κ)
+                     then v
+                     else Undef
+      end%bool.
+
+  #[local] Hint Unfold storable convert : local.
+  
   Lemma alloc_invariant1 :
     forall M, let new_b := (1 + max (maximum M.(allocated))
                              (maximum M.(forbidden)))%nat in
@@ -740,7 +750,7 @@ Module Implementation : ExecutionMemory.
                   map (M.(content) b) indexes in
                 if ((mtyp_eqb κ κ') && (storable v κ) &&
                      (forallb is_ϵ size_minus_1_values_from_δ_plus_1))%bool
-                then ⎣v⎦
+                then ⎣convert(v,κ',κ)⎦
                 else ⎣Undef⎦
             | _ => ⎣Undef⎦
             end
@@ -754,16 +764,6 @@ Module Implementation : ExecutionMemory.
 
   #[local] Hint Unfold length : local.
                                         
-  Definition convert: value * mtyp * mtyp -> value :=
-    fun argument =>
-      match argument with
-      | (v, κ, κ') => if (mtyp_eqb κ κ') && (storable v κ)
-                     then v
-                     else Undef
-      end%bool.
-
-  #[local] Hint Unfold storable convert : local.
-
   Inductive in_supp (b: block) (M: mem) : Prop :=
   | in_supp_valid : M ⊨ b -> in_supp b M
   | in_supp_loadable : forall b' δ δ' κ,
@@ -977,7 +977,57 @@ Module Implementation : ExecutionMemory.
       load(κ', M2, b, δ') = ⎣Undef⎦.
   Proof.
     intros M1 M2 b δ δ' κ κ' v H.
-  Admitted.
+    reflect. unfold load.
+    assert(Hva2: is_valid_access M2 κ' b δ' = true) by mauto.
+    assert(Hva1: is_valid_access M1 κ b δ = true) by mauto.
+    assert(Hb: (b =? b)%nat = true) by reflect.
+    assert(Hsz: 0 < sizeof κ) by now destruct κ.
+    assert(Hsz': 0 < sizeof κ') by now destruct κ'.
+    assert(Hlt1: δ' <? δ + sizeof κ = true) by lia.
+    assert(Hdiff: (δ' =? δ) = false) by lia.
+    assert(Heq: (δ =? δ) = true) by lia.
+    rewrite Hva2.
+    clean_inv H0; subst.
+    rewrite Hva1 in H5.
+    clean_inv H5.
+    unfold new_content.
+    rewrite Hb, Hlt1; simpl.
+    case_eq( (δ <? δ') ); intro Hlt.
+    - trivial.
+    - simpl. rewrite Hdiff.
+      destruct(content M1 b δ') as [ [κ'' v'] | ].
+      + simpl_if. repeat destruct_and_hyp.
+        * assert( δ' <  δ ) by lia.
+          set(k := δ - δ').
+          assert(0 < k) by lia.
+          assert(k < sizeof κ') by lia.
+          assert(δ = δ' + k) by lia.
+          set(len :=  (Z.to_nat (sizeof κ') - 1)%nat) in *.
+          assert(len = (Z.to_nat k) + (len-Z.to_nat k))%nat by lia.
+          replace len with (((Z.to_nat k) + (len-Z.to_nat k))%nat) in * by auto.
+          rewrite seq_app in H5.
+          repeat rewrite map_app in H5.
+          rewrite forallb_app in H5.
+          assert(HH:((Z.to_nat (δ' + 1) + (Z.to_nat k - 1)) = Z.to_nat δ)%nat) by lia.
+          set(n := Z.to_nat(k-1)) in *.
+          assert(HH': Z.to_nat k = S n) by lia.
+          rewrite HH' in H5.
+          rewrite seq_S in H5.
+          assert(HH'': (Z.to_nat (δ' + 1) + n)%nat = Z.to_nat δ) by lia.
+          rewrite HH'' in H5.
+          repeat rewrite map_app in H5.
+          simpl in H5.
+          assert(HHH: δ = Z.of_nat (Z.to_nat δ)) by lia.
+          rewrite <- HHH in H5.
+          assert(HHH': ((δ <? δ) && (δ <? δ + sizeof κ))%bool = false) by lia.
+          rewrite HHH', Heq in H5.
+          rewrite forallb_app in H5.
+          rewrite Bool.andb_false_r in H5.
+          simpl in H5.
+          discriminate.
+        * trivial.
+      + trivial.
+  Qed.
 
   Lemma load_after_store_other: forall M1 M2 b b' δ δ' κ κ' v,
       store(κ, M1, b, δ, v) = ⎣M2⎦ /\
@@ -1074,11 +1124,12 @@ Module Implementation : ExecutionMemory.
         * intros [κ' v'] Hc.
           rewrite Hc in H0.
           destruct v' as [ n' | [b'' δ''] | ].
-          -- simpl_if; inversion H0.
-          -- apply M1.(invariant2) in Hc.
-             simpl_if; clean_inv H0.
-             destruct Hc as [Hc | Hc]; apply maximum_lt in Hc; lia.
-          -- simpl_if; clean_inv H0.
+          -- simpl_if; inversion H0. reflect.
+          -- apply M1.(invariant2) in Hc;
+               simpl_if; clean_inv H0; mauto.
+             clean_inv H3; subst.
+             destruct Hc as [Hc|Hc]; apply maximum_lt in Hc; lia.
+          -- simpl_if; clean_inv H0. reflect.
         * intro Hc; rewrite Hc in H0; inversion H0.
       + inversion H0.
   Qed.
