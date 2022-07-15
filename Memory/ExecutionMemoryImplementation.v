@@ -1,362 +1,12 @@
 Require Import ZArith Arith Lia.
 Require Import List. Import ListNotations.
 
+Require Import Vrac.Option Vrac.Tactics Vrac.MemoryType.
+Require Import Vrac.ExecutionMemoryModel.
+
 Open Scope Z_scope.
 
-Notation "'⎣' v '⎦'" := (Some v).
-Notation "'ϵ'" := (None).
-
-Definition is_ϵ {A} (v: option A) :=
-  match v with
-  | ϵ => true
-  | _ => false
-  end.
-
-Inductive mtyp := i8 | i16 | i32 | i64.
-
-Definition mtyp_eqb κ κ' :=
-  match (κ, κ') with
-  | (i8, i8) => true
-  | (i16, i16) => true
-  | (i32, i32) => true
-  | (i64, i64) => true
-  | _ => false
-  end.
-
-Lemma eq_iff_mtyp_eqb_true :
-  forall κ κ', κ = κ' <-> mtyp_eqb κ κ' = true.
-Proof.
-  intros κ κ'; split; intro H;
-    destruct κ; destruct κ'; subst; now compute.
-Qed.
-
-Lemma mtyp_eqb_refl :
-  forall κ, mtyp_eqb κ κ = true.
-Proof.
-  intros; now apply eq_iff_mtyp_eqb_true.
-Qed.
-
-Lemma mtyp_eqb_sym :
-  forall κ κ', mtyp_eqb κ κ' = mtyp_eqb κ' κ.
-Proof.
-  intros; destruct κ; destruct κ'; trivial.
-Qed.
-
-Lemma mtyp_eqb_neq:
-  forall κ κ', mtyp_eqb κ κ' = false <-> κ <> κ'.
-Proof.
-  intros κ κ'; split; intro H.
-  - contradict H; apply eq_iff_mtyp_eqb_true in H; rewrite H; now intro H'.
-  - apply Bool.not_true_is_false. contradict H.
-    now apply eq_iff_mtyp_eqb_true.
-Qed.
-
-Definition sizeof: mtyp -> Z :=
-  fun type => match type with
-           | i8 => 1
-           | i16 => 2
-           | i32 => 4
-           | i64 => 8
-           end.
-
-Lemma sizeof_pos:
-  forall κ, 0 <= sizeof κ.
-Proof.
-  now destruct κ.
-Qed.
-
-Ltac destruct_and_hyp := 
-  match goal with
-  | [ H : (_ && _)%bool = true |- _ ] =>
-      apply andb_prop in H;
-      let H1 := fresh H in
-      let H2 := fresh H in 
-      destruct H as [H1 H2]
-  | [ H : (_ && _)%bool = false |- _ ] =>
-      apply Bool.andb_false_iff in H;
-      let HH := fresh H in
-      destruct H as [HH | HH]
-  | [ H : _ /\ _ |- _ ] =>
-      let H1 := fresh H in
-      let H2 := fresh H in 
-      destruct H as [H1 H2]
-  end.
-
-Ltac destruct_and_goal :=
-  match goal with 
-  | [ |- (_ && _)%bool = true ] =>
-        apply andb_true_intro; split
-  | [ |- _ /\ _ ] => split 
-  end.
-
-
-Ltac Zleb :=
-  match goal with
-  | [ H: (_ <=? _) = true |- _ ] => apply Z.leb_le in H
-  | [ H: (_ <=? _) = false |- _ ] => apply Z.leb_nle in H
-  | [ |- (_ <=? _) = true ] => apply Z.leb_le 
-  | [ |- (_ <=? _) = false ] => apply Z.leb_nle 
-  end.
-      
-Ltac Zltb :=
-  match goal with
-  | [ H: (_ <? _) = true |- _ ] => apply Z.ltb_lt in H
-  | [ H: (_ <? _) = false |- _ ] => apply Z.ltb_nlt in H
-  | [ |- (_ <? _) = true ] => apply Z.ltb_lt
-  | [ |- (_ <? _) = false ] => apply Z.ltb_nlt 
-  end.
-
-Ltac leb :=
-  match goal with
-  | [ H: (_ <=? _)%nat = true |- _ ] => apply Nat.leb_le in H
-  | [ H: (_ <=? _)%nat = false |- _ ] => apply Nat.leb_nle in H
-  | [ |- (_ <=? _)%nat = true ] => apply Nat.leb_le 
-  | [ |- (_ <=? _)%nat = false ] => apply Nat.leb_nle 
-  end.
-
-Ltac ltb :=
-  match goal with
-  | [ H: (_ <? _)%nat = true |- _ ] => apply Nat.ltb_lt in H
-  | [ H: (_ <? _)%nat = false |- _ ] => apply Nat.ltb_nlt in H
-  | [ |- (_ <? _)%nat = true ] => apply Nat.ltb_lt
-  | [ |- (_ <? _)%nat = false ] => apply Nat.ltb_nlt 
-  end.
-
-Ltac negb :=
-  match goal with
-  | [ H: negb _ = true |- _ ] => apply Bool.negb_true_iff in H
-  | [ H: negb _ = false |- _ ] => apply Bool.negb_false_iff in H
-  | [ |- negb _ = true ] => apply Bool.negb_true_iff
-  | [ |- negb _ = false ] => apply Bool.negb_false_iff
-  end.
-
-Ltac imp :=
-  match goal with
-  | [ |- _ <-> _ ] => split; let H := fresh "H" in intro H
-  end.
-
-Ltac simpl_eqb:=
-  match goal with
-  | [ |- context [ Nat.eqb ?x ?x ] ] =>
-      rewrite Nat.eqb_refl; simpl
-  | [ H: context [ Nat.eqb ?x ?x ] |- _ ] =>
-      rewrite Nat.eqb_refl in H; simpl in H
-  | [ |- context [ Z.eqb ?x ?x ] ] =>
-      rewrite Z.eqb_refl; simpl
-  | [ H: context [ Z.eqb ?x ?x ] |- _ ] =>
-      rewrite Z.eqb_refl in H; simpl in H
-  | [ |- context [mtyp_eqb ?x ?x ] ] =>
-      rewrite mtyp_eqb_refl; simpl
-  | [ H: context [ mtyp_eqb ?x ?x ] |- _ ] =>
-      rewrite mtyp_eqb_refl in H; simpl in H
-  | [ H: context [ Nat.eqb ?x ?x ] |- _ ] =>
-      rewrite Nat.eqb_refl in H; simpl in H
-  | [ H: Nat.eqb ?x ?y = true |- _ ] =>
-      apply Nat.eqb_eq in H; subst 
-  | [ H: Z.eqb ?x ?y = true |- _ ] =>
-      apply Z.eqb_eq in H; subst 
-  | [ H: mtyp_eqb ?x ?y = true |- _ ] =>
-      apply eq_iff_mtyp_eqb_true in H; subst
-                                         
-  | [ Hn: ?x <> ?y |- context [ Nat.eqb ?x ?y ] ] =>
-      apply Nat.eqb_neq in Hn; rewrite Hn; simpl
-  | [ Hn: ?x <> ?y, H: context [ Nat.eqb ?x ?y ] |- _ ] =>
-      apply Nat.eqb_neq in Hn; rewrite Hn in H; simpl in H
-  | [ Hn: ?x <> ?y |- context [ Z.eqb ?x ?y ] ] =>
-      apply Z.eqb_neq in Hn; rewrite Hn; simpl
-  | [ Hn: ?x <> ?y, H: context [ Z.eqb ?x ?y ] |- _ ] =>
-      apply Z.eqb_neq in Hn; rewrite Hn in H; simpl in H
-  | [ Hn: ?x <> ?y |- context [mtyp_eqb ?x ?y ] ] =>
-      apply mtyp_eqb_neq in Hn; rewrite Hn; simpl
-  | [ Hn: ?x <> ?y, H: context [ mtyp_eqb ?x ?y ] |- _ ] =>
-      apply mtyp_eqb_neq in Hn; rewrite Hn in H; simpl in H
-                                                            
-  | [ Hn: ?y <> ?x |- context [ Nat.eqb ?x ?y ] ] =>
-      apply Nat.eqb_neq in Hn; rewrite Nat.eqb_sym in Hn; rewrite Hn;
-      apply Nat.eqb_neq in Hn; simpl
-  | [ Hn: ?y <> ?x, H: context [ Nat.eqb ?x ?y ] |- _ ] =>
-      apply Nat.eqb_neq in Hn; rewrite Nat.eqb_sym in Hn; rewrite Hn in H;
-      apply Nat.eqb_neq in Hn; simpl in H
-  | [ Hn: ?y <> ?x |- context [ Z.eqb ?x ?y ] ] =>
-      apply Z.eqb_neq in Hn; rewrite Z.eqb_sym in Hn; rewrite Hn;
-      apply Z.eqb_neq in Hn; simpl
-  | [ Hn: ?y <> ?x, H: context [ Z.eqb ?x ?y ] |- _ ] =>
-      apply Z.eqb_neq in Hn; rewrite Z.eqb_sym in Hn; rewrite Hn in H;
-      apply Z.eqb_neq in Hn; simpl in H
-  | [ Hn: ?y <> ?x |- context [mtyp_eqb ?x ?y ] ] =>
-      apply mtyp_eqb_neq in Hn; rewrite mtyp_eqb_sym in Hn; rewrite Hn;
-      apply mtyp_eqb_neq in Hn; simpl
-  | [ Hn: ?y <> ?x, H: context [ mtyp_eqb ?x ?y ] |- _ ] =>
-      apply mtyp_eqb_neq in Hn; rewrite mtyp_eqb_sym in Hn; rewrite Hn in H;
-      apply mtyp_eqb_neq in Hn; simpl in H
-  end; simpl in *.
-
-Ltac simpl_if :=
-  try simpl_eqb;
-  match goal with
-  | [ Hcond: ?cond = true, 
-        H: context [if ?cond then _ else _] |- _] =>
-      rewrite Hcond in H; simpl in H
-  | [ Hcond: ?cond = false, 
-        H: context [if ?cond then _ else _] |- _] =>
-      rewrite Hcond in H; simpl in H
-  | [ Hcond: true = ?cond, 
-        H: context [if ?cond then _ else _] |- _] =>
-      rewrite Hcond in H; simpl in H
-  | [ Hcond: false = ?cond, 
-        H: context [if ?cond then _ else _] |- _] =>
-      rewrite Hcond in H; simpl in H
-  | [ Hcond: ?cond = true |-  
-        context [if ?cond then _ else _] ] =>
-      rewrite Hcond; simpl
-  | [ Hcond: ?cond = false |-
-        context [if ?cond then _ else _] ] =>
-      rewrite Hcond; simpl
-  | [ Hcond: true = ?cond |-
-        context [if ?cond then _ else _] ] =>
-      rewrite Hcond; simpl
-  | [ Hcond: false = ?cond |- 
-        context [if ?cond then _ else _] ] =>
-      rewrite Hcond; simpl
-  | [ H: context [if ?cond then _ else _] |- _] =>
-      case_eq(cond);
-      let HH := fresh "H" in intro HH; rewrite HH in H; simpl in *
-  | [ |- context [if ?cond then _ else _] ] =>
-      case_eq(cond);
-      let HH := fresh "H" in intro HH; try rewrite HH; simpl in *
-  end.
-
-Module Type ExecutionMemory.
-   
-  Parameter mem : Type.
-  Parameter block : Type.
-  
-  Inductive value :=
-  | Int : Z -> value
-  | Ptr : block * Z -> value
-  | Undef.
-  
-  Parameter machine_word_size : Z.
-  Parameter alloc: mem * nat -> block * mem.
-  Parameter free: mem * block -> option mem. 
-  Parameter store: mtyp * mem * block * Z * value -> option mem.
-  Parameter load: mtyp * mem * block * Z -> option value.
-  Parameter valid_block: mem -> block -> Prop.
-  Parameter length: mem * block -> Z.
-  Parameter convert: value * mtyp * mtyp -> value. 
-  
-  Infix "⊨" := valid_block (at level 70).
-  
-  Definition storable : value -> mtyp -> bool :=
-    fun v κ =>
-      match (v, κ) with
-      | (Int n, i8) => (-128 <=? n) && (n <=? 127)
-      | (Int n, i16) => (-32768 <=? n) && (n <=? 32767)
-      | (Int n, i32) => (-2147483648 <=? n) && (n <=? 2147483647)
-      | (Int n, i64) => (-9223372036854775808 <=? n)
-                       && (n <=? 9223372036854775807)
-      | (Ptr _, κ) => sizeof κ =? machine_word_size
-      | _ => false
-      end%bool.
-  
-  Definition valid_access (M: mem) (κ: mtyp) (b:block) (δ: Z) :=
-    M ⊨ b /\ 0 <= δ /\ δ + sizeof κ <= length(M,b).
-
-  Notation "M '⫢' κ '@' b ',' δ" := (valid_access M κ b δ) (at level 70).
-  
-  Axiom convert_storable :
-    forall v κ, storable v κ = true -> convert(v, κ, κ) = v.
-
-  Axiom convert_different_mtyp_undef :
-    forall v κ κ', κ <> κ' -> convert(v, κ, κ') = Undef.
-
-  Axiom convert_not_storable_undef :
-    forall v κ κ', storable v κ = false -> convert(v, κ, κ') = Undef.
-  
-  Inductive in_supp (b: block) (M: mem) : Prop :=
-  | in_supp_valid : M ⊨ b -> in_supp b M
-  | in_supp_loadable : forall b' δ δ' κ,
-      load(κ, M, b', δ') = Some(Ptr(b, δ)) ->
-      in_supp b M.
-
-  Notation "b '∈' 'supp' '(' M ')'" := (in_supp b M) (at level 70).
-
-  Axiom valid_after_alloc_same: forall M1 M2 n b,
-      alloc(M1, n) = (b, M2) ->
-      M2 ⊨ b.
-
-  Axiom valid_after_alloc_other: forall M1 M2 b b' n,
-      (b <> b' /\ alloc(M1, n) = (b, M2)) ->
-      (M2 ⊨ b' <-> M1 ⊨ b').
-
-  Axiom invalid_after_free: forall M1 M2 b,
-      free(M1, b) = ⎣M2⎦ -> not(M2 ⊨ b).   
-    
-  Axiom valid_after_free: forall M1 M2 b b',
-      b <> b' /\ free(M1, b) = ⎣M2⎦ ->
-      (M2 ⊨ b' <-> M1 ⊨ b').
-
-  Axiom valid_after_store: forall M1 M2 b b' κ δ v,
-      store(κ, M1, b, δ, v) = ⎣M2⎦ ->
-      (M2 ⊨ b' <-> M1 ⊨ b').
-
-  Axiom alloc_undef: forall M1 M2 b δ κ n,
-      alloc(M1, n) = (b, M2) /\
-      0 <= δ /\ δ + sizeof(κ) <= Z.of_nat n ->
-      load(κ, M2, b, δ) = ⎣Undef⎦.
-
-  Axiom load_after_alloc: forall M1 M2 b b' n δ κ,
-      b <> b' /\ alloc(M1, n) = (b, M2) ->
-      load(κ, M2, b', δ) = load(κ, M1, b', δ).
-
-  Axiom load_after_store_same: forall M1 M2 b δ v κ κ',
-      store(κ, M1, b, δ, v) = ⎣M2⎦ /\
-      0 <= δ /\ δ + sizeof(κ') <= length(M2, b) ->
-      load(κ', M2, b, δ) = ⎣convert(v, κ, κ')⎦.
-
-  Axiom load_after_store_overlap: forall M1 M2 b δ δ' κ κ' v,
-      store(κ, M1, b, δ, v) = ⎣M2⎦ /\ δ <> δ' /\
-      δ' < δ + sizeof(κ) /\ δ < δ' + sizeof(κ') /\
-      0 <= δ' /\ δ' + sizeof(κ') <= length(M2, b) ->
-      load(κ', M2, b, δ') = ⎣Undef⎦.
-
-  Axiom load_after_store_other: forall M1 M2 b b' δ δ' κ κ' v,
-      store(κ, M1, b, δ, v) = ⎣M2⎦ /\
-      (b <> b' \/ δ + sizeof(κ) <= δ' \/ δ' + sizeof(κ') <= δ) ->
-      load(κ', M2, b', δ') = load(κ', M1, b', δ').
-
-  Axiom length_after_alloc_same: forall M1 M2 b n,
-      alloc(M1, n) = (b, M2) ->
-      length(M2, b) = Z.of_nat n.
-
-  Axiom length_after_alloc_other: forall M1 M2 b b' n,
-      b <> b' /\ alloc(M1, n) = (b, M2) ->
-      length(M2, b') = length(M1, b').
-
-  Axiom length_after_store: forall M1 M2 b b' δ κ v,
-      store(κ, M1, b, δ, v) = ⎣M2⎦ ->
-      length(M2, b') = length(M1, b').
-
-  Axiom length_after_free: forall M1 M2 b b',
-      b <> b' /\ free(M1, b) = ⎣M2⎦ ->
-      length(M2, b') = length(M1, b').
-  
-  Axiom alloc_freshness: forall M1 M2 n b,
-      alloc(M1, n) = (b, M2) ->
-      not(b ∈ supp(M1)).
-
-  Axiom validaccess_store: forall M1 b κ δ v,
-      M1 ⫢ κ @ b,δ <-> exists M2, store(κ, M1, b, δ, v) = ⎣M2⎦.
-
-  Axiom validaccess_load: forall M1 b κ δ,
-      M1 ⫢ κ @ b,δ <-> exists v, load(κ, M1, b, δ) = ⎣v⎦.
-    
-  Axiom valid_implies_freeable: forall M1 b,
-      M1 ⊨ b <-> exists M2, free(M1, b) = ⎣M2⎦.
-    
-End ExecutionMemory.
-
-Module Implementation : ExecutionMemory.
+Module Implementation : ExecutionMemoryModel.
 
   Definition block := nat.
   
@@ -442,45 +92,6 @@ Module Implementation : ExecutionMemory.
     | [ |- valid_block _ _  ] => constructor
     end.
 
-  Ltac clean_inv H :=
-    inversion H; subst; clear H; simpl in *.
-
-  Ltac existsb_true :=
-    match goal with
-    | [ H: existsb (Nat.eqb _) _ = true |- _ ] =>
-        apply existsb_exists in H;
-        let x := fresh "x" in
-        let Hin := fresh "Hin" in
-        let Heq := fresh "Heq" in 
-        destruct H as [x [Hin Heq]]
-    | [ H: In ?x ?l |- existsb (Nat.eqb _) ?l = true ] => 
-        apply existsb_exists;
-        exists x; split; auto; now simpl_eqb
-    end.
-
-  Ltac existsb_false :=
-    match goal with
-    | [ H : existsb (Nat.eqb ?x) ?l = false |- not(In ?x ?l) ] =>
-          apply Bool.not_true_iff_false in H;
-          contradict H;
-          existsb_true
-    | [ H : not(In ?x ?l) |- existsb (Nat.eqb ?x) ?l = false ] =>
-        apply Bool.not_true_iff_false;
-        contradict H;
-        existsb_true; now simpl_eqb
-    end.
-
-  Ltac by_contradiction :=
-    match goal with
-    | [ H: ?hyp, H': ~?hyp |- _ ] => now contradict H
-    | [ H: ~(?x = ?x)  |- _ ] => now contradict H
-    | [ H: ?x = true, H': ?x = false  |- _ ] =>
-        rewrite H in H'; discriminate
-    | [ H1: In ?x ?l, H2: existsb (Nat.eqb ?x) ?l = false |- _ ] =>
-          apply Bool.not_true_iff_false in H2;
-          contradict H2; existsb_true
-    end.
-
   Ltac by_invariant := 
     match goal with
     | [ H: In ?x (allocated ?M)  |- not(In ?x (forbidden ?M)) ] =>
@@ -497,6 +108,7 @@ Module Implementation : ExecutionMemory.
     intros; 
     repeat(repeat(autounfold with local in *;
                   repeat destruct_and_hyp;
+                  repeat destruct_or_hyp;
                   repeat negb;
                   repeat leb;
                   repeat Zleb;
@@ -508,12 +120,14 @@ Module Implementation : ExecutionMemory.
            repeat imp;
            repeat destruct_and_goal;
            repeat simpl_eqb;
+           repeat simpl_mtyp;
            repeat simpl_if;
            try solve [ lia ];
            try solve [ discriminate ];
            try solve [ by_contradiction ];
            try solve [ by_invariant ];
-           auto).
+           auto;
+           simpl in *).
   
   Lemma valid_iff_is_valid_true :
     forall M b, is_valid M b = true <-> M ⊨ b.
@@ -793,7 +407,7 @@ Module Implementation : ExecutionMemory.
   Lemma convert_storable :
     forall v κ, storable v κ = true -> convert(v, κ, κ) = v.
   Proof.
-    reflect. 
+    reflect.
   Qed.
 
   Lemma convert_different_mtyp_undef :
@@ -807,7 +421,6 @@ Module Implementation : ExecutionMemory.
   Proof.
     reflect.
   Qed.
-
 
   Lemma length_after_alloc_same: forall M1 M2 b n,
       alloc(M1, n) = (b, M2) ->
@@ -850,9 +463,6 @@ Module Implementation : ExecutionMemory.
       (M2 ⊨ b' <-> M1 ⊨ b').
   Proof.
     mauto.
-    destruct H2 as [HH | HH].
-    - subst; now contradict H0.
-    - trivial.
   Qed.
 
   Lemma invalid_after_free: forall M1 M2 b,
@@ -884,8 +494,6 @@ Module Implementation : ExecutionMemory.
       0 <= δ /\ δ + sizeof(κ) <= Z.of_nat n ->
       load(κ, M2, b, δ) = ⎣Undef⎦.
   Proof.
-    reflect. inversions.
-    simpl_if; trivial; simpl in H.
     mauto.
   Qed.
   
@@ -893,9 +501,11 @@ Module Implementation : ExecutionMemory.
       b <> b' /\ alloc(M1, n) = (b, M2) ->
       load(κ, M2, b', δ) = load(κ, M1, b', δ).
   Proof.
-    mauto. 
+    mauto.
   Qed.
 
+  
+  
   Lemma load_after_store_same: forall M1 M2 b δ v κ κ',
       store(κ, M1, b, δ, v) = ⎣M2⎦ /\
         0 <= δ /\ δ + sizeof(κ') <= length(M2, b) ->
@@ -922,13 +532,13 @@ Module Implementation : ExecutionMemory.
     apply valid_access_iff_is_valid_access_true in Hva1.
     rewrite Hva1 in Hstore. inversion Hstore as [HM2]; clear Hstore.
     simpl. rewrite HM2. apply valid_access_iff_is_valid_access_true in Hva2.
-    rewrite Hva2. unfold new_content. simpl_eqb.
+    rewrite Hva2. unfold new_content. simpl_eqb; 
     assert(H: (δ <? δ) = false) by lia.
     rewrite H. simpl. clear H.
-    simpl_eqb.
+    simpl_eqb. 
     case_eq(mtyp_eqb κ' κ); intro Mtyp.
     - apply eq_iff_mtyp_eqb_true in Mtyp; rewrite Mtyp in *;
-        simpl_eqb; clear Mtyp. symmetry in HM2.
+        simpl_mtyp; clear Mtyp. symmetry in HM2.
       case_eq(storable v κ); intro Storable; simpl; auto.
       subst; clear Hva2 Hva1 Storable; simpl in *.
       apply natlike_rec with (x:=sizeof κ).
@@ -965,7 +575,11 @@ Module Implementation : ExecutionMemory.
              assert(Hk: k = Z.to_nat a) by (rewrite <- Hk1; lia).
              clear Hk1. subst.
              apply in_seq in Hk2.
-             reflect.
+             assert(HH:((δ <? a) && (a <? δ + n))%bool = true) by lia.
+             assert(HH': Z.succ n = n+1) by lia.
+             rewrite HH' in *.
+             assert(HH'':((δ <? a) && (a <? δ + (n+1)))%bool = true) by lia.
+             now rewrite HH, HH''.
       + now destruct κ.
     - rewrite mtyp_eqb_sym in Mtyp. now rewrite Mtyp.
   Qed.
@@ -977,7 +591,7 @@ Module Implementation : ExecutionMemory.
       load(κ', M2, b, δ') = ⎣Undef⎦.
   Proof.
     intros M1 M2 b δ δ' κ κ' v H.
-    reflect. unfold load.
+    repeat destruct_and_hyp. inversions. 
     assert(Hva2: is_valid_access M2 κ' b δ' = true) by mauto.
     assert(Hva1: is_valid_access M1 κ b δ = true) by mauto.
     assert(Hb: (b =? b)%nat = true) by reflect.
@@ -987,7 +601,6 @@ Module Implementation : ExecutionMemory.
     assert(Hdiff: (δ' =? δ) = false) by lia.
     assert(Heq: (δ =? δ) = true) by lia.
     rewrite Hva2.
-    clean_inv H0; subst.
     rewrite Hva1 in H5.
     clean_inv H5.
     unfold new_content.
@@ -1035,7 +648,7 @@ Module Implementation : ExecutionMemory.
       load(κ', M2, b', δ') = load(κ', M1, b', δ').
   Proof.
     intros M1 M2 b b' δ δ' κ κ' v H.
-    reflect.
+    destruct_and_hyp.
     unfold load.
     assert(Hsize : length (M2, b') = length (M1, b'))
       by (eapply length_after_store; eauto).
@@ -1126,9 +739,8 @@ Module Implementation : ExecutionMemory.
           destruct v' as [ n' | [b'' δ''] | ].
           -- simpl_if; inversion H0. reflect.
           -- apply M1.(invariant2) in Hc;
-               simpl_if; clean_inv H0; mauto.
-             clean_inv H3; subst.
-             destruct Hc as [Hc|Hc]; apply maximum_lt in Hc; lia.
+               simpl_if; clean_inv H0; mauto; clean_inv H3; subst;
+               apply maximum_lt in Hc; lia.
           -- simpl_if; clean_inv H0. reflect.
         * intro Hc; rewrite Hc in H0; inversion H0.
       + inversion H0.
@@ -1147,7 +759,7 @@ Module Implementation : ExecutionMemory.
       M1 ⫢ κ @ b,δ <-> exists v, load(κ, M1, b, δ) = ⎣v⎦.
   Proof.
     intros M1 b κ δ; split; intro Hva.
-    - reflect; unfold load; simpl_if.
+    - unfold load; simpl_if.
       + case_eq(content M1 b δ).
         * intros [κ' v] Hc;  simpl_if; eauto.
         * eauto.
