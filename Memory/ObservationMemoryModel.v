@@ -62,7 +62,7 @@ Module Type ObservationMemoryModel.
       is_initialized(κ', M2, b', δ') = is_initialized(κ', M1, b', δ').
 
   Axiom storeblock_length_same: forall M1 M2 b n,
-      store_block(M1, n) = M2 ->
+      store_block(M1, b, n) = M2 ->
       length(M2, b) = Z.of_nat n.
 
   Axiom storeblock_length_other: forall M1 M2 b b' n,
