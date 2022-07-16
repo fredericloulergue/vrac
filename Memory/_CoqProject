@@ -4,3 +4,4 @@ Option.v
 MemoryType.v
 ExecutionMemoryModel.v
 ExecutionMemoryImplementation.v
+ObservationMemoryModel.v
