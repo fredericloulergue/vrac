@@ -54,7 +54,7 @@ Module Type ObservationMemoryModel.
   
   Axiom initialize_isinit_same: forall M1 M2 b δ κ,
       initialize(κ, M1, b, δ) = M2 ->
-      is_initialized(κ, M2, b, δ) = false.
+      is_initialized(κ, M2, b, δ) = true.
 
   Axiom initialize_isinit_other: forall M1 M2 b b' δ δ' κ κ',
       initialize(κ, M1, b, δ) = M2 /\

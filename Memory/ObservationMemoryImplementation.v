@@ -84,7 +84,7 @@ Module Implementation : ObservationMemoryModel.
                                     || (negb(δ =? δ') &&  (δ'<? δ+sizeof κ)
                                        && (δ<? δ'+sizeof κ') && (0 <=? δ')
                                        && (δ' + sizeof κ' <=? length(M, b)))) )%bool
-                           then false
+                           then true
                            else M.(initialized) b' δ' κ'
                                                 
           |}
@@ -149,7 +149,7 @@ Module Implementation : ObservationMemoryModel.
 
   Lemma initialize_isinit_same: forall M1 M2 b δ κ,
       initialize(κ, M1, b, δ) = M2 ->
-      is_initialized(κ, M2, b, δ) = false.
+      is_initialized(κ, M2, b, δ) = true.
   Proof.
     intros M1 M2 b δ κ H.
     autounfold with local in *. simpl in *.
