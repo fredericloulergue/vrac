@@ -21,7 +21,6 @@ Module Implementation : ObservationMemoryModel.
   
   Definition obs := Memory.
 
-  
   Definition empty :=
     {|
       allocated := fun b => false;
@@ -232,7 +231,6 @@ Module Implementation : ObservationMemoryModel.
   Proof. 
     intros; now autounfold with local in *.
   Qed.
-
 
   Lemma empty_isinit: forall κ b δ,
       is_initialized(κ, empty, b, δ) = false.
