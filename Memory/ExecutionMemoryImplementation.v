@@ -9,6 +9,9 @@ Open Scope Z_scope.
 Module Implementation : ExecutionMemoryModel.
 
   Definition block := nat.
+
+  Definition eqb := Nat.eqb.
+  Definition eqb_eq := Nat.eqb_eq.
   
   Inductive value :=
   | Int : Z -> value
@@ -103,6 +106,11 @@ Module Implementation : ExecutionMemoryModel.
         apply (invariant1 M) in H';
         by_contradiction
     end.
+
+  Ltac simpl_eqb :=
+    repeat simpl_nat_eqb;
+    repeat simpl_Z_eqb;
+    repeat simpl_mtyp_eqb.
   
   Ltac reflect :=
     intros; 
@@ -120,7 +128,6 @@ Module Implementation : ExecutionMemoryModel.
            repeat imp;
            repeat destruct_and_goal;
            repeat simpl_eqb;
-           repeat simpl_mtyp;
            repeat simpl_if;
            try solve [ lia ];
            try solve [ discriminate ];
@@ -185,7 +192,7 @@ Module Implementation : ExecutionMemoryModel.
   Definition convert: value * mtyp * mtyp -> value :=
     fun argument =>
       match argument with
-      | (v, κ, κ') => if (mtyp_eqb κ κ') && (storable v κ)
+      | (v, κ, κ') => if (Mtyp.eqb κ κ') && (storable v κ)
                      then v
                      else Undef
       end%bool.
@@ -362,7 +369,7 @@ Module Implementation : ExecutionMemoryModel.
                   let len := ((Z.to_nat size) - 1)%nat in 
                   let indexes := List.map Z.of_nat (List.seq start len) in
                   map (M.(content) b) indexes in
-                if ((mtyp_eqb κ κ') && (storable v κ) &&
+                if ((Mtyp.eqb κ κ') && (storable v κ) &&
                      (forallb is_ϵ size_minus_1_values_from_δ_plus_1))%bool
                 then ⎣convert(v,κ',κ)⎦
                 else ⎣Undef⎦
@@ -377,11 +384,12 @@ Module Implementation : ExecutionMemoryModel.
       M.(size) b.
 
   #[local] Hint Unfold length : local.
-                                        
+
   Inductive in_supp (b: block) (M: mem) : Prop :=
   | in_supp_valid : M ⊨ b -> in_supp b M
-  | in_supp_loadable : forall b' δ δ' κ,
-      load(κ, M, b', δ') = Some(Ptr(b, δ)) ->
+  | in_supp_loadable : forall b' b'' δ δ' κ,
+      b'' = b -> 
+      load(κ, M, b', δ') = Some(Ptr(b'', δ)) ->
       in_supp b M.
 
   Notation "b '∈' 'supp' '(' M ')'" :=
@@ -536,9 +544,9 @@ Module Implementation : ExecutionMemoryModel.
     assert(H: (δ <? δ) = false) by lia.
     rewrite H. simpl. clear H.
     simpl_eqb. 
-    case_eq(mtyp_eqb κ' κ); intro Mtyp.
-    - apply eq_iff_mtyp_eqb_true in Mtyp; rewrite Mtyp in *;
-        simpl_mtyp; clear Mtyp. symmetry in HM2.
+    case_eq(Mtyp.eqb κ' κ); intro Mtyp.
+    - apply Mtyp.eqb_eq in Mtyp; rewrite Mtyp in *;
+        simpl_mtyp_eqb; clear Mtyp. symmetry in HM2.
       case_eq(storable v κ); intro Storable; simpl; auto.
       subst; clear Hva2 Hva1 Storable; simpl in *.
       apply natlike_rec with (x:=sizeof κ).
@@ -581,7 +589,7 @@ Module Implementation : ExecutionMemoryModel.
              assert(HH'':((δ <? a) && (a <? δ + (n+1)))%bool = true) by lia.
              now rewrite HH, HH''.
       + now destruct κ.
-    - rewrite mtyp_eqb_sym in Mtyp. now rewrite Mtyp.
+    - rewrite Mtyp.eqb_sym in Mtyp. now rewrite Mtyp.
   Qed.
 
   Lemma load_after_store_overlap: forall M1 M2 b δ δ' κ κ' v,
@@ -735,15 +743,15 @@ Module Implementation : ExecutionMemoryModel.
       simpl_if.
       + case_eq(content M1 b' δ').
         * intros [κ' v'] Hc.
-          rewrite Hc in H0.
+          rewrite Hc in H1.
           destruct v' as [ n' | [b'' δ''] | ].
-          -- simpl_if; inversion H0. reflect.
+          -- simpl_if; inversion H1. reflect.
           -- apply M1.(invariant2) in Hc;
-               simpl_if; clean_inv H0; mauto; clean_inv H3; subst;
+               simpl_if; clean_inv H0; mauto; subst;
                apply maximum_lt in Hc; lia.
-          -- simpl_if; clean_inv H0. reflect.
-        * intro Hc; rewrite Hc in H0; inversion H0.
-      + inversion H0.
+          -- simpl_if; clean_inv H1. reflect.
+        * intro Hc; rewrite Hc in H1; inversion H1.
+      + inversion H1.
   Qed.
              
   Lemma validaccess_store: forall M1 b κ δ v,

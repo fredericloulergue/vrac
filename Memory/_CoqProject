@@ -1,6 +1,7 @@
 -Q . Vrac
 Tactics.v
 Option.v
+Eqb.v
 MemoryType.v
 ExecutionMemoryModel.v
 ExecutionMemoryImplementation.v

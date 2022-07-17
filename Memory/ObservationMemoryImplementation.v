@@ -9,6 +9,8 @@ Open Scope Z_scope.
 Module Implementation : ObservationMemoryModel.
 
   Definition block := nat.
+  Definition eqb : block -> block -> bool := Nat.eqb.
+  Definition eqb_eq := Nat.eqb_eq.
   
   Record Memory :=
     {
@@ -80,7 +82,7 @@ Module Implementation : ObservationMemoryModel.
             size := M.(size);
             initialized :=
               fun b' δ' κ' => if ( (Nat.eqb b b') &&
-                                  ( ( (δ =? δ')&&(mtyp_eqb κ κ') )
+                                  ( ( (δ =? δ')&&(Mtyp.eqb κ κ') )
                                     || (negb(δ =? δ') &&  (δ'<? δ+sizeof κ)
                                        && (δ<? δ'+sizeof κ') && (0 <=? δ')
                                        && (δ' + sizeof κ' <=? length(M, b)))) )%bool
@@ -98,6 +100,9 @@ Module Implementation : ObservationMemoryModel.
   
   #[local] Hint Unfold is_valid is_valid_access store_block empty delete_block initialize is_initialized length : local.
 
+  Ltac simpl_eqb :=
+    repeat(simpl_nat_eqb||simpl_Z_eqb||simpl_mtyp_eqb).
+  
   Ltac mauto :=
     intros; autounfold with local in *;
     try destruct_and_hyp;
@@ -160,7 +165,7 @@ Module Implementation : ObservationMemoryModel.
       match goal with
       | [ H : ?condition = false |- _ ] =>
           assert(Ht: condition = true) by
-          (now repeat (simpl_mtyp; simpl_eqb))
+          (now repeat (simpl_mtyp_eqb; simpl_eqb))
       end.
       now rewrite Ht in H.
   Qed.

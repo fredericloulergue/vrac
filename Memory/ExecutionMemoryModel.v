@@ -1,7 +1,7 @@
 Require Import ZArith Arith Lia.
 Require Import List. Import ListNotations.
 
-Require Import Vrac.Option Vrac.Tactics Vrac.MemoryType.
+Require Import Vrac.Option Vrac.MemoryType.
 
 Open Scope Z_scope.
 
@@ -9,6 +9,9 @@ Module Type ExecutionMemoryModel.
    
   Parameter mem : Type.
   Parameter block : Type.
+
+  Parameters eqb : block -> block -> bool.
+  Axiom eqb_eq: forall b b', eqb b b' = true <-> b = b'.
   
   Inductive value :=
   | Int : Z -> value
@@ -54,8 +57,9 @@ Module Type ExecutionMemoryModel.
   
   Inductive in_supp (b: block) (M: mem) : Prop :=
   | in_supp_valid : M ⊨ b -> in_supp b M
-  | in_supp_loadable : forall b' δ δ' κ,
-      load(κ, M, b', δ') = Some(Ptr(b, δ)) ->
+  | in_supp_loadable : forall b' b'' δ δ' κ,
+      b'' = b -> 
+      load(κ, M, b', δ') = Some(Ptr(b'', δ)) ->
       in_supp b M.
 
   Notation "b '∈' 'supp' '(' M ')'" := (in_supp b M) (at level 70).

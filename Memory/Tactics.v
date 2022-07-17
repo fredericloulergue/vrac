@@ -82,52 +82,39 @@ Ltac imp :=
   | [ |- _ <-> _ ] => split; let H := fresh "H" in intro H
   end.
 
-Ltac simpl_eqb:=
+Ltac simpl_generic_eqb eqb eqb_refl eqb_sym eqb_eq eqb_neq :=
   match goal with
-  | [ |- context [ Nat.eqb ?x ?x ] ] =>
-      rewrite Nat.eqb_refl; simpl
-  | [ H: context [ Nat.eqb ?x ?x ] |- _ ] =>
-      rewrite Nat.eqb_refl in H; simpl in H
-  | [ |- context [ Z.eqb ?x ?x ] ] =>
-      rewrite Z.eqb_refl; simpl
-  | [ H: context [ Z.eqb ?x ?x ] |- _ ] =>
-      rewrite Z.eqb_refl in H; simpl in H
-  | [ H: context [ Nat.eqb ?x ?x ] |- _ ] =>
-      rewrite Nat.eqb_refl in H; simpl in H
-  | [ H: Nat.eqb ?x ?y = true |- _ ] =>
-      apply Nat.eqb_eq in H; subst 
-  | [ H: Z.eqb ?x ?y = true |- _ ] =>
-      apply Z.eqb_eq in H; subst
-
-  | [ Hn: ?x = ?y, He: Nat.eqb ?x ?y = false |- _ ] => 
-      apply Nat.eqb_neq in He; rewrite Hn in He; simpl
-  | [ Hn: ?y = ?x, He: Nat.eqb ?x ?y = false |- _ ] =>
-      apply Nat.eqb_neq in He; rewrite Hn in He; simpl
-                                                                          
-  | [ Hn: ?x <> ?y, H: context [ Nat.eqb ?x ?y ] |- _ ] =>
-      apply Nat.eqb_neq in Hn; rewrite Hn in H; simpl in H
-  | [ Hn: ?x <> ?y |- context [ Nat.eqb ?x ?y ] ] =>
-      apply Nat.eqb_neq in Hn; rewrite Hn; simpl
-  | [ Hn: ?x <> ?y, H: context [ Nat.eqb ?x ?y ] |- _ ] =>
-      apply Nat.eqb_neq in Hn; rewrite Hn in H; simpl in H
-  | [ Hn: ?x <> ?y |- context [ Z.eqb ?x ?y ] ] =>
-      apply Z.eqb_neq in Hn; rewrite Hn; simpl
-  | [ Hn: ?x <> ?y, H: context [ Z.eqb ?x ?y ] |- _ ] =>
-      apply Z.eqb_neq in Hn; rewrite Hn in H; simpl in H
-                                                            
-  | [ Hn: ?y <> ?x |- context [ Nat.eqb ?x ?y ] ] =>
-      apply Nat.eqb_neq in Hn; rewrite Nat.eqb_sym in Hn; rewrite Hn;
-      apply Nat.eqb_neq in Hn; simpl
-  | [ Hn: ?y <> ?x, H: context [ Nat.eqb ?x ?y ] |- _ ] =>
-      apply Nat.eqb_neq in Hn; rewrite Nat.eqb_sym in Hn; rewrite Hn in H;
-      apply Nat.eqb_neq in Hn; simpl in H
-  | [ Hn: ?y <> ?x |- context [ Z.eqb ?x ?y ] ] =>
-      apply Z.eqb_neq in Hn; rewrite Z.eqb_sym in Hn; rewrite Hn;
-      apply Z.eqb_neq in Hn; simpl
-  | [ Hn: ?y <> ?x, H: context [ Z.eqb ?x ?y ] |- _ ] =>
-      apply Z.eqb_neq in Hn; rewrite Z.eqb_sym in Hn; rewrite Hn in H;
-      apply Z.eqb_neq in Hn; simpl in H
+  | [ |- context [ eqb ?x ?x ] ] =>
+      rewrite eqb_refl; simpl
+  | [ H: context [ eqb ?x ?x ] |- _ ] =>
+      rewrite eqb_refl in H; simpl in H
+  | [ H: context [ eqb ?x ?x ] |- _ ] =>
+      rewrite eqb_refl in H; simpl in H
+  | [ H: eqb ?x ?y = true |- _ ] =>
+      apply eqb_eq in H; subst 
+  | [ Hn: ?x = ?y, He: eqb ?x ?y = false |- _ ] => 
+      apply eqb_neq in He; rewrite Hn in He; simpl
+  | [ Hn: ?y = ?x, He: eqb ?x ?y = false |- _ ] =>
+      apply eqb_neq in He; rewrite Hn in He; simpl
+  | [ Hn: ?x <> ?y, H: context [ eqb ?x ?y ] |- _ ] =>
+      apply eqb_neq in Hn; rewrite Hn in H; simpl in H
+  | [ Hn: ?x <> ?y |- context [ eqb ?x ?y ] ] =>
+      apply eqb_neq in Hn; rewrite Hn; simpl
+  | [ Hn: ?x <> ?y, H: context [ eqb ?x ?y ] |- _ ] =>
+      apply eqb_neq in Hn; rewrite Hn in H; simpl in H
+  | [ Hn: ?y <> ?x |- context [ eqb ?x ?y ] ] =>
+      apply eqb_neq in Hn; rewrite eqb_sym in Hn; rewrite Hn;
+      apply eqb_neq in Hn; simpl
+  | [ Hn: ?y <> ?x, H: context [ eqb ?x ?y ] |- _ ] =>
+      apply eqb_neq in Hn; rewrite eqb_sym in Hn; rewrite Hn in H;
+      apply eqb_neq in Hn; simpl in H
   end; simpl in *.
+
+Ltac simpl_nat_eqb :=
+  simpl_generic_eqb Nat.eqb Nat.eqb_refl Nat.eqb_sym Nat.eqb_eq Nat.eqb_neq.
+
+Ltac simpl_Z_eqb :=
+  simpl_generic_eqb Z.eqb Z.eqb_refl Z.eqb_sym Z.eqb_eq Z.eqb_neq.
 
 Ltac simpl_if :=
   match goal with
@@ -176,7 +163,7 @@ Ltac existsb_true :=
       destruct H as [x [Hin Heq]]
   | [ H: In ?x ?l |- existsb (Nat.eqb _) ?l = true ] => 
       apply existsb_exists;
-      exists x; split; auto; now simpl_eqb
+      exists x; split; auto; now simpl_nat_eqb
   end.
 
 Ltac existsb_false :=
@@ -188,7 +175,7 @@ Ltac existsb_false :=
   | [ H : not(In ?x ?l) |- existsb (Nat.eqb ?x) ?l = false ] =>
       apply Bool.not_true_iff_false;
       contradict H;
-      existsb_true; now simpl_eqb
+      existsb_true; now simpl_nat_eqb
   end.
 
 Ltac by_contradiction :=

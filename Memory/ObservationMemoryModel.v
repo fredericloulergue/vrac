@@ -8,7 +8,10 @@ Open Scope Z_scope.
 Module Type ObservationMemoryModel.
    
   Parameter obs : Type.
+
   Parameter block : Type.
+  Parameters eqb : block -> block -> bool.
+  Axiom eqb_eq: forall b b', eqb b b' = true <-> b = b'.
 
   Parameter empty: obs.
   Parameter store_block: obs * block * nat -> obs.
