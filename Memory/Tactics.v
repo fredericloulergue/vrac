@@ -88,8 +88,12 @@ Ltac simpl_generic_eqb eqb eqb_refl eqb_sym eqb_eq eqb_neq :=
       rewrite eqb_refl; simpl
   | [ H: context [ eqb ?x ?x ] |- _ ] =>
       rewrite eqb_refl in H; simpl in H
-  | [ H: context [ eqb ?x ?y = true ] |- _ ] =>
+  | [ H: eqb ?x ?y = true |- _ ] =>
       rewrite eqb_eq in H; subst
+  | [ H: eqb ?x ?y = false |- ?x <> ?y ] =>
+      apply eqb_neq; auto
+  | [ H: eqb ?y ?x = false |- ?x <> ?y ] =>
+      apply eqb_neq; rewrite eqb_sym; auto
   | [ H: context [ eqb ?x ?x ] |- _ ] =>
       rewrite eqb_refl in H; simpl in H
   | [ H: eqb ?x ?y = true |- _ ] =>

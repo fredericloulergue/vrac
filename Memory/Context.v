@@ -212,10 +212,159 @@ Module Context(V : DecidableType)(Import EMM: ExecutionMemoryModel).
                          then σ b1
                          else σ b).
     set(inv_σ' := fun b => if (eqb b b2)
-                        then b2
+                        then b1
                         else if (eqb b (σ b1))
                              then inv_σ b2
                              else inv_σ b).
+    assert(Hσ'1: forall b : t, inv_σ' (σ' b) = b).
+    {
+      unfold inv_σ', σ'; intro b.
+      repeat simpl_if; repeat simpl_block_eqb; auto; try discriminate.
+      - rewrite  Hinvσ1 in H1. now simpl_block_eqb.
+      - assert(b = b1).
+        {
+          rewrite <- Hinvσ1 with (x:=b).
+          rewrite <- Hinvσ1 with (x:=b1).
+          now rewrite H2.
+        }
+        simpl_block_eqb.
+        now by_contradiction.
+    }
+    assert(Hσ'2: forall b : block, σ' (inv_σ' b) = b).
+    {
+      intros b; unfold σ', inv_σ'.
+      repeat simpl_if; repeat simpl_block_eqb; auto; try discriminate.
+      - rewrite  Hinvσ2 in H1. now simpl_block_eqb.
+      - assert(b = b2).
+        {
+          rewrite <- Hinvσ2 with (y:=b).
+          rewrite <- Hinvσ2 with (y:=b2).
+          now rewrite H2.
+        }
+        simpl_block_eqb.
+        now by_contradiction.        
+    }
+    assert(Hσ': Bijective σ')
+      by (exists inv_σ'; split; intro b; auto).
+    assert(Hwf1: forall (x : V.t) (b : block), E C1 x = ⎣b⎦ -> M'1 ⊨ b).
+    {
+      intros x b H.
+      case_eq(eqb b b1); intro Heq; try simpl_block_eqb.
+      + eapply valid_after_alloc_same; eauto.
+      + eapply (valid_after_alloc_other).
+        * split; eauto. intro Hbb. now simpl_block_eqb.
+        * eapply C1.(wf); eauto.
+    }
+    assert(Hwf2: forall (x : V.t) (b : block), E C2 x = ⎣b⎦ -> M'2 ⊨ b).
+    {
+      intros x b H.
+      case_eq(eqb b b2); intro Heq; try simpl_block_eqb.
+      + eapply valid_after_alloc_same; eauto.
+      + eapply (valid_after_alloc_other).
+        * split; eauto. intro Hbb. now simpl_block_eqb.
+        * eapply C2.(wf); eauto.
+    }
+    exists σ', Hσ', Hwf1, Hwf2.
+    assert(HisoE: forall x b, E C1 x = ⎣ b ⎦ <-> E C2 x = ⎣ σ' b ⎦).
+    {
+      intros x b; split; intro HEC.
+      - unfold σ'.
+        simpl_if; try simpl_block_eqb.
+        + apply alloc_freshness in Halloc1.
+          apply C1.(wf) in HEC.
+          apply in_supp_valid in HEC.
+          now by_contradiction.
+        + simpl_if; try simpl_block_eqb.
+          * apply Hiso.(iso_environment) in HEC.
+            rewrite Hinvσ2 in HEC.
+            apply alloc_freshness in Halloc2.
+            apply C2.(wf) in HEC.
+            apply in_supp_valid in HEC.
+            now by_contradiction.
+          * now apply Hiso.(iso_environment).
+      - unfold σ' in HEC.
+        simpl_if; try simpl_block_eqb.
+        + apply alloc_freshness in Halloc2.
+          apply C2.(wf) in HEC.
+          apply in_supp_valid in HEC.
+          now by_contradiction.
+        + simpl_if; try simpl_block_eqb.
+          * apply Hiso.(iso_environment) in HEC.
+            apply alloc_freshness in Halloc1.
+            apply C1.(wf) in HEC.
+            apply in_supp_valid in HEC.
+            now by_contradiction.
+          * now apply Hiso.(iso_environment).      
+    }
+    split; [ constructor | repeat split ].
+    - auto.
+    - intros b; simpl; split; intro H.
+      + case_eq(eqb b b1); intro Hb; unfold σ'.
+        * repeat simpl_block_eqb.
+          eapply valid_after_alloc_same; eauto.
+        * rewrite Hb.
+          simpl_if.
+          -- simpl_block_eqb.
+             assert(b2 <> σ b1) by (apply eqb_neq in Hb;contradict Hb;
+                                   subst;apply Hinvσ1).
+             rewrite valid_after_alloc_other 
+               with (M1:=M C1)(M2:=M'1)(b:=b1)(b':=inv_σ b2)
+               in H by (split; eauto; simpl_block_eqb).
+             apply Hiso.(iso_valid_block) in H.
+             rewrite Hinvσ2 in H.
+             apply alloc_freshness in Halloc2.
+             apply in_supp_valid in H.
+             by_contradiction.
+          -- eapply valid_after_alloc_other.
+             ++ split; eauto; intro Heq.
+                assert(Heq': b = inv_σ b2) by now rewrite Heq, Hinvσ1.
+                subst. rewrite Hinvσ1 in H0.
+                now simpl_block_eqb.
+             ++ apply Hiso.(iso_valid_block).
+                assert(b <> b1) by now simpl_block_eqb.
+                now rewrite <- valid_after_alloc_other
+                  with (M1:=M C1)(M2:=M'1)(b':=b);
+                  try split; eauto.
+      + case_eq(eqb b b1); intro Hb; unfold σ' in *.
+        * repeat simpl_block_eqb.
+          eapply valid_after_alloc_same; eauto.
+        * rewrite Hb in H; simpl_if.
+          -- simpl_block_eqb.
+             assert(b2 <> σ b1) by (apply eqb_neq in Hb;contradict Hb;
+                                   subst;apply Hinvσ1).
+             rewrite valid_after_alloc_other 
+               with (M1:=M C2)(M2:=M'2)(b:=b2)(b':=σ b1)
+               in H by (split; eauto; simpl_block_eqb).
+             apply Hiso.(iso_valid_block) in H.
+             apply alloc_freshness in Halloc1.
+             apply in_supp_valid in H.
+             by_contradiction.
+          -- eapply valid_after_alloc_other.
+             ++ split; eauto; intro Heq.
+                simpl_block_eqb.
+                by_contradiction.
+             ++ apply Hiso.(iso_valid_block).
+                assert(σ b <> b2) by (apply eqb_neq in H0;contradict H0;
+                                     subst;now rewrite Hinvσ1).
+                rewrite valid_after_alloc_other
+                  with (M1:=M C2)(M2:=M'2)
+                  in H;try split; eauto.
+    - intros b H. simpl.
+      admit.
+    - intros κ b δ v.
+      admit.
+    - intros b H.
+      destruct H; unfold σ'; repeat simpl_if; simpl_block_eqb.
+      + by_contradiction.
+      + rewrite Hinvσ2 in H0. by_contradiction.
+      + trivial.
+    - unfold σ'; repeat simpl_if; auto; now simpl_block_eqb.
+    - intros b H.
+      unfold σ'; repeat simpl_if; auto.
+      + now simpl_block_eqb.
+      + assert(b = inv_σ b2) by (rewrite <- H; now rewrite Hinvσ1).
+        simpl_block_eqb.
+        by_contradiction.
   Admitted.
   
 End Context.
