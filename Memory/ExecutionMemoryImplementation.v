@@ -6,12 +6,9 @@ Require Import Vrac.ExecutionMemoryModel.
 
 Open Scope Z_scope.
 
-Module Implementation : ExecutionMemoryModel.
+Module Implementation: ExecutionMemoryModel Nat.
 
   Definition block := nat.
-
-  Definition eqb := Nat.eqb.
-  Definition eqb_eq := Nat.eqb_eq.
   
   Inductive value :=
   | Int : Z -> value
@@ -20,8 +17,8 @@ Module Implementation : ExecutionMemoryModel.
 
   Record Memory :=
     {
-      allocated : list nat;
-      forbidden : list nat;
+      allocated : list block;
+      forbidden : list block;
       size: block -> Z;
       is_deallocated: block -> bool;
       content : block -> Z -> option(mtyp * value);
@@ -467,7 +464,7 @@ Module Implementation : ExecutionMemoryModel.
   Qed.
 
   Lemma valid_after_alloc_other: forall M1 M2 b b' n,
-      (b <> b' /\ alloc(M1, n) = (b, M2)) ->
+      b <> b' /\ alloc(M1, n) = (b, M2) ->
       (M2 ⊨ b' <-> M1 ⊨ b').
   Proof.
     mauto.
@@ -512,7 +509,12 @@ Module Implementation : ExecutionMemoryModel.
     mauto.
   Qed.
 
-  
+  Lemma load_after_free: forall M1 M2 b b' δ κ,
+      b <> b' /\ free(M1, b) = ⎣M2⎦ ->
+      load(κ, M2, b', δ) = load(κ, M1, b', δ).
+  Proof.
+    mauto.
+  Qed.
   
   Lemma load_after_store_same: forall M1 M2 b δ v κ κ',
       store(κ, M1, b, δ, v) = ⎣M2⎦ /\

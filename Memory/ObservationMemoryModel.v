@@ -5,23 +5,19 @@ Require Import Vrac.Option Vrac.Tactics Vrac.MemoryType.
 
 Open Scope Z_scope.
 
-Module Type ObservationMemoryModel.
+Module Type ObservationMemoryModel(Block: Eqb.EQB).
    
   Parameter obs : Type.
 
-  Parameter block : Type.
-  Parameters eqb : block -> block -> bool.
-  Axiom eqb_eq: forall b b', eqb b b' = true <-> b = b'.
-
   Parameter empty: obs.
-  Parameter store_block: obs * block * nat -> obs.
-  Parameter delete_block: obs * block -> obs. 
-  Parameter initialize: mtyp * obs * block * Z -> obs.
-  Parameter is_valid: obs * block ->bool.
-  Parameter is_initialized: mtyp * obs * block * Z -> bool.
-  Parameter length: obs * block -> Z.
+  Parameter store_block: obs * Block.t * nat -> obs.
+  Parameter delete_block: obs * Block.t -> obs. 
+  Parameter initialize: mtyp * obs * Block.t * Z -> obs.
+  Parameter is_valid: obs * Block.t ->bool.
+  Parameter is_initialized: mtyp * obs * Block.t * Z -> bool.
+  Parameter length: obs * Block.t -> Z.
   
-  Definition is_valid_access (M: obs) (κ: mtyp) (b:block) (δ: Z) : bool :=
+  Definition is_valid_access (M: obs) (κ: mtyp) (b:Block.t) (δ: Z) : bool :=
     (is_valid(M, b) && (0 <=? δ) && (δ + sizeof κ <=? length(M,b)))%bool.
 
   Axiom storeblock_validblock_same: forall M1 M2 n b,

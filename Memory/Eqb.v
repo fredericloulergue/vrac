@@ -1,13 +1,13 @@
-Require Import Bool.
+Require Import Bool Arith.
   
   Module Type EQB.
     Parameter t : Type.
     Parameter eqb: t -> t -> bool.
     Axiom eqb_eq: forall x y, eqb x y = true <-> x = y.
   End EQB.
-  
-  Module Full(Eqb: EQB).
 
+  Module Full(Eqb: EQB).
+    
     Include Eqb.
     
     Lemma eqb_refl:

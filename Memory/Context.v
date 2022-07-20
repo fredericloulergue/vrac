@@ -3,18 +3,16 @@ Require Import Vrac.Tactics Vrac.Option Vrac.Eqb
   Vrac.MemoryType Vrac.ExecutionMemoryModel.
 
 
-Module Context(V : DecidableType)(Import EMM: ExecutionMemoryModel).
+Module Context(V : DecidableType)(B: Eqb.EQB)
+  (Import EMM: ExecutionMemoryModel B).
 
-  Module EMM'. Include EMM. Definition t := block. End EMM'.
-  
-  Module Block := Full EMM'.
-  Import Block.
+  Module Block := Full B. Import Block.
 
   Ltac simpl_block_eqb :=
     simpl_generic_eqb eqb Block.eqb_refl Block.eqb_sym
       Block.eqb_eq Block.eqb_neq.
   
-  Definition environment := V.t -> option block.
+  Definition environment := V.t -> option Block.t.
   
   Record context := {
       E: environment;
@@ -22,7 +20,7 @@ Module Context(V : DecidableType)(Import EMM: ExecutionMemoryModel).
       wf: forall x b, E x = ⎣b⎦ -> M ⊨ b
     }.
 
-  Definition induced (σ: block -> block) (Hσ: Bijective σ) :=
+  Definition induced (σ: Block.t -> Block.t) (Hσ: Bijective σ) :=
     fun value => match value with
               | Int n => Int n
               | Undef => Undef
@@ -36,7 +34,7 @@ Module Context(V : DecidableType)(Import EMM: ExecutionMemoryModel).
   Admitted.
    *)
 
-  Class isomorphic (C1 C2: context)(σ: block -> block)(Hσ: Bijective σ) :=
+  Class isomorphic (C1 C2: context)(σ: Block.t -> Block.t)(Hσ: Bijective σ) :=
     {
       iso_environment: forall x b, C1.(E) x = ⎣b⎦ <-> C2.(E) x = ⎣σ b⎦;
       iso_valid_block: forall b, C1.(M) ⊨ b <-> C2.(M) ⊨ σ(b);
@@ -167,7 +165,7 @@ Module Context(V : DecidableType)(Import EMM: ExecutionMemoryModel).
         destruct HH as [b' [H1 H2]].
         assert(Hi: induced σ' Hσ' v = induced σ Hσ v).
         {
-          destruct v; auto; simpl; destruct p. subst.
+          destruct v as [n|[b0 δ0]|]; auto; simpl; subst.
           simpl in Hl.
           assert(HH: σ' b0 ∈ supp(C2.(M))) by (econstructor 2; eauto).
           apply isomorphic_in_supp_invσ with (C1:=C1)(σ:=σ)(Hσ:=Hσ) in HH; auto.
@@ -243,7 +241,7 @@ Module Context(V : DecidableType)(Import EMM: ExecutionMemoryModel).
         simpl_block_eqb.
         now by_contradiction.
     }
-    assert(Hσ'2: forall b : block, σ' (inv_σ' b) = b).
+    assert(Hσ'2: forall b : Block.t, σ' (inv_σ' b) = b).
     {
       intros b; unfold σ', inv_σ'.
       repeat simpl_if; repeat simpl_block_eqb; auto; try discriminate.
@@ -265,7 +263,7 @@ Module Context(V : DecidableType)(Import EMM: ExecutionMemoryModel).
       - rewrite <- H. now rewrite Hinvσ1.
       - rewrite H. now rewrite Hinvσ2.
     }
-    assert(Hσeq: forall b : block, b <> b1 /\ σ b <> b2 -> σ' b = σ b).
+    assert(Hσeq: forall b : Block.t, b <> b1 /\ σ b <> b2 -> σ' b = σ b).
     {
       intros b H.
       destruct H; unfold σ'; repeat simpl_if; simpl_block_eqb.
@@ -273,7 +271,7 @@ Module Context(V : DecidableType)(Import EMM: ExecutionMemoryModel).
       - rewrite Hinvσ2 in H0. by_contradiction.
       -trivial.
     }
-    assert(H'σeq: forall b : block, b <> b1 /\ b <> inv_σ b2 -> σ' b = σ b).
+    assert(H'σeq: forall b : Block.t, b <> b1 /\ b <> inv_σ b2 -> σ' b = σ b).
     {
       intros b [H1 H2].
       assert(σ b <> b2) by (contradict H2; apply Hb2; auto).
@@ -281,7 +279,7 @@ Module Context(V : DecidableType)(Import EMM: ExecutionMemoryModel).
     }
     assert(Hσ2: σ' b1 = b2) by
       (unfold σ'; repeat simpl_if; auto; now simpl_block_eqb).
-    assert(Hσ1: forall b : block, σ b = b2 -> σ' b = σ b1).
+    assert(Hσ1: forall b : Block.t, σ b = b2 -> σ' b = σ b1).
     {
       clear Hσ2; intros b H.
       unfold σ'; repeat simpl_if; auto.
@@ -290,7 +288,7 @@ Module Context(V : DecidableType)(Import EMM: ExecutionMemoryModel).
         simpl_block_eqb.
         by_contradiction.
     }
-    assert(H'σ1: forall b : block, b = inv_σ b2 -> σ' b = σ b1).
+    assert(H'σ1: forall b : Block.t, b = inv_σ b2 -> σ' b = σ b1).
     {
       intros b H. rewrite H.
       unfold σ'. simpl_block_eqb.
@@ -315,7 +313,7 @@ Module Context(V : DecidableType)(Import EMM: ExecutionMemoryModel).
         rewrite H, Hinvσ2.
         now simpl_block_eqb.
     }
-    assert(Hwf1: forall (x : V.t) (b : block), E C1 x = ⎣b⎦ -> M'1 ⊨ b).
+    assert(Hwf1: forall (x : V.t) (b : Block.t), E C1 x = ⎣b⎦ -> M'1 ⊨ b).
     {
       intros x b H.
       case_eq(eqb b b1); intro Heq; try simpl_block_eqb.
@@ -324,7 +322,7 @@ Module Context(V : DecidableType)(Import EMM: ExecutionMemoryModel).
         * split; eauto. intro Hbb. now simpl_block_eqb.
         * eapply C1.(wf); eauto.
     }
-    assert(Hwf2: forall (x : V.t) (b : block), E C2 x = ⎣b⎦ -> M'2 ⊨ b).
+    assert(Hwf2: forall (x : V.t) (b : Block.t), E C2 x = ⎣b⎦ -> M'2 ⊨ b).
     {
       intros x b H.
       case_eq(eqb b b2); intro Heq; try simpl_block_eqb.
@@ -363,7 +361,7 @@ Module Context(V : DecidableType)(Import EMM: ExecutionMemoryModel).
       - rewrite H'σeq by auto.
         now apply Hiso.(iso_environment).
     }
-    assert(Hv': forall b : block, M'1 ⊨ b <-> M'2 ⊨ σ' b).
+    assert(Hv': forall b : Block.t, M'1 ⊨ b <-> M'2 ⊨ σ' b).
     { intros b; simpl. 
       destruct (Cases b) as [Case|[[Case1 Case2]|[Case1 Case2]]].
       + rewrite Case in *; split; intro Hv.
@@ -432,15 +430,13 @@ Module Context(V : DecidableType)(Import EMM: ExecutionMemoryModel).
           by now rewrite <- valid_after_alloc_other
             with (M2:=M'1)(n:=n)(b:=b1) by auto.
     }
-    assert(Hload: forall (κ : mtyp) (b : block) (δ : Z) (v : value),
+    assert(Hload: forall (κ : mtyp) (b : Block.t) (δ : Z) (v : value),
               load (κ, M'1, b, δ) = ⎣ v ⎦ <->
                 load (κ, M'2, σ' b, δ) = ⎣ induced σ' Hσ' v ⎦).
     {
       intros κ b δ v.
       destruct (Cases b) as [Case|[[Case1 Case2]|[Case1 Case2]]].
       - rewrite Case, Hσ2.
-(*      assert(HH: M'1 ⊨ b1) by (eapply valid_after_alloc_same; eauto).
-        specialize (Hl' _ HH). *)
         assert(Len1: length(M'1,b1) = Z.of_nat n)
           by (eapply length_after_alloc_same; eauto).
         assert(Len2: length(M'2,b2) = Z.of_nat n)
@@ -495,7 +491,7 @@ Module Context(V : DecidableType)(Import EMM: ExecutionMemoryModel).
         rewrite load_after_alloc with (M1:=C1.(M))(b:=b1)(n:=n)
           by (repeat split; auto).
         rewrite load_after_alloc with (M1:=C2.(M))(M2:=M'2)(b:=b2)(n:=n)
-          by(        repeat split; auto; contradict Case2; now apply Hb2).
+          by(repeat split; auto; contradict Case2; now apply Hb2).
         destruct v as [n'|[b' δ']|]; simpl in *; try apply Hiso.(iso_load).
         split; intro Hl.
         + assert(b' <> b1).
@@ -541,6 +537,265 @@ Module Context(V : DecidableType)(Import EMM: ExecutionMemoryModel).
     }
     do 2 split; auto.
   Qed.
-        
-        
+
+
+  Lemma σ_eq:
+    forall A (σ:A->A) b b',
+      Bijective σ ->
+      σ b = σ b' ->
+      b = b'.
+  Proof.
+    intros A σ b b' Hbij Heq.
+    destruct Hbij as [inv [H1 H2]].
+    now rewrite <- H1, <- Heq, H1.
+  Qed.
+
+  Property isomorphic_free:
+    forall C1 C2 b σ Hσ,
+      isomorphic C1 C2 σ Hσ ->
+      C1.(M) ⊨ b ->
+      (forall x, C1.(E) x <> ⎣b⎦) ->
+      exists M'1 M'2 Hwf1 Hwf2,
+        free(C1.(M), b) = ⎣M'1⎦
+        /\ free(C2.(M), σ b) = ⎣M'2⎦
+        /\ isomorphic {|E:=C1.(E);M:=M'1;wf:=Hwf1|}
+                     {|E:=C2.(E);M:=M'2;wf:=Hwf2|}
+                     σ Hσ .
+  Proof.
+    intros C1 C2 b σ Hσ Hiso Hv1 Him.
+    assert(Hv2: C2.(M) ⊨ σ b)
+      by now apply Hiso.(iso_valid_block).
+    assert(H'1: exists M'1, free(C1.(M), b) = ⎣M'1⎦)
+      by now apply valid_implies_freeable.
+    assert(H'2: exists M'2, free(C2.(M), σ b) = ⎣M'2⎦)
+      by now apply valid_implies_freeable.
+    destruct H'1 as [M'1 H'1].
+    destruct H'2 as [M'2 H'2].
+    set(Hσ_copy:=Hσ).
+    destruct Hσ_copy as [inv_σ [Hσ1 Hσ2]].
+    assert(Hwf1: forall x b, E C1 x = ⎣ b ⎦ -> M'1 ⊨ b).
+    {
+      intros x b' H.
+      assert(b'<>b)
+        by (intro H'; subst; specialize (Him x); by_contradiction).
+      assert(M'1⊨ b')
+        by(rewrite valid_after_free; eauto; eapply C1.(wf); eauto).
+      trivial.
+    }
+    assert(Hwf2: forall x b, E C2 x = ⎣ b ⎦ -> M'2 ⊨ b).
+    {
+      intros x b' H.
+      set(b'':= inv_σ b').
+      assert(Hb'': b' = σ b'') by (unfold b''; now rewrite Hσ2).
+      rewrite Hb'' in *.
+      assert(b<>b'').
+      {
+        intro H'; specialize (Him x); clear Hb''; subst.
+        rewrite <- Hiso.(iso_environment) in H.
+        now contradict Him.
+      }
+      assert(M'2⊨ σ b'').
+      {
+        rewrite valid_after_free; eapply C2.(wf) in H;
+          eauto; split; eauto.
+        contradict H0.
+        now apply σ_eq with (σ:=σ).
+      }
+      trivial.
+    }
+    exists M'1. exists M'2. exists Hwf1. exists Hwf2.
+    do 2 (split; auto).
+    constructor; simpl.
+    - apply Hiso.(iso_environment).
+    - intro b'.
+      case_eq(eqb b' b); intro Hb'.
+      + simpl_block_eqb.
+        apply invalid_after_free in H'1.
+        apply invalid_after_free in H'2.
+        split; intros; by_contradiction.
+      + assert(b'<>b) by now simpl_block_eqb.
+        split; intro Hv.
+        * rewrite valid_after_free in Hv; eauto.
+          apply Hiso.(iso_valid_block) in Hv; auto.
+          rewrite valid_after_free; try split; eauto.
+          contradict H.
+          now apply σ_eq with (σ:=σ).
+        * rewrite valid_after_free in Hv; try split; eauto.
+          apply Hiso.(iso_valid_block) in Hv; auto.
+          rewrite valid_after_free; try split; eauto.
+          contradict H.
+          now apply σ_eq with (σ:=σ).
+    - intros b' Hv.
+      case_eq(eqb b' b); intro Hb'.
+      + simpl_block_eqb.
+        apply invalid_after_free in H'1.
+        apply invalid_after_free in H'2.
+        by_contradiction.
+      + assert(b'<>b) by simpl_block_eqb.
+        erewrite length_after_free; try split; eauto.
+        erewrite length_after_free with (M2:=M'2); try split; eauto.
+        apply Hiso.(iso_length).
+        now rewrite valid_after_free in Hv by (try split; eauto).
+        contradict H.
+        now apply σ_eq with (σ:=σ).
+    - intros κ b' δ v.
+      case_eq(eqb b' b); intro Hb'.
+      + simpl_block_eqb.
+        apply invalid_after_free in H'1.
+        apply invalid_after_free in H'2.
+        split; intro Hl;
+        rewrite load_ϵ in Hl; try discriminate; intro Hva;
+          unfold valid_access in Hva; destruct_and_hyp;
+          by_contradiction.
+      + assert(H1: load (κ, M'1, b', δ) = load (κ, C1.(M), b', δ))
+          by (eapply load_after_free; split; eauto; simpl_block_eqb).
+        assert(H2: load (κ, M'2, σ b', δ) = load (κ, C2.(M), σ b', δ))
+          by(eapply load_after_free; split; eauto;
+             apply Bool.not_true_iff_false in Hb';
+             contradict Hb'; apply eqb_eq;
+             now apply σ_eq with (σ:=σ)).
+        rewrite H2, H1.
+        apply Hiso.(iso_load).
+  Qed.
+
+  Corollary store_ϵ:
+    forall κ M b δ v,
+      ~(M ⫢ κ @ b,δ) <-> store(κ, M, b, δ, v) = ϵ.
+  Proof.
+    intros κ M' b δ v; split; intro H.
+    - case_eq(store(κ, M', b, δ, v)).
+      + intros M'' Hst.
+        contradict H.
+        rewrite validaccess_store.
+        eexists; eauto.
+      + trivial.
+    - intro H'. rewrite validaccess_store with (v:=v) in H'.
+      destruct H' as [M2 Hst2].
+      rewrite H in Hst2; discriminate.
+  Qed.
+
+  
+  Property isomorphic_store:
+    forall C1 C2 κ b δ v σ Hσ,
+      isomorphic C1 C2 σ Hσ ->
+      ( (exists M'1, store(κ, C1.(M), b, δ, v) = ⎣M'1⎦ ->
+                (exists M'2 Hwf1 Hwf2,
+                    ( store(κ, C2.(M), σ b, δ, induced σ Hσ v) = ⎣M'2⎦
+                      /\ isomorphic {|E:=C1.(E);M:=M'1;wf:=Hwf1|}
+                                   {|E:=C2.(E);M:=M'2;wf:=Hwf2|}
+                                   σ Hσ)))
+        /\ (store(κ, C1.(M), b, δ, v) = ϵ ->
+           store(κ, C2.(M), σ b, δ, induced σ Hσ v) = ϵ) ).
+  Proof.
+    intros C1 C2 κ b δ v σ Hσ Hiso. 
+    - case_eq(store (κ, M C1, b, δ, v)).
+      + intros M'1 Hst1.
+        split.
+        * exists M'1. intro H; clear H.
+          assert(Hva1: C1.(M) ⫢ κ @ b,δ)
+            by (rewrite validaccess_store; eexists; eauto).
+          assert(Hva2: C2.(M) ⫢ κ @ σ b,δ).
+          {
+            unfold valid_access in *.
+            repeat destruct_and_hyp; repeat destruct_and_goal; auto.
+            * now apply Hiso.(iso_valid_block).
+            * now rewrite <- Hiso.(iso_length).
+          }
+          assert (Hwf1: forall x b', E C1 x = ⎣b'⎦ -> M'1 ⊨ b').
+          {
+            intros x b' HEC.
+            assert(C1.(M)⊨ b') by (eapply C1.(wf); eauto).
+            apply valid_after_store with (b':=b') in Hst1.
+            now apply Hst1.
+          }
+          assert(H'2: exists M'2,  store (κ, M C2, σ b, δ, induced σ Hσ v) = ⎣ M'2 ⎦)
+            by now apply validaccess_store.
+          destruct H'2 as [M'2 Hst2].
+          assert(Hwf2: forall x b', E C2 x = ⎣b'⎦ -> M'2 ⊨ b').
+          {
+            intros x b' HEC.
+            assert(C2.(M)⊨ b') by (eapply C2.(wf); eauto).
+            apply valid_after_store with (b':=b') in Hst2.
+            now apply Hst2.
+          } 
+          exists M'2;exists Hwf1;exists Hwf2; split; eauto.
+          constructor.
+          -- apply Hiso.(iso_environment).
+          -- simpl. intro b'; split; intro Hv;
+               apply valid_after_store with (b':=σ b') in Hst2;
+               apply valid_after_store with (b':=b') in Hst1.
+             ++ rewrite Hst2.
+                apply Hiso.(iso_valid_block).
+                now apply Hst1.
+             ++ rewrite Hst1.
+                apply Hiso.(iso_valid_block).
+                now apply Hst2.
+          -- simpl; intros b' Hv.
+             rewrite length_after_store
+               with (M2:=M'1)(M1:=C1.(M))(κ:=κ)(δ:=δ)(v:=v)(b:=b)
+               by auto.
+             rewrite length_after_store
+               with (M2:=M'2)(M1:=C2.(M))(κ:=κ)(δ:=δ)(v:=induced σ Hσ v)(b:=σ b)
+               by auto.
+             apply Hiso.(iso_length).
+             apply valid_after_store with (b':=b') in Hst1.
+             now apply Hst1.
+          -- intros κ0 b0 δ0 v0; split; intro Hl; simpl in *;
+               case_eq(eqb b0 b); intro Hb0.
+             ++ simpl_block_eqb.
+                admit.
+             ++ assert(Hdiff1: b0<>b) by now simpl_block_eqb.
+                assert(Hdiff2: σ b0<>σ b) by (contradict Hdiff1;eapply σ_eq;eauto).
+                erewrite load_after_store_other by (split;eauto).
+                erewrite load_after_store_other in Hl by (split;eauto).
+                apply Hiso.(iso_load) in Hl; eauto.
+             ++ simpl_block_eqb.
+                admit.
+             ++ assert(Hdiff1: b0<>b) by now simpl_block_eqb.
+                assert(Hdiff2: σ b0<>σ b) by (contradict Hdiff1;eapply σ_eq;eauto).
+                erewrite load_after_store_other by (split;eauto).
+                erewrite load_after_store_other in Hl by (split;eauto).
+                apply Hiso.(iso_load) in Hl; eauto.
+        * intros; discriminate.
+      + split.
+        * eexists; intros; discriminate.
+        * intros _.
+          apply store_ϵ in H.
+          assert(~ (M C2 ⫢ κ @ σ b, δ)).
+          {
+            contradict H.
+            unfold valid_access in *.
+            destruct H as [H1 [H2 H3]].
+            split;[idtac|split].
+            - now apply Hiso.(iso_valid_block).
+            - trivial.
+            - now rewrite Hiso.(iso_length)
+                by now apply Hiso.(iso_valid_block).
+          }
+          now apply store_ϵ.
+  Admitted.
+
+  Definition subcontext C1 C2 :=
+    (forall x b, C1.(E) x = ⎣b⎦ -> C2.(E) x = ⎣b⎦)
+    /\(forall b, C1.(M) ⊨ b -> C2.(M) ⊨ b)
+    /\(forall b, C1.(M) ⊨ b -> length(C1.(M),b)=length(C2.(M), b))
+    /\(forall κ b δ v, load(κ, C1.(M), b, δ) = ⎣v⎦ ->
+                 load(κ, C2.(M), b, δ) = ⎣v⎦).
+
+  Notation "C1 '⊆' C2":=(subcontext C1 C2)(at level 70).
+
+  Property validaccess_subcontext:
+    forall C1 C2 κ b δ, C1 ⊆ C2 -> C1.(M) ⫢ κ @ b,δ -> C2.(M) ⫢ κ @ b,δ.
+  Proof.
+    intros C1 C2 κ b δ Hsub Hva.
+    destruct Hsub as [Hsub1 [Hsub2 [Hsub3 Hsub4]]].
+    destruct Hva as [Hv [H1 H2]].
+    repeat split; auto.
+    now rewrite <- Hsub3 by auto.
+  Qed.
+  
 End Context.
+
+Module Type CONTEXT(V:DecidableType)(B:Eqb.EQB)(EMM: ExecutionMemoryModel B).
+  Include Context.Context V B EMM.
+End CONTEXT.

@@ -1,30 +1,26 @@
 Require Import ZArith Arith Lia.
 Require Import List. Import ListNotations.
 
-Require Import Vrac.Option Vrac.MemoryType.
+Require Import Vrac.Option Vrac.MemoryType Vrac.Eqb.
 
 Open Scope Z_scope.
 
-Module Type ExecutionMemoryModel.
+Module Type ExecutionMemoryModel(Block: EQB).
    
   Parameter mem : Type.
-  Parameter block : Type.
 
-  Parameters eqb : block -> block -> bool.
-  Axiom eqb_eq: forall b b', eqb b b' = true <-> b = b'.
-  
   Inductive value :=
   | Int : Z -> value
-  | Ptr : block * Z -> value
+  | Ptr : Block.t * Z -> value
   | Undef.
   
   Parameter machine_word_size : Z.
-  Parameter alloc: mem * nat -> block * mem.
-  Parameter free: mem * block -> option mem. 
-  Parameter store: mtyp * mem * block * Z * value -> option mem.
-  Parameter load: mtyp * mem * block * Z -> option value.
-  Parameter valid_block: mem -> block -> Prop.
-  Parameter length: mem * block -> Z.
+  Parameter alloc: mem * nat -> Block.t * mem.
+  Parameter free: mem * Block.t -> option mem. 
+  Parameter store: mtyp * mem * Block.t * Z * value -> option mem.
+  Parameter load: mtyp * mem * Block.t * Z -> option value.
+  Parameter valid_block: mem -> Block.t -> Prop.
+  Parameter length: mem * Block.t -> Z.
   Parameter convert: value * mtyp * mtyp -> value. 
   
   Infix "⊨" := valid_block (at level 70).
@@ -41,7 +37,7 @@ Module Type ExecutionMemoryModel.
       | _ => false
       end%bool.
   
-  Definition valid_access (M: mem) (κ: mtyp) (b:block) (δ: Z) :=
+  Definition valid_access (M: mem) (κ: mtyp) (b:Block.t) (δ: Z) :=
     M ⊨ b /\ 0 <= δ /\ δ + sizeof κ <= length(M,b).
 
   Notation "M '⫢' κ '@' b ',' δ" := (valid_access M κ b δ) (at level 70).
@@ -55,7 +51,7 @@ Module Type ExecutionMemoryModel.
   Axiom convert_not_storable_undef :
     forall v κ κ', storable v κ = false -> convert(v, κ, κ') = Undef.
   
-  Inductive in_supp (b: block) (M: mem) : Prop :=
+  Inductive in_supp (b: Block.t) (M: mem) : Prop :=
   | in_supp_valid : M ⊨ b -> in_supp b M
   | in_supp_loadable : forall b' b'' δ δ' κ,
       b'' = b -> 
@@ -92,6 +88,10 @@ Module Type ExecutionMemoryModel.
       b <> b' /\ alloc(M1, n) = (b, M2) ->
       load(κ, M2, b', δ) = load(κ, M1, b', δ).
 
+  Axiom load_after_free: forall M1 M2 b b' δ κ,
+      b <> b' /\ free(M1, b) = ⎣M2⎦ ->
+      load(κ, M2, b', δ) = load(κ, M1, b', δ).
+  
   Axiom load_after_store_same: forall M1 M2 b δ v κ κ',
       store(κ, M1, b, δ, v) = ⎣M2⎦ /\
       0 <= δ /\ δ + sizeof(κ') <= length(M2, b) ->

@@ -6,11 +6,9 @@ Require Import Vrac.ObservationMemoryModel.
 
 Open Scope Z_scope.
 
-Module Implementation : ObservationMemoryModel.
+Module Implementation : ObservationMemoryModel Nat.
 
   Definition block := nat.
-  Definition eqb : block -> block -> bool := Nat.eqb.
-  Definition eqb_eq := Nat.eqb_eq.
   
   Record Memory :=
     {
