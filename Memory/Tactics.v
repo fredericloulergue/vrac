@@ -190,6 +190,8 @@ Ltac by_contradiction :=
   | [ H: ~(?x = ?x)  |- _ ] => now contradict H
   | [ H: ?x = true, H': ?x = false  |- _ ] =>
       rewrite H in H'; discriminate
+  | [ H: ?x = ?y, H': ?y <> ?x  |- _ ] =>
+      rewrite H in H'; now contradict H'
   | [ H1: In ?x ?l, H2: existsb (Nat.eqb ?x) ?l = false |- _ ] =>
       apply Bool.not_true_iff_false in H2;
       contradict H2; existsb_true

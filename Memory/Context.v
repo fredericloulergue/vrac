@@ -717,20 +717,11 @@ Module Context(V : DecidableType)(B: Eqb.EQB)
             assert(C2.(M)⊨ b') by (eapply C2.(wf); eauto).
             apply valid_after_store with (b':=b') in Hst2.
             now apply Hst2.
-          } 
-          exists M'2;exists Hwf1;exists Hwf2; split; eauto.
-          constructor.
-          -- apply Hiso.(iso_environment).
-          -- simpl. intro b'; split; intro Hv;
-               apply valid_after_store with (b':=σ b') in Hst2;
-               apply valid_after_store with (b':=b') in Hst1.
-             ++ rewrite Hst2.
-                apply Hiso.(iso_valid_block).
-                now apply Hst1.
-             ++ rewrite Hst1.
-                apply Hiso.(iso_valid_block).
-                now apply Hst2.
-          -- simpl; intros b' Hv.
+          }
+          assert(Hlength: forall b0, M'1 ⊨ b0 ->
+                           length (M'1, b0) = length (M'2, σ b0)).
+          {
+            simpl; intros b' Hv.
              rewrite length_after_store
                with (M2:=M'1)(M1:=C1.(M))(κ:=κ)(δ:=δ)(v:=v)(b:=b)
                by auto.
@@ -740,25 +731,109 @@ Module Context(V : DecidableType)(B: Eqb.EQB)
              apply Hiso.(iso_length).
              apply valid_after_store with (b':=b') in Hst1.
              now apply Hst1.
-          -- intros κ0 b0 δ0 v0; split; intro Hl; simpl in *;
-               case_eq(eqb b0 b); intro Hb0.
-             ++ simpl_block_eqb.
-                admit.
-             ++ assert(Hdiff1: b0<>b) by now simpl_block_eqb.
-                assert(Hdiff2: σ b0<>σ b) by (contradict Hdiff1;eapply σ_eq;eauto).
-                erewrite load_after_store_other by (split;eauto).
-                erewrite load_after_store_other in Hl by (split;eauto).
-                apply Hiso.(iso_load) in Hl; eauto.
-             ++ simpl_block_eqb.
-                admit.
-             ++ assert(Hdiff1: b0<>b) by now simpl_block_eqb.
-                assert(Hdiff2: σ b0<>σ b) by (contradict Hdiff1;eapply σ_eq;eauto).
-                erewrite load_after_store_other by (split;eauto).
-                erewrite load_after_store_other in Hl by (split;eauto).
-                apply Hiso.(iso_load) in Hl; eauto.
+          }
+          assert(Hvalid: forall b0 : B.t, M'1 ⊨ b0 <-> M'2 ⊨ σ b0).
+          {
+            intro b'.
+            apply valid_after_store with (b':=σ b') in Hst2.
+            apply valid_after_store with (b':=b') in Hst1.
+            rewrite Hst2, Hst1.
+            apply Hiso.(iso_valid_block).
+          }
+
+          exists M'2;exists Hwf1;exists Hwf2; split; eauto.
+          constructor.
+          -- apply Hiso.(iso_environment).
+          -- auto.
+          -- auto.
+          -- intros κ' b' δ' v'; simpl.
+             case_eq(B.eqb b b'); intro HB;
+               case_eq((δ + sizeof κ <=? δ')%Z); intro Hδsb;
+               case_eq((δ' + sizeof κ' <=? δ)%Z); intro Hδ'sb;
+               try (assert(Hb': b'<>b) by now simpl_block_eqb);
+               try simpl_block_eqb;
+               try assert(Hδs: (δ + sizeof κ <= δ')%Z) by lia;
+               try assert(Hδ's: (δ' + sizeof κ' <= δ)%Z) by lia;
+               try assert(Hδs: (δ' < δ + sizeof κ)%Z) by lia;
+               try assert(Hδ's: (δ < δ' + sizeof κ')%Z) by lia;
+               try (erewrite load_after_store_other by (split;eauto);
+                    erewrite load_after_store_other with (M2:=M'2) by (split;eauto);
+                    now apply Hiso.(iso_load)).
+             ++ destruct(Z.eq_dec δ δ') as [Heq | Hneq].
+                ** subst.
+                   destruct Hva1 as [Hv1 [H1 H'1]].
+                   destruct Hva2 as [Hv2 [H2 H'2]].
+                   case_eq(Mtyp.eqb κ κ'); intro Hκ.
+                   --- simpl_mtyp_eqb.
+                       erewrite load_after_store_same
+                         by(repeat split; eauto;
+                            erewrite length_after_store; eauto).
+                       erewrite load_after_store_same
+                         by(repeat split; eauto;
+                            erewrite length_after_store; eauto).
+                       case_eq(storable v κ'); intro Hstorable.
+                       +++ rewrite convert_storable by eauto.
+                           destruct v as [n1|[b1 δ1]|], v' as [n2|[b2 δ2]|]; simpl;
+                             split; intro H; inversion H; subst;
+                             repeat rewrite convert_storable in * by eauto;
+                             trivial; inversion H3; subst.
+                           assert(b1 = b2) by (eapply σ_eq; eauto).
+                           now subst.
+                       +++ rewrite convert_not_storable_undef by eauto.
+                           destruct v as [n1|[b1 δ1]|], v' as [n2|[b2 δ2]|]; simpl;
+                             split; intro H; inversion H; subst;
+                             repeat rewrite convert_not_storable_undef in *
+                               by eauto; trivial; inversion H3; subst.
+                   --- assert(Hκdiff: κ<>κ') by simpl_mtyp_eqb.
+                       split; intro H.
+                       +++ assert(HH: M'1 ⫢ κ' @ b', δ')
+                             by (erewrite validaccess_load;eexists;eauto).
+                           destruct HH as [HHv [HH1 HH'1]].
+                           erewrite load_after_store_same with (M2:=M'1) in H
+                               by (repeat split; eauto).
+                           rewrite convert_different_mtyp_undef in H by auto.
+                           inversion H; subst. simpl.
+                           erewrite load_after_store_same with (M2:=M'2)
+                             by (repeat split; eauto; now rewrite <- Hlength).
+                           rewrite convert_different_mtyp_undef;
+                             repeat split; eauto.
+                       +++ assert(HH: M'2 ⫢ κ' @ σ b', δ')
+                             by (erewrite validaccess_load;eexists;eauto).
+                           destruct HH as [HHv2 [HH2 HH'2]].
+                           erewrite load_after_store_same with (M2:=M'2) in H
+                               by (repeat split; eauto).
+                           erewrite load_after_store_same with (M2:=M'1)
+                             by (repeat split; eauto; rewrite Hlength; auto;
+                                 now rewrite Hvalid).
+                           rewrite convert_different_mtyp_undef in H;
+                             repeat split; eauto.
+                           destruct v' as [n1|[b1 δ1]|]; simpl in H;
+                             try discriminate.
+                           now rewrite convert_different_mtyp_undef.
+                ** split; intro H.
+                   --- assert(HH: M'1 ⫢ κ' @ b', δ')
+                         by (erewrite validaccess_load;eexists;eauto).
+                       destruct HH as [HHv [HH1 HH'1]].
+                       erewrite load_after_store_overlap in H; repeat split; eauto.
+                       erewrite load_after_store_overlap
+                         by (repeat split; eauto; now rewrite <- Hlength; auto).
+                       inversion H; now subst.
+                   --- assert(HH: M'2 ⫢ κ' @ σ b', δ')
+                         by (erewrite validaccess_load;eexists;eauto).
+                       destruct HH as [HHv2 [HH2 HH'2]].
+                       erewrite load_after_store_overlap in H; repeat split; eauto.
+                       erewrite load_after_store_overlap
+                         by (repeat split; eauto; rewrite Hlength; auto;
+                             rewrite Hvalid;auto).
+                       destruct v' as [n1|[b1 δ1]|]; trivial; discriminate.
+             ++ erewrite load_after_store_other by (split;eauto).
+                erewrite load_after_store_other with (M2:=M'2)
+                  by(repeat split; eauto; left;
+                     contradict Hb'; eapply σ_eq; eauto).
+                apply Hiso.(iso_load).
         * intros; discriminate.
       + split.
-        * eexists; intros; discriminate.
+        * exists empty. intro. discriminate.
         * intros _.
           apply store_ϵ in H.
           assert(~ (M C2 ⫢ κ @ σ b, δ)).
@@ -773,7 +848,7 @@ Module Context(V : DecidableType)(B: Eqb.EQB)
                 by now apply Hiso.(iso_valid_block).
           }
           now apply store_ϵ.
-  Admitted.
+  Qed.
 
   Definition subcontext C1 C2 :=
     (forall x b, C1.(E) x = ⎣b⎦ -> C2.(E) x = ⎣b⎦)

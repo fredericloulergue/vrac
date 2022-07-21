@@ -60,6 +60,8 @@ Module Type ExecutionMemoryModel(Block: EQB).
 
   Notation "b '∈' 'supp' '(' M ')'" := (in_supp b M) (at level 70).
 
+  Parameter empty: mem.
+  
   Axiom valid_after_alloc_same: forall M1 M2 n b,
       alloc(M1, n) = (b, M2) ->
       M2 ⊨ b.

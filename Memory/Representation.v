@@ -100,6 +100,124 @@ Module Representation(V : DecidableType)(B: Eqb.EQB)
         now erewrite <- valid_after_alloc_other by eauto.
   Qed. 
 
+  Property representation_free:
+    forall Me1 Mo, Me1 ▷ Mo ->
+              forall b Me2, free(Me1, b) = ⎣Me2⎦ ->
+                       Me2 ▷ delete_block(Mo, b).
+  Proof.
+    intros Me1 Mo R b Me2 Hfree.
+    constructor.
+    - intros b0; case_eq(B.eqb b0 b); intro Hb0.
+      + simpl_block_eqb.
+        apply invalid_after_free in Hfree.
+        erewrite deleteblock_validblock_same by eauto.
+        split; intro H; now auto.
+      + assert(Hdiff: b0<>b) by now simpl_block_eqb.
+        split; intro Hv.
+        * erewrite deleteblock_validblock_other by eauto.
+          apply R.(repr_valid).
+          now rewrite <- valid_after_free by (eauto; split; eauto).
+        * rewrite valid_after_free by (eauto; split; eauto).
+          erewrite deleteblock_validblock_other in Hv by eauto.
+          now apply R.(repr_valid).
+    - intros b0 Hv; case_eq(B.eqb b0 b); intro Hb0.
+      + simpl_block_eqb.
+        apply invalid_after_free in Hfree.
+        by_contradiction.
+      + assert(Hdiff: b0<>b) by now simpl_block_eqb.
+        erewrite length_after_free by eauto.
+        erewrite deleteblock_length_other_ by eauto.
+        apply R.(repr_length).
+        now rewrite <- valid_after_free by (eauto; split; eauto).
+    - intros κ b0 δ Hva2; case_eq(B.eqb b0 b); intro Hb0.
+      + simpl_block_eqb.
+        apply invalid_after_free in Hfree.
+        destruct Hva2 as [Hv2 _].
+        by_contradiction.
+      + assert(Hdiff: b0<>b) by now simpl_block_eqb.
+        split; intro Hv.
+        * erewrite deleteblock_isinit_other by eauto.
+          erewrite load_after_free in Hv by eauto.
+          destruct Hva2 as [Hv2 [H1 H2]].
+          erewrite length_after_free in H2 by eauto.
+          apply R.(repr_isinit); auto.
+          repeat split; auto.
+          now rewrite <- valid_after_free by eauto.
+        * erewrite deleteblock_isinit_other in Hv by eauto.
+          erewrite load_after_free by eauto.
+          destruct Hva2 as [Hv2 [H1 H2]].
+          erewrite length_after_free in H2 by eauto.
+          apply R.(repr_isinit); auto.
+          repeat split; auto.
+          now rewrite <- valid_after_free by eauto.
+  Qed.
+  
+  Property representation_store:
+    forall Me1 Mo, Me1 ▷ Mo ->
+              forall κ b δ v Me2, v<>Undef ->
+                             store(κ,Me1,b,δ,v) = ⎣Me2⎦ ->
+                             Me2 ▷ initialize(κ, Mo, b, δ).
+  Proof.
+    intros Me1 Mo R κ b δ v Me2 Hdef Hst.
+    constructor.
+    - intros b'.
+      rewrite valid_after_store by eauto.
+      erewrite initialize_validblock by eauto.
+      now apply R.(repr_valid).
+    - intros b' Hv.
+      erewrite length_after_store by eauto.
+      erewrite initialize_length by eauto.
+      rewrite valid_after_store in Hv by eauto.
+      now apply R.(repr_length).
+    - intros κ' b' δ' Hva2.
+      assert(Hva1: Me1 ⫢ κ' @ b', δ').
+      {
+        destruct Hva2 as [Hv [H1 H2]].
+        repeat split; eauto.
+        now rewrite <- valid_after_store  by eauto.
+        now erewrite <- length_after_store by eauto.
+      }
+      case_eq(B.eqb b b'); intro HB;
+        case_eq((δ + sizeof κ <=? δ')%Z); intro Hδsb;
+        case_eq((δ' + sizeof κ' <=? δ)%Z); intro Hδ'sb;
+        try (assert(Hb': b'<>b) by now simpl_block_eqb);
+        try simpl_block_eqb;
+        try assert(Hδs: (δ + sizeof κ <= δ')%Z) by lia;
+        try assert(Hδ's: (δ' + sizeof κ' <= δ)%Z) by lia;
+        try assert(Hδs: (δ' < δ + sizeof κ)%Z) by lia;
+        try assert(Hδ's: (δ < δ' + sizeof κ')%Z) by lia;
+        try (erewrite load_after_store_other by eauto;
+             erewrite initialize_isinit_other by eauto;
+             now apply R.(repr_isinit)).
+      destruct(Z.eq_dec δ δ').
+      + subst.
+        destruct Hva1 as [Hv1 [H1 H'1]].
+        destruct Hva2 as [Hv2 [H2 H'2]].
+        erewrite load_after_store_same 
+          by (repeat split; eauto; try lia).
+        split; intro H.
+        * destruct H as [v0 [Hdef_v0 Hv0]].
+          assert(κ = κ').
+          {
+            case_eq(Mtyp.eqb κ κ'); intro Heqb.
+            now simpl_mtyp_eqb.
+            rewrite convert_different_mtyp_undef in Hv0 by simpl_mtyp_eqb.
+            inversion Hv0. by_contradiction.
+          }
+          subst.
+          now erewrite initialize_isinit_same by eauto.
+        * admit.
+      + destruct Hva1 as [Hv1 [H1 H'1]].
+        destruct Hva2 as [Hv2 [H2 H'2]].
+        erewrite load_after_store_overlap by(repeat split; eauto).
+        split; intro H.
+        * destruct H as [v0 [Hdef_v0 Hv0]].
+          inversion Hv0.
+          by_contradiction.
+        * admit.
+  Admitted.
+  
+  
 End Representation.
         
         
