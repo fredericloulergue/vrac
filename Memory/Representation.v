@@ -154,11 +154,11 @@ Module Representation(V : DecidableType)(B: Eqb.EQB)
   
   Property representation_store:
     forall Me1 Mo, Me1 ▷ Mo ->
-              forall κ b δ v Me2, v<>Undef ->
+              forall κ b δ v Me2, v<>Undef -> storable v κ = true ->
                              store(κ,Me1,b,δ,v) = ⎣Me2⎦ ->
                              Me2 ▷ initialize(κ, Mo, b, δ).
   Proof.
-    intros Me1 Mo R κ b δ v Me2 Hdef Hst.
+    intros Me1 Mo R κ b δ v Me2 Hdef Hstorable Hst.
     constructor.
     - intros b'.
       rewrite valid_after_store by eauto.
@@ -206,7 +206,16 @@ Module Representation(V : DecidableType)(B: Eqb.EQB)
           }
           subst.
           now erewrite initialize_isinit_same by eauto.
-        * admit.
+        * case_eq(Mtyp.eqb κ κ'); intro Hκ.
+          -- simpl_mtyp_eqb.
+             rewrite convert_storable by auto.
+             eexists; eauto.
+          -- erewrite initialize_isinit_overlap in H.
+             discriminate.
+             repeat split; eauto.
+             left; repeat split; eauto; simpl_mtyp_eqb.
+             erewrite initialize_length by eauto.
+             now rewrite <- R.(repr_length).
       + destruct Hva1 as [Hv1 [H1 H'1]].
         destruct Hva2 as [Hv2 [H2 H'2]].
         erewrite load_after_store_overlap by(repeat split; eauto).
@@ -214,9 +223,12 @@ Module Representation(V : DecidableType)(B: Eqb.EQB)
         * destruct H as [v0 [Hdef_v0 Hv0]].
           inversion Hv0.
           by_contradiction.
-        * admit.
-  Admitted.
-  
+        * erewrite initialize_isinit_overlap in H.
+          discriminate.
+          repeat split; eauto.
+          erewrite initialize_length by eauto.
+          now rewrite <- R.(repr_length).
+  Qed.
   
 End Representation.
         

@@ -60,6 +60,12 @@ Module Type ObservationMemoryModel(Block: Eqb.EQB).
       (b <> b' \/ δ + sizeof(κ) <= δ' \/ δ' + sizeof(κ') <= δ) ->
       is_initialized(κ', M2, b', δ') = is_initialized(κ', M1, b', δ').
 
+  Axiom initialize_isinit_overlap: forall M1 M2 b δ δ' κ κ',
+      initialize(κ, M1, b, δ) = M2 /\ ((δ=δ'/\ κ<>κ') \/ δ <> δ') /\
+      δ' < δ + sizeof(κ) /\ δ < δ' + sizeof(κ') /\
+      0 <= δ' /\ δ' + sizeof(κ') <= length(M2, b) ->
+      is_initialized(κ', M2, b, δ') = false.
+  
   Axiom storeblock_length_same: forall M1 M2 b n,
       store_block(M1, b, n) = M2 ->
       length(M2, b) = Z.of_nat n.

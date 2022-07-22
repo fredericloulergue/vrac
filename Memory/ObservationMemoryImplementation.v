@@ -78,14 +78,17 @@ Module Implementation : ObservationMemoryModel Nat.
             allocated := M.(allocated);
             size := M.(size);
             initialized :=
-              fun b' δ' κ' => if ( (Nat.eqb b b') &&
-                                  ( ( (δ =? δ')&&(Mtyp.eqb κ κ') )
-                                    || (negb(δ =? δ') &&  (δ'<? δ+sizeof κ)
-                                       && (δ<? δ'+sizeof κ') && (0 <=? δ')
-                                       && (δ' + sizeof κ' <=? length(M, b)))) )%bool
+              fun b' δ' κ' => if ((Nat.eqb b b') && (δ =? δ')&& (Mtyp.eqb κ κ'))%bool    
                            then true
-                           else M.(initialized) b' δ' κ'
-                                                
+                           else
+                             if ((Nat.eqb b b') &&
+                                   ((δ =? δ')&&(negb(Mtyp.eqb κ κ'))||(negb(δ=? δ')))
+                                 && (0 <=? δ')
+                                 && (δ'<? δ+sizeof κ)
+                                 && (δ<? δ'+sizeof κ') && (0 <=? δ')
+                                 && (δ' + sizeof κ' <=? length(M, b)))%bool
+                             then false
+                             else M.(initialized) b' δ' κ'
           |}
       end.
 
@@ -178,31 +181,37 @@ Module Implementation : ObservationMemoryModel Nat.
     clean_inv H0.  clear H.
     assert(0 < sizeof κ) by now destruct κ.
     assert(0 < sizeof κ') by now destruct κ'.
-    repeat destruct_or_hyp.
-    - now simpl_eqb.
-    - match goal with
-      | [ |- (if ?cond then _ else _) = _ ] =>
-          assert(Ht: cond = false)
-      end.
-      {
-        assert(δ <> δ') by lia.
-        assert(Hf: (δ' <? δ + sizeof κ)%bool = false) by lia.
-        simpl_eqb; rewrite Hf; simpl; now rewrite Bool.andb_comm.
-      }
-      now rewrite Ht.
-    - match goal with
-      | [ |- (if ?cond then _ else _) = _ ] =>
-          assert(Ht: cond = false)
-      end.
-      {
-        assert(δ <> δ') by lia.
-        assert(Hf: (δ <? δ' + sizeof κ')%bool = false) by lia.
-        simpl_eqb; rewrite Hf.
-        now repeat (try rewrite Bool.andb_false_l;
-                    try rewrite Bool.andb_false_r).
-      }
-      now rewrite Ht.
-  Qed.    
+    simpl_if; repeat destruct_or_hyp.
+    - repeat destruct_and_hyp. simpl_eqb. by_contradiction.
+    - repeat destruct_and_hyp. assert(δ<>δ') by lia. simpl_eqb. by_contradiction.
+    - repeat destruct_and_hyp. assert(δ<>δ') by lia. simpl_eqb. by_contradiction.
+    - simpl_eqb. now rewrite H1.
+    - assert(HH:(δ' <? δ + sizeof κ)=false) by lia. rewrite HH. 
+      now rewrite Bool.andb_false_r.
+    - assert(HH:(δ <? δ' + sizeof κ')=false) by lia. rewrite HH. 
+      now rewrite Bool.andb_false_r.
+  Qed.
+
+  Lemma initialize_isinit_overlap: forall M1 M2 b δ δ' κ κ',
+      initialize(κ, M1, b, δ) = M2 /\ ((δ=δ'/\ κ<>κ') \/ δ <> δ') /\
+      δ' < δ + sizeof(κ) /\ δ < δ' + sizeof(κ') /\
+      0 <= δ' /\ δ' + sizeof(κ') <= length(M2, b) ->
+      is_initialized(κ', M2, b, δ') = false.
+  Proof.
+    unfold initialize.
+    intros M1 [alloc sz init] b δ δ' κ κ' H.
+    simpl in *.
+    destruct H as [Hinit [H1 [H2 [H3 [H4 H5]]]]].
+    inversion Hinit; clear Hinit.
+    destruct H1 as [ [Hsameδ Hdiffκ] | Hdiffδ ];
+      try subst; repeat simpl_eqb;
+      match goal with
+      | [ |- context [ if ?cond then _ else _ ] ] =>
+          assert(HH: cond = true) by
+          (repeat destruct_and_goal; lia)
+      end;
+      now rewrite HH.
+  Qed.
 
   Lemma storeblock_length_same: forall M1 M2 b n,
       store_block(M1, b, n) = M2 ->
