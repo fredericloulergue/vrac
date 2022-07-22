@@ -91,13 +91,13 @@ Module Representation(V : DecidableType)(B: Eqb.EQB)
       + simpl_block_eqb.
         now erewrite storeblock_isinit_same in Hinit by eauto.
       + assert(b0<>b) by now simpl_block_eqb.
-        destruct Hva as [Hv [H1 H2]].
+        assert(Hva': Me ⫢ κ @ b0, δ)
+          by (rewrite valid_access_after_alloc; eauto).
+          destruct Hva as [Hv [H1 H2]].
         erewrite length_after_alloc_other in H2 by eauto.
         erewrite storeblock_isinit_other in Hinit by eauto.
         erewrite load_after_alloc by eauto.
         apply R.(repr_isinit) in Hinit; trivial.
-        repeat split; auto.
-        now erewrite <- valid_after_alloc_other by eauto.
   Qed. 
 
   Property representation_free:
@@ -135,21 +135,19 @@ Module Representation(V : DecidableType)(B: Eqb.EQB)
         destruct Hva2 as [Hv2 _].
         by_contradiction.
       + assert(Hdiff: b0<>b) by now simpl_block_eqb.
+        assert(Hva1: Me1 ⫢ κ @ b0, δ)
+          by (rewrite valid_access_after_free; eauto).
         split; intro Hv.
         * erewrite deleteblock_isinit_other by eauto.
           erewrite load_after_free in Hv by eauto.
           destruct Hva2 as [Hv2 [H1 H2]].
           erewrite length_after_free in H2 by eauto.
           apply R.(repr_isinit); auto.
-          repeat split; auto.
-          now rewrite <- valid_after_free by eauto.
         * erewrite deleteblock_isinit_other in Hv by eauto.
           erewrite load_after_free by eauto.
           destruct Hva2 as [Hv2 [H1 H2]].
           erewrite length_after_free in H2 by eauto.
           apply R.(repr_isinit); auto.
-          repeat split; auto.
-          now rewrite <- valid_after_free by eauto.
   Qed.
   
   Property representation_store:
@@ -170,13 +168,8 @@ Module Representation(V : DecidableType)(B: Eqb.EQB)
       rewrite valid_after_store in Hv by eauto.
       now apply R.(repr_length).
     - intros κ' b' δ' Hva2.
-      assert(Hva1: Me1 ⫢ κ' @ b', δ').
-      {
-        destruct Hva2 as [Hv [H1 H2]].
-        repeat split; eauto.
-        now rewrite <- valid_after_store  by eauto.
-        now erewrite <- length_after_store by eauto.
-      }
+      assert(Hva1: Me1 ⫢ κ' @ b', δ')
+        by(rewrite valid_access_after_store; eauto).
       case_eq(B.eqb b b'); intro HB;
         case_eq((δ + sizeof κ <=? δ')%Z); intro Hδsb;
         case_eq((δ' + sizeof κ' <=? δ)%Z); intro Hδ'sb;

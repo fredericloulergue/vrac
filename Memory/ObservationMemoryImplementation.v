@@ -14,7 +14,7 @@ Module Implementation : ObservationMemoryModel Nat.
     {
       allocated: block -> bool;
       size: block -> Z;
-      initialized : block -> Z ->  mtyp -> bool;
+      initialized : block -> Z -> mtyp -> bool;
     }.
   
   Definition obs := Memory.

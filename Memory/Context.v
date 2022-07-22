@@ -27,13 +27,6 @@ Module Context(V : DecidableType)(B: Eqb.EQB)
               | Ptr(b, δ) => Ptr(σ(b), δ)
               end.
 
-  (*
-    Lemma induced_PI :
-    forall (σ: block->block)(H1 H2: Bijective σ),
-    forall value, induced σ H1 value = induced σ H2 value.
-  Admitted.
-   *)
-
   Class isomorphic (C1 C2: context)(σ: Block.t -> Block.t)(Hσ: Bijective σ) :=
     {
       iso_environment: forall x b, C1.(E) x = ⎣b⎦ <-> C2.(E) x = ⎣σ b⎦;
@@ -42,6 +35,59 @@ Module Context(V : DecidableType)(B: Eqb.EQB)
       iso_load: forall κ b δ v, load(κ, C1.(M), b, δ) = ⎣v⎦ <->
                              load(κ, C2.(M), σ b, δ) = ⎣(induced σ Hσ) v⎦
     }.
+
+  Property valid_access_after_alloc:
+    forall M1 M2 b b' n δ κ,
+      b'<>b ->
+      alloc(M1,n) = (b,M2) ->
+      M1 ⫢ κ @ b',δ <-> M2 ⫢ κ @ b',δ.
+  Proof.
+    intros M1 M2 b b' n δ κ Halloc.
+    split; intro Hva.
+    - destruct Hva as [Hv [H1 H2]].
+      repeat split; auto.
+      now eapply valid_after_alloc_other; eauto.
+      erewrite length_after_alloc_other; eauto.
+    - destruct Hva as [Hv [H1 H2]].
+      repeat split; eauto.
+      erewrite <- valid_after_alloc_other with(M1:=M1); repeat split; eauto.
+      erewrite <- length_after_alloc_other; repeat split; eauto.
+  Qed.
+
+  Property valid_access_after_free:
+    forall M1 M2 b b' δ κ,
+      b'<>b ->
+      free(M1, b) = ⎣M2⎦ ->
+      M1 ⫢ κ @ b',δ <-> M2 ⫢ κ @ b',δ.
+  Proof.
+    intros M1 M2 b b' δ κ H Hfree.
+    split; intro Hva.
+    - destruct Hva as [Hv [H1 H2]].
+      repeat split; auto.
+      now eapply valid_after_free; eauto.
+      erewrite length_after_free; eauto.
+    - destruct Hva as [Hv [H1 H2]].
+      repeat split; eauto.
+      erewrite <- valid_after_free with(M1:=M1); repeat split; eauto.
+      erewrite <- length_after_free; repeat split; eauto.
+  Qed.
+
+  Property valid_access_after_store:
+    forall M1 M2 b b' δ δ' κ κ' v,
+      store(κ,M1,b,δ,v) = ⎣M2⎦ ->
+      M1 ⫢ κ' @ b',δ' <-> M2 ⫢ κ' @ b',δ'.
+  Proof.
+    intros M1 M2 b b' δ κ κ' v Hstore.
+    split; intro Hva.
+    - destruct Hva as [Hv [H1 H2]].
+      repeat split; auto.
+      now eapply valid_after_store; eauto.
+      erewrite length_after_store; eauto.
+    - destruct Hva as [Hv [H1 H2]].
+      repeat split; eauto.
+      erewrite <- valid_after_store with(M1:=M1); repeat split; eauto.
+      erewrite <- length_after_store; repeat split; eauto.
+  Qed.
 
   Property isomorphic_valid_access:
     forall C1 C2 σ Hσ,
