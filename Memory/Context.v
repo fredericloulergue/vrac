@@ -17,7 +17,8 @@ Module Context(V : DecidableType)(B: Eqb.EQB)
   Record context := {
       E: environment;
       M: mem;
-      wf: forall x b, E x = ⎣b⎦ -> M ⊨ b
+      inj: forall x y, E x = E y -> x = y;
+      wf: forall x b, E x = ⎣b⎦ -> M ⊨ b;
     }.
 
   Definition induced (σ: Block.t -> Block.t) (Hσ: Bijective σ) :=
@@ -255,8 +256,8 @@ Module Context(V : DecidableType)(B: Eqb.EQB)
       alloc(C1.(M), n) = (b1, M'1) ->
       alloc(C2.(M), n) = (b2, M'2) ->
       exists σ' Hσ' Hwf1 Hwf2,
-        isomorphic {| E := C1.(E); M := M'1; wf := Hwf1 |}
-                   {| E := C2.(E); M := M'2; wf := Hwf2  |} σ' Hσ'
+        isomorphic {| E := C1.(E); M := M'1; inj:= C1.(inj); wf := Hwf1 |}
+                   {| E := C2.(E); M := M'2; inj:= C2.(inj); wf := Hwf2  |} σ' Hσ'
           /\ (forall b, b <> b1 /\ σ b <> b2 -> σ' b = σ b)
           /\ (σ' b1 = b2)
           /\ (forall b, σ b = b2 -> σ' b = σ b1).
@@ -604,8 +605,8 @@ Module Context(V : DecidableType)(B: Eqb.EQB)
       exists M'1 M'2 Hwf1 Hwf2,
         free(C1.(M), b) = ⎣M'1⎦
         /\ free(C2.(M), σ b) = ⎣M'2⎦
-        /\ isomorphic {|E:=C1.(E);M:=M'1;wf:=Hwf1|}
-                     {|E:=C2.(E);M:=M'2;wf:=Hwf2|}
+        /\ isomorphic {|E:=C1.(E);M:=M'1;inj:= C1.(inj);wf:=Hwf1|}
+                     {|E:=C2.(E);M:=M'2;inj:= C2.(inj);wf:=Hwf2|}
                      σ Hσ .
   Proof.
     intros C1 C2 b σ Hσ Hiso Hv1 Him.
@@ -727,8 +728,8 @@ Module Context(V : DecidableType)(B: Eqb.EQB)
       ( (exists M'1, store(κ, C1.(M), b, δ, v) = ⎣M'1⎦ ->
                 (exists M'2 Hwf1 Hwf2,
                     ( store(κ, C2.(M), σ b, δ, induced σ Hσ v) = ⎣M'2⎦
-                      /\ isomorphic {|E:=C1.(E);M:=M'1;wf:=Hwf1|}
-                                   {|E:=C2.(E);M:=M'2;wf:=Hwf2|}
+                      /\ isomorphic {|E:=C1.(E);M:=M'1;inj:= C1.(inj);wf:=Hwf1|}
+                                   {|E:=C2.(E);M:=M'2;inj:= C2.(inj);wf:=Hwf2|}
                                    σ Hσ)))
         /\ (store(κ, C1.(M), b, δ, v) = ϵ ->
            store(κ, C2.(M), σ b, δ, induced σ Hσ v) = ϵ) ).

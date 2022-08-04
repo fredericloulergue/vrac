@@ -459,12 +459,94 @@ Module Semantics(V : DecidableType)(B: Eqb.EQB)
     now erewrite valid_after_store by eauto.
   Qed.
 
+  Fact wf_after_free `(Hfree: free(C.(M), b) = ⎣M2⎦)
+    (Him: forall x, C.(E) x <> ⎣b⎦) :
+    (forall x b', C.(E) x = ⎣b'⎦ -> M2 ⊨ b').
+  Proof.
+    intros x b' H.
+    case_eq(B.eqb b' b); intro Hb.
+    - assert(b = b') by now simpl_block_eqb.
+      subst. specialize (Him x).
+      by_contradiction.
+    - apply wf in H.
+      rewrite valid_after_free; eauto.
+      split; eauto; simpl_block_eqb.
+  Qed.
+
+  Fact wf_after_alloc `(Halloc: alloc(C.(M), Z.to_nat n) = (b', M2)):
+    (forall x b'', C.(E) x = ⎣b''⎦ -> M2 ⊨ b'').
+  Proof.
+    intros x b'' H.
+    case_eq(B.eqb b'' b'); intro Hb'.
+    - assert(Heq: b'' = b') by now simpl_block_eqb. subst.
+      eapply valid_after_alloc_same; eauto.
+    - apply wf in H.
+      eapply valid_after_alloc_other; eauto; split; eauto.
+      now simpl_block_eqb.
+  Qed.
+      
+  Fact wf_after_malloc `(Halloc: alloc(C.(M), Z.to_nat n) = (b', M2))
+    `(Hstore: store(mtype (TPtr τ), M2, b, δ, Ptr(b',0%Z)) = ⎣M3⎦) :
+    (forall x b', C.(E) x = ⎣b'⎦ -> M3 ⊨ b').
+  Proof.
+    intros x b'' H.
+    assert(H2: M2 ⊨ b'') by (eapply wf_after_alloc; eauto).
+    now rewrite valid_after_store by eauto.
+  Qed.
+
+  Definition alloc_var (C1: context) (x: V.t) (τ: ctyp) : context :=
+    let res := alloc(C1.(M), Z.to_nat (sizeof(mtype τ))) in
+    let b := fst res in
+    let M2 := snd res in 
+    let E2 := fun x' => if V.eq_dec x' x then ⎣b⎦ else C1.(E) x' in
+    {|
+      E := C1.(E);
+      M := M2;
+      inj:= C1.(inj);
+      wf := wf_after_alloc (surjective_pairing res)
+    |}.  
+
+  Open Scope option_monad_scope.
   
-  (* Rules S-seq and S-while-true are slightly different than their
-     counterparts in the companion paper. *)
+  Definition dealloc_var C x : option mem :=
+    do b <- (C.(E) x);
+    do M2 <- free(C.(M), b);
+    ⎣M2⎦.
+
+  Close Scope option_monad_scope.
+
+  Fact wf_after_alloc_dealloc_var
+    `(Hdom: C1.(E) x = ϵ)
+    `(Halloc: C2 = alloc_var C1 x τ)
+    `(Hdealloc: ⎣M4⎦ = dealloc_var {|E:=C2.(E);M:=M3;inj:=C2.(inj);wf:=Wf3|} x) :
+    (forall x' b, C1.(E) x' = ⎣b⎦ -> M4 ⊨ b).
+  Proof.
+    intros x' b H.
+    unfold dealloc_var, Option.bind in Hdealloc; simpl in Hdealloc.
+    assert(HC: C2.(E) = C1.(E)) by (subst; now unfold alloc_var).
+    case_eq(C2.(E) x); [intros b' H' | intros H']; rewrite H' in Hdealloc.
+    - assert(H'': free(M3, b') = ⎣M4⎦)
+        by (destruct(free(M3, b')); now inversion Hdealloc).
+      destruct(V.eq_dec x' x) as [Heq | Hneq].
+      + rewrite HC, Hdom in H'; discriminate.
+      + case_eq(B.eqb b' b); intro Hb.
+        * assert(b = b') by now simpl_block_eqb. subst.
+          unfold alloc_var in H'; simpl in H'.
+          assert(Heq': x = x') by (eapply inj; now rewrite H, H').
+          subst.
+          now contradict Hneq.
+        * rewrite valid_after_free; [idtac|split; eauto; simpl_block_eqb].
+          eapply Wf3. rewrite HC. eauto.
+    - discriminate.
+  Qed.
+  
+  (* TODO: explanation wrt. to the companion paper. *)
   Inductive seval : forall (C: context) (Γ: type_env) (s: stmt) (M2: mem)
-    (Invariant: forall x b, C.(E) x = ⎣b⎦ -> M2 ⊨ b), Prop :=
-  | S_skip: forall C Γ, seval C Γ SSkip C.(M) C.(wf)
+                      (Invariant: forall x b, C.(E) x = ⎣b⎦ -> M2 ⊨ b), Prop :=
+    
+  | S_skip: forall C Γ,
+      seval C Γ SSkip C.(M) C.(wf)
+                                             
   | S_assign: forall C Γ e1 e2 τ v b δ M2
       (Hstore: store(mtype τ, C.(M), b, δ, v) = ⎣M2⎦),
       Expr.check_type Γ e1 = Ok τ ->
@@ -472,27 +554,58 @@ Module Semantics(V : DecidableType)(B: Eqb.EQB)
       eeval C Γ e2 v ->
       lveval C Γ e2 (b,δ) ->
       seval C Γ (SAssign e1 e2) M2 (wf_after_store Hstore)
-  (*
-  | S_malloc: forall C Γ e1 e2 τ n b δ b' M2 M3,
+
+  | S_malloc: forall C Γ e1 e2 τ n b δ b' M2 M3
+                (Halloc: alloc(C.(M), Z.to_nat n) = (b', M2))
+                (Hstore: store(mtype (TPtr τ), M2, b, δ, Ptr(b',0%Z)) = ⎣M3⎦),
       Expr.check_type Γ e1 = Ok (TPtr τ) ->
       eeval C Γ e2 (Int n) ->
-      alloc(C.(M), Z.to_nat n) = (b', M2) ->
       lveval C Γ e1 (b,δ) ->
-      store(mtype (TPtr τ), M2, b, δ, Ptr(b',0%Z)) = ⎣M3⎦ ->
-      seval C Γ (SMalloc e1 e2) M3
-  | S_free: forall C Γ e b M2,
+      seval C Γ (SMalloc e1 e2) M3 (wf_after_malloc Halloc Hstore)
+
+  | S_free: forall C Γ e b M2
+              (Hfree: free(C.(M), b) = ⎣M2⎦)
+              (Him: forall x, C.(E) x <> ⎣b⎦),
       eeval C Γ e (Ptr(b, 0%Z)) ->
-      free(C.(M), b) = ⎣M2⎦ ->
-      (forall x, C.(E) x <> ⎣b⎦) ->
-      seval C Γ (SFree e) M2
-      *)
+      seval C Γ (SFree e) M2 (wf_after_free Hfree Him)
+
   | S_logical_assert: forall C Γ p,
       peval C Γ p true ->
       seval C Γ (SLogicalassert p) C.(M) C.(wf)
+                                             
   | S_seq: forall C Γ s1 s2 M2 Wf2 M3 Wf3,
       seval C Γ s1 M2 Wf2 ->
-      seval {|E:=C.(E);M:=M2;wf:=Wf2|} Γ s2 M3 Wf3 ->
+      seval {|E:=C.(E);M:=M2;inj:=C.(inj);wf:=Wf2|} Γ s2 M3 Wf3 ->
       seval C Γ (SSeq s1 s2) M3 Wf3
+
+  | S_if_false: forall C Γ e s1 s2 M2 Wf2,
+      eeval C Γ e (Int 0%Z) ->
+      seval C Γ s2 M2 Wf2 ->
+      seval C Γ (SIf e s1 s2) M2 Wf2
+
+  | S_if_true: forall C Γ e s1 s2 M1 Wf1 n,
+      eeval C Γ e (Int n) ->
+      n <> 0%Z -> 
+      seval C Γ s1 M1 Wf1 ->
+      seval C Γ (SIf e s1 s2) M1 Wf1
+
+  | S_while_false: forall C Γ e s,
+      eeval C Γ e (Int 0%Z) ->
+      seval C Γ (SWhile e s) C.(M) C.(wf)
+
+  | S_while_true: forall C Γ e s n M2 Wf2 M3 Wf3,
+      eeval C Γ e (Int n) ->
+      n <> 0%Z ->
+      seval C Γ s M2 Wf2 ->
+      seval {|E:=C.(E);M:=M2;inj:=C.(inj);wf:=Wf2|} Γ (SWhile e s) M3 Wf3 -> 
+      seval C Γ (SWhile e s) M3 Wf3
+
+  | S_let: forall C1 Γ x τ s C2 M3 Wf3 M4
+     (Hdom: C1.(E) x = ϵ)
+     (Halloc: C2 = alloc_var C1 x τ)
+     (Hdealloc: ⎣M4⎦ = dealloc_var {|E:=C2.(E);M:=M3;inj:=C2.(inj);wf:=Wf3|} x),
+      seval C2 Γ s M3 Wf3 ->
+      seval C1 Γ (SLet x τ s) M4 (wf_after_alloc_dealloc_var Hdom Halloc Hdealloc)
   .
   
 End Semantics.
