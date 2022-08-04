@@ -7,27 +7,27 @@ Module Semantics(V : DecidableType)(B: Eqb.EQB)
   (Import Ctx: Context.SIG V B EMM)
   (Import Stx: Syntax.SIG V).
 
-  Import Stx.Types.
+  Import Stx.Types Stx.Expr Stx.Term Stx.Pred Stx.Stmt.
 
   Definition mtype := mtype machine_word.
   
   Inductive kind := KInt | KPtr | KUn.
   
-  Definition kind_t (τ : type) : kind :=
+  Definition kind_t (τ: ctyp) : kind :=
     match τ with
     | TInt _ => KInt
     | TPtr _ => KPtr
     end.
 
-  Definition kind_v (v : value) : kind :=
+  Definition kind_v (v: value) : kind :=
     match v with
     | Int _ => KInt
     | Ptr _ => KPtr
     | _ => KUn
     end.
 
-  Definition valid_expr (Γ: type_env)(e: Stx.expr) : Prop :=
-    exists τ, check_type Γ e = Ok τ.
+  Definition valid_expr (Γ: type_env)(e: expr) : Prop :=
+    exists τ, Expr.check_type Γ e = Ok τ.
 
   Ltac rewrite_clear :=
     match goal with
@@ -37,19 +37,19 @@ Module Semantics(V : DecidableType)(B: Eqb.EQB)
 
   Ltac check_type :=
     intros; simpl; repeat rewrite_clear; simpl;
-    unfold same_as_checked; now simpl_type_eqb.
+    unfold match_ctyp; now simpl_ctyp_eqb.
   
   Fact deref_check_type:
     forall Γ e τ,
-    check_type Γ e = Ok (TPtr τ) ->
-    check_type Γ (EDeref e τ) = Ok τ.
+    Expr.check_type Γ e = Ok (TPtr τ) ->
+    Expr.check_type Γ (EDeref e τ) = Ok τ.
   Proof. check_type. Qed.
   
   Fact parith_check_type:
     forall Γ e1 τ1 e2 κ2,
-      check_type Γ e1 = Ok (TPtr τ1) ->
-      check_type Γ e2 = Ok (TInt κ2) ->
-      check_type Γ (EBinop Oadd e1 e2 (TPtr τ1)) = Ok (TPtr τ1).
+      Expr.check_type Γ e1 = Ok (TPtr τ1) ->
+      Expr.check_type Γ e2 = Ok (TInt κ2) ->
+      Expr.check_type Γ (EBinop Oadd e1 e2 (TPtr τ1)) = Ok (TPtr τ1).
   Proof. check_type. Qed.
 
   Definition within_bounds (κ: mtyp)(n:Z) : option value :=
@@ -86,7 +86,7 @@ Module Semantics(V : DecidableType)(B: Eqb.EQB)
     | (_, _, _) => ϵ
     end.
 
-  Inductive eeval: Ctx.context -> Stx.type_env -> Stx.expr -> value -> Prop :=
+  Inductive eeval: Ctx.context -> type_env -> expr -> value -> Prop :=
   | E_int: forall C Γ n τ,
       valid_expr Γ (EInt n τ) ->
       eeval C Γ (EInt n τ) (Int n)
@@ -97,7 +97,7 @@ Module Semantics(V : DecidableType)(B: Eqb.EQB)
       eeval C Γ (EAddrof e τ) (Ptr(b,δ))
 
   | E_lval: forall C Γ e τ b δ v,
-      check_type Γ e = Ok τ -> 
+      Expr.check_type Γ e = Ok τ -> 
       lveval C Γ e (b,δ) ->
       EMM.load(mtype τ, C.(M), b, δ) = ⎣v⎦ ->
       v <> Undef ->
@@ -105,21 +105,21 @@ Module Semantics(V : DecidableType)(B: Eqb.EQB)
       eeval C Γ e v
             
   | E_unop: forall C Γ op e τ v v',
-      check_type Γ (EUnop op e τ) = Ok τ ->
+      Expr.check_type Γ (EUnop op e τ) = Ok τ ->
       eeval C Γ e v ->
       sem_unop (mtype τ) op v = ⎣v'⎦ ->
       eeval C Γ (EUnop op e τ) v'
 
   | E_binop: forall C Γ op e1 e2 τ v1 v2 v,
-      check_type Γ (EBinop op e1 e2 τ) = Ok τ ->
+      Expr.check_type Γ (EBinop op e1 e2 τ) = Ok τ ->
       eeval C Γ e1 v1 ->
       eeval C Γ e2 v2 ->
       sem_binop (mtype τ) op v1 v2 = ⎣v⎦ ->
       eeval C Γ (EBinop op e1 e2 τ) v
          
   | E_parith: forall C Γ e1 τ1 v1 e2 κ2 b δ n sz e v,
-      check_type Γ e1 = Ok (TPtr τ1) ->
-      check_type Γ e2 = Ok (TInt κ2) ->
+      Expr.check_type Γ e1 = Ok (TPtr τ1) ->
+      Expr.check_type Γ e2 = Ok (TInt κ2) ->
       eeval C Γ e1 v1 -> v1 = (Ptr(b,δ)) ->
       eeval C Γ e2 (Int n) ->
       sz = sizeof(mtype τ1) ->
@@ -128,12 +128,12 @@ Module Semantics(V : DecidableType)(B: Eqb.EQB)
       v = Ptr(b,(δ+n*sz)%Z) ->
       eeval C Γ e v
 
-  with lveval: Ctx.context -> Stx.type_env -> Stx.expr -> B.t * Z -> Prop :=
+  with lveval: context -> type_env -> expr -> B.t * Z -> Prop :=
   | LV_var: forall C Γ x τ b,
       lveval C Γ (EVar x τ) (b,0%Z)
 
   | LV_deref: forall C Γ e τ b δ,
-      check_type Γ e = Ok (TPtr τ) ->
+      Expr.check_type Γ e = Ok (TPtr τ) ->
       eeval C Γ e (Ptr(b,δ)) ->
       lveval C Γ (EDeref e τ) (b,δ)
   .
@@ -247,6 +247,3 @@ Module Semantics(V : DecidableType)(B: Eqb.EQB)
   Qed.
 
 End Semantics.
-
-
-
