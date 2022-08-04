@@ -25,7 +25,9 @@ Module Implementation: ExecutionMemoryModel Nat.
       invariant1: forall b, In b forbidden -> not(In b allocated);
       invariant2: forall b b' δ δ' κ,
         content b δ = ⎣(κ, Ptr(b',δ'))⎦ ->
-        In b' allocated \/ In b' forbidden
+        In b' allocated \/ In b' forbidden;
+      invariant3: forall b,
+        not(In b allocated) \/ is_deallocated b = true -> size b = 0%Z
     }.
 
   Definition mem := Memory.
@@ -62,6 +64,13 @@ Module Implementation: ExecutionMemoryModel Nat.
     intros; discriminate.
   Qed.
 
+  Lemma invariant3_empty:
+    forall b,
+      not(In b []) \/ (fun b:block => false) b = true ->
+      (fun b:block => 0) b = 0%Z.
+  Proof. now intro. Qed.
+
+  
   Definition empty :=
     {|
       allocated := [];
@@ -70,7 +79,8 @@ Module Implementation: ExecutionMemoryModel Nat.
       is_deallocated := fun b => false;
       content := fun b δ => ϵ;
       invariant1:= invariant1_empty;
-      invariant2 := invariant2_empty
+      invariant2 := invariant2_empty;
+      invariant3 := invariant3_empty
     |}.
    
   Definition is_valid_access (M: mem)(κ: mtyp)(b: block)(δ: Z) : bool :=
@@ -147,7 +157,19 @@ Module Implementation: ExecutionMemoryModel Nat.
   Proof.
     reflect.
   Qed.
-  
+
+  Lemma valid_block_decidable:
+    forall M b, M ⊨ b \/ not(M ⊨ b).
+  Proof.
+    intros M b.
+    case_eq(is_valid M b); intro Hv.
+    - apply valid_iff_is_valid_true in Hv.
+      now left.
+    - rewrite <- Bool.not_true_iff_false in Hv.
+      rewrite valid_iff_is_valid_true in Hv.
+      now right.
+  Qed.
+      
   Lemma valid_access_iff_is_valid_access_true :
     forall M κ b δ, is_valid_access M κ b δ = true <-> M ⫢ κ @ b,δ.
   Proof.
@@ -232,7 +254,29 @@ Module Implementation: ExecutionMemoryModel Nat.
     - apply (invariant2 M) in H.
       destruct H as [ H | H ]; [left;simpl; right | right];  auto.
   Qed.
-  
+
+  Lemma alloc_invariant3 :
+    forall M n b,
+      let new_b := (1 + Nat.max (maximum M.(allocated))
+                          (maximum M.(forbidden)))%nat in
+      let new_size := fun b => if (b =? new_b)%nat then Z.of_nat n else M.(size) b in
+      let new_deallocated := fun b => if (b =? new_b)%nat then false
+                                   else M.(is_deallocated) b in
+      not(In b (new_b::allocated M)) \/ new_deallocated b = true ->
+      new_size b = 0%Z.
+  Proof.
+    intros M n b new_b new_size new_deallocated [H | H];
+      unfold new_size.
+    - case_eq(Nat.eqb b new_b); intro Hb.
+      + simpl_eqb. contradict H. now left.
+      + apply invariant3. left. contradict H.
+        simpl. now right.
+    - case_eq(Nat.eqb b new_b); intro Hb; unfold new_deallocated in H.
+      + simpl_eqb. simpl in H. simpl_eqb. discriminate.
+      + apply invariant3. right.
+        now rewrite Hb in H.
+  Qed.
+    
   Definition alloc : mem * nat -> block * mem :=
     fun argument =>
       let (M, n) := argument in
@@ -249,8 +293,24 @@ Module Implementation: ExecutionMemoryModel Nat.
                  else M.(content) b)
           (alloc_invariant1 M)
           (alloc_invariant2 M)
+          (alloc_invariant3 M n)
       ).
 
+  Definition free_invariant3 :
+    forall M b,
+      let new_size := (fun b' => if (b =? b')%nat then 0 else M.(size) b') in
+      let new_deallocated := fun b' => if (b =? b')%nat  then true
+                                    else M.(is_deallocated) b' in
+      forall b', 
+      not(In b' M.(allocated)) \/ new_deallocated b' = true ->
+      new_size b' = 0.
+  Proof.
+    intros M b new_size new_deallocated b' H.
+    unfold new_size, new_deallocated in *.
+    case_eq(Nat.eqb b b'); intro Hb; trivial.
+    rewrite Hb in H.
+    now apply invariant3.
+  Qed.
 
   Definition free : mem * block -> option mem :=
     fun argument =>
@@ -264,7 +324,8 @@ Module Implementation: ExecutionMemoryModel Nat.
              (fun b' => if (b =? b')%nat  then true else M.(is_deallocated) b')
              (M.(content))
              (M.(invariant1))
-             (M.(invariant2))⎦.
+             (M.(invariant2))
+             (free_invariant3 M b)⎦.
 
   Lemma store_invariant1 :
     forall M v, let new_forbidden :=
@@ -353,7 +414,8 @@ Module Implementation: ExecutionMemoryModel Nat.
               (M.(is_deallocated))
               (new_content κ M b δ v)
               (store_invariant1 M v)
-              (store_invariant2 κ M b δ v)⎦
+              (store_invariant2 κ M b δ v)
+              M.(invariant3)⎦
           else ϵ
       end.
 
@@ -793,6 +855,25 @@ Module Implementation: ExecutionMemoryModel Nat.
       mauto.
   Qed.
 
+  Lemma invalid_length : forall M b,
+      not(M ⊨ b) -> length(M, b) = 0%Z.
+  Proof.
+    intros M b H.
+    unfold length, valid_block in *.
+    apply invariant3.
+    rewrite <- Bool.not_false_iff_true.
+    rewrite or_comm.
+    apply Decidable.not_and.
+    - destruct(is_deallocated M b);
+        [ right; intros; discriminate |
+          now left ].
+    - contradict H.
+      destruct H as [H1 H2].
+      constructor; auto.
+      intro H. apply invariant1 in H.
+      by_contradiction.
+  Qed.
+  
 End Implementation.
 
 Close Scope Z_scope.

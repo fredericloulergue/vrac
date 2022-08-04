@@ -57,7 +57,15 @@ Module Semantics(V : DecidableType)(B: Eqb.EQB)
       then ⎣Int n⎦
     else ⎣Undef⎦.
 
-
+  Ltac within_bounds :=
+    let Hcond := fresh "Hcond" in 
+    unfold within_bounds in *;
+    match goal with
+    | [ H: context [ if ?cond then _ else _ ] |- context[if ?cond then _ else _]] =>
+        case_eq(cond); intro Hcond; rewrite Hcond in H;
+        injection H; clear H; intro H; subst; trivial
+    end.
+  
   Definition sem_unop (κ: mtyp) op (v: value) : option value :=
     match (op,v) with
     | (_, Undef) => ⎣Undef⎦
@@ -65,7 +73,17 @@ Module Semantics(V : DecidableType)(B: Eqb.EQB)
     | (Onot, Int n) => ⎣Int(Z.b2z(n =? 0)%Z)⎦
     | (_, _) => ϵ
     end.
-                                      
+
+  Property sem_unop_not_ptr:
+    forall κ op v b δ, sem_unop κ op v <> ⎣Ptr(b,δ)⎦.
+  Proof.
+    intros κ op v b δ H.
+    unfold sem_unop in H.
+    destruct op; destruct v; simpl in H;
+      try solve [inversion H;discriminate].
+    unfold within_bounds in H; simpl_if; inversion H;discriminate.
+  Qed.
+  
   Definition sem_binop (κ: mtyp) op (v1 v2: value) : option value :=
     match (op, v1, v2) with
     | (Odiv, _, Int 0%Z) => ϵ
@@ -86,7 +104,21 @@ Module Semantics(V : DecidableType)(B: Eqb.EQB)
     | (_, _, _) => ϵ
     end.
 
-  Inductive eeval: Ctx.context -> type_env -> expr -> value -> Prop :=
+  Property sem_binop_not_ptr:
+    forall κ op v1 v2 b δ, sem_binop κ op v1 v2 <> ⎣Ptr(b,δ)⎦.
+  Proof.
+    intros κ op [n1|[b1 δ1]|] [n2|[b2 δ2]|] b δ H;
+      unfold sem_binop in H; destruct op; simpl in H;
+      solve [inversion H;discriminate] ||
+        solve [unfold within_bounds in H; simpl_if; inversion H;discriminate] ||
+        match goal with
+        | [ H: context [match ?n with | 0%Z => _ | _ => _ end] |- _ ] =>
+            destruct n; try discriminate;
+            unfold within_bounds in H; simpl_if; inversion H;discriminate
+        end.
+  Qed.
+
+  Inductive eeval: context -> type_env -> expr -> value -> Prop :=
   | E_int: forall C Γ n τ,
       valid_expr Γ (EInt n τ) ->
       eeval C Γ (EInt n τ) (Int n)
@@ -117,19 +149,18 @@ Module Semantics(V : DecidableType)(B: Eqb.EQB)
       sem_binop (mtype τ) op v1 v2 = ⎣v⎦ ->
       eeval C Γ (EBinop op e1 e2 τ) v
          
-  | E_parith: forall C Γ e1 τ1 v1 e2 κ2 b δ n sz e v,
+  | E_parith: forall C Γ e1 τ1 e2 κ2 b δ n sz,
       Expr.check_type Γ e1 = Ok (TPtr τ1) ->
       Expr.check_type Γ e2 = Ok (TInt κ2) ->
-      eeval C Γ e1 v1 -> v1 = (Ptr(b,δ)) ->
+      eeval C Γ e1 (Ptr(b,δ)) ->
       eeval C Γ e2 (Int n) ->
       sz = sizeof(mtype τ1) ->
       (δ mod sz = 0)%Z ->
-      e = EBinop Oadd e1 e2 (TPtr τ1) ->
-      v = Ptr(b,(δ+n*sz)%Z) ->
-      eeval C Γ e v
+      eeval C Γ (EBinop Oadd e1 e2 (TPtr τ1)) (Ptr(b,(δ+n*sz)%Z))
 
   with lveval: context -> type_env -> expr -> B.t * Z -> Prop :=
   | LV_var: forall C Γ x τ b,
+      C.(E) x = ⎣ b ⎦ ->
       lveval C Γ (EVar x τ) (b,0%Z)
 
   | LV_deref: forall C Γ e τ b δ,
@@ -156,17 +187,8 @@ Module Semantics(V : DecidableType)(B: Eqb.EQB)
   Proof.
     intros σ Hσ [n|[b δ]|]; trivial.
   Qed.
-
-  Ltac within_bounds :=
-    let Hcond := fresh "Hcond" in 
-    unfold within_bounds in *;
-    match goal with
-    | [ H: context [ if ?cond then _ else _ ] |- context[if ?cond then _ else _]] =>
-        case_eq(cond); intro Hcond; rewrite Hcond in H;
-        injection H; clear H; intro H; subst; trivial
-    end.
   
-  Lemma induced_unop:
+  Fact induced_unop:
     forall τ op σ Hσ v v',
       sem_unop (mtype τ) op v = ⎣ v' ⎦ ->
       sem_unop (mtype τ) op (induced σ Hσ v) = ⎣ induced σ Hσ v' ⎦.
@@ -178,7 +200,7 @@ Module Semantics(V : DecidableType)(B: Eqb.EQB)
       injection H; clear H; intro H; subst; trivial.
   Qed.
 
-  Lemma induced_binop:
+  Fact induced_binop:
     forall κ op σ Hσ v1 v2 v,
       sem_binop κ op v1 v2 = ⎣ v ⎦ -> 
       sem_binop κ op (induced σ Hσ v1) (induced σ Hσ v2) = ⎣ induced σ Hσ v ⎦.
@@ -242,8 +264,141 @@ Module Semantics(V : DecidableType)(B: Eqb.EQB)
       specialize (IHHeeval2 σ Hσ C' Hiso).
       eapply E_parith; eauto.
     - intros; constructor.
+      now apply iso_environment.
     - intros C' σ Hσ Hiso. simpl in *.
       econstructor; eauto.
   Qed.
 
+  Lemma value_in_supp:
+    forall C Γ e v b δ,
+      eeval C Γ e v ->
+      v = Ptr(b,δ) ->
+      b ∈ supp(C.(M)).
+  Proof.
+    intros C Γ e v b δ Heval Hv.
+    generalize dependent δ.
+    generalize dependent b.
+    induction Heval
+      using eeval_ind'
+      with (P0:=fun C Γ e ptr (H: lveval C Γ e ptr) =>
+                  forall b δ, ptr = (b,δ) ->
+                  b ∈ supp (C.(M))).
+    - intros; discriminate.
+    - intros; eapply IHHeval; now inversion Hv.
+    - intros b' δ' Hv. subst.
+      econstructor 2; eauto.
+    - intros b δ Hv. subst.
+      assert(H: sem_unop (mtype τ) op v <> ⎣ Ptr (b, δ) ⎦)
+        by  apply sem_unop_not_ptr.
+      exfalso; now apply H.
+    - intros b δ Hv. subst.
+      assert(H: sem_binop (mtype τ) op v1 v2 <> ⎣ Ptr (b, δ) ⎦)
+        by  apply sem_binop_not_ptr.
+      exfalso; now apply H.
+    - intros b' δ' Hv; inversion Hv; subst; clear Hv.
+      now eapply IHHeval1.
+    - intros b' δ' H. inversion H; subst; clear H.
+      match goal with
+      | [ H: _.(E) _ = _ |- _ ] =>
+          apply wf in H
+      end.
+      now constructor.
+    - intros b' δ' H. inversion H; subst; clear H.
+      now eapply IHHeval.
+  Qed.
+
+
+  Inductive teval: context -> type_env -> term -> value -> Prop :=
+  | T_expr: forall C Γ e τ v,
+      Expr.check_type Γ e = Ok τ -> 
+      eeval C Γ e v ->
+      teval C Γ (TExpr e τ) v
+
+  | T_baseaddr: forall C Γ t τ b δ,
+      Term.check_type Γ (TBaseaddress t τ) = Ok τ ->
+      teval C Γ t (Ptr(b,δ)) ->
+      teval C Γ (TBaseaddress t τ) (Ptr(b,0%Z))
+
+  | T_offset: forall C Γ t τ b δ,
+      Term.check_type Γ (TBaseaddress t τ) = Ok τ ->
+      teval C Γ t (Ptr(b,δ)) ->
+      teval C Γ (TOffset t τ) (Int δ)
+
+  | T_blocklength: forall C Γ t τ b δ n,
+      Term.check_type Γ (TBaseaddress t τ) = Ok τ ->
+      teval C Γ t (Ptr(b,δ)) ->
+      EMM.length(C.(M), b) = n ->
+      teval C Γ (TBlocklength t τ) (Int n)
+
+  | T_deref: forall C Γ t τ b δ v,
+      Term.check_type Γ t = Ok (TPtr τ) ->
+      teval C Γ t (Ptr(b,δ)) ->
+      EMM.load(mtype τ, C.(M), b, δ) = ⎣v⎦ ->
+      v <> Undef ->
+      kind_t τ = kind_v v ->
+      teval C Γ (TDeref t τ) v
+            
+  | T_unop: forall C Γ op t τ v v',
+      Term.check_type Γ (TUnop op t τ) = Ok τ ->
+      teval C Γ t v ->
+      sem_unop (mtype τ) op v = ⎣v'⎦ ->
+      teval C Γ (TUnop op t τ) v'
+
+  | T_binop: forall C Γ op t1 t2 τ v1 v2 v,
+      Term.check_type Γ (TBinop op t1 t2 τ) = Ok τ ->
+      teval C Γ t1 v1 ->
+      teval C Γ t2 v2 ->
+      sem_binop (mtype τ) op v1 v2 = ⎣v⎦ ->
+      teval C Γ (TBinop op t1 t2 τ) v
+         
+  | T_parith: forall C Γ t1 τ1 t2 κ2 b δ n sz,
+      Term.check_type Γ t1 = Ok (TPtr τ1) ->
+      Term.check_type Γ t2 = Ok (TInt κ2) ->
+      teval C Γ t1 (Ptr(b,δ)) ->
+      teval C Γ t2 (Int n) ->
+      sz = sizeof(mtype τ1) ->
+      (δ mod sz = 0)%Z ->
+      teval C Γ (TBinop Oadd t1 t2 (TPtr τ1)) (Ptr(b,(δ+n*sz)%Z))
+  .
+
+  Lemma isomorphic_evalterm:
+    forall C C' Γ σ Hσ,
+      isomorphic C C' σ Hσ ->
+      (forall t v,
+          teval C Γ t v ->
+          teval C' Γ t (induced σ Hσ v)).
+  Proof.
+    intros C C' Γ σ Hσ Hiso t v H.
+    generalize dependent C'. generalize dependent σ.
+    induction H; intros σ Hσ C' Hiso.
+    - constructor; auto.
+      eapply isomorphic_evalexpr; eauto.
+    - eapply T_baseaddr; eauto.
+      eapply IHteval;  eauto.
+    - eapply T_offset; eauto.
+      eapply IHteval; eauto.
+    - eapply T_blocklength; eauto.
+      eapply IHteval;  eauto.
+      destruct(valid_block_decidable C.(M) b) as [Hv | Hi].
+      + rewrite <- iso_length; auto.
+      + assert(Hlen: length(C.(M), b) = 0%Z) by now apply invalid_length.
+        assert(Hn: n = 0%Z) by now rewrite Hlen in H1.
+        rewrite Hn.
+        apply invalid_length.
+        contradict Hi.
+        now apply iso_valid_block.
+    - eapply T_deref; eauto.
+      eapply IHteval; eauto.
+      + now apply iso_load.
+      + unfold induced; destruct v as [n'|[b' δ']|];
+          intros; try discriminate; auto.
+      + now erewrite <- induced_kind.
+    - eapply T_unop; eauto.
+      now apply induced_unop.
+    - eapply T_binop; eauto.
+      now apply induced_binop.
+    - simpl in *.
+      eapply T_parith; eauto.
+  Qed.
+  
 End Semantics.

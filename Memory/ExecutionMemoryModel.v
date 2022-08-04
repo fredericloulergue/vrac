@@ -22,9 +22,12 @@ Module Type ExecutionMemoryModel(Block: EQB).
   Parameter valid_block: mem -> Block.t -> Prop.
   Parameter length: mem * Block.t -> Z.
   Parameter convert: value * mtyp * mtyp -> value. 
-  
-  Infix "⊨" := valid_block (at level 70).
 
+  Infix "⊨" := valid_block (at level 70).
+  
+  Axiom valid_block_decidable :
+    forall M b, M ⊨ b \/ not(M ⊨ b).
+  
   Definition storable : value -> mtyp -> bool :=
     fun v κ =>
       match (v, κ) with
@@ -137,6 +140,10 @@ Module Type ExecutionMemoryModel(Block: EQB).
     
   Axiom valid_implies_freeable: forall M1 b,
       M1 ⊨ b <-> exists M2, free(M1, b) = ⎣M2⎦.
+
+  (* New axiom *)
+  Axiom invalid_length: forall M b,
+      not(M ⊨ b) -> length(M, b) = 0%Z.
     
 End ExecutionMemoryModel.
 

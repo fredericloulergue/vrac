@@ -31,7 +31,7 @@ Module Context(V : DecidableType)(B: Eqb.EQB)
     {
       iso_environment: forall x b, C1.(E) x = ⎣b⎦ <-> C2.(E) x = ⎣σ b⎦;
       iso_valid_block: forall b, C1.(M) ⊨ b <-> C2.(M) ⊨ σ(b);
-      iso_length: forall b, C1.(M) ⊨ b -> length(C1.(M), b) = length(C2.(M), σ(b));
+      iso_length: forall b, C1.(M)⊨b -> length(C1.(M), b) = length(C2.(M), σ(b));
       iso_load: forall κ b δ v, load(κ, C1.(M), b, δ) = ⎣v⎦ <->
                              load(κ, C2.(M), σ b, δ) = ⎣(induced σ Hσ) v⎦
     }.
@@ -185,7 +185,7 @@ Module Context(V : DecidableType)(B: Eqb.EQB)
         subst.
         rewrite <- Hsupp in Hvb.
         now apply Hiso.(iso_valid_block).
-    - intros b Hvb.
+    - intros b  Hvb.
       rewrite <- Hsupp by now constructor.
       now rewrite <- Hiso.(iso_length).
     - intros κ b δ v.
