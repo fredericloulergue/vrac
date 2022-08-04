@@ -400,5 +400,99 @@ Module Semantics(V : DecidableType)(B: Eqb.EQB)
     - simpl in *.
       eapply T_parith; eauto.
   Qed.
+
+  Definition sem_cmp : relational_predicate -> value -> value -> bool :=
+    fun cmp v1 v2 => true.
+  
+  Inductive peval : context -> type_env -> pred -> bool -> Prop :=
+  | P_true: forall C Γ,  peval C Γ PTrue true
+  | P_false: forall C Γ, peval C Γ PFalse false
+  | P_valid: forall C Γ t τ b δ,
+      Term.check_type Γ t = Ok (TPtr τ) ->
+      teval C Γ t (Ptr (b,δ)) ->
+      (C.(M) ⫢ (mtype τ) @ b,δ) ->
+      peval C Γ (PValid t) true
+  | P_invalid: forall C Γ t τ b δ,
+      Term.check_type Γ t = Ok (TPtr τ) ->
+      teval C Γ t (Ptr (b,δ)) ->
+      not(C.(M) ⫢ (mtype τ) @ b,δ) ->
+      peval C Γ (PValid t) false
+  | P_initialized: forall C Γ t τ b δ v,
+      Term.check_type Γ t = Ok (TPtr τ) ->
+      teval C Γ t (Ptr (b,δ)) ->
+      load(mtype τ, C.(M), b, δ) = ⎣v⎦ ->
+      v <> Undef ->
+      peval C Γ (PInitialized t) true
+  | P_uninitialized: forall C Γ t τ b δ,
+      Term.check_type Γ t = Ok (TPtr τ) ->
+      teval C Γ t (Ptr (b,δ)) ->
+      ( load(mtype τ, C.(M), b, δ) = ⎣Undef⎦ \/
+        load(mtype τ, C.(M), b, δ) = ϵ ) ->
+      peval C Γ (PInitialized t) false
+  | P_cmp: forall C Γ t1 v1 t2 v2 cmp V,
+      Pred.check_type Γ (PComp cmp t1 t2) = Ok tt -> 
+      teval C Γ t1 v1 ->
+      teval C Γ t2 v2 ->
+      sem_cmp cmp v1 v2 = V ->
+      peval C Γ (PComp cmp t1 t2) V
+  | P_conj_left: forall C Γ p1 p2,
+      Pred.check_type Γ (PAnd p1 p2) = Ok tt ->
+      peval C Γ p1 false ->
+      peval C Γ (PAnd p1 p2) false
+  | P_conj_right: forall C Γ p1 p2 V,
+      Pred.check_type Γ (PAnd p1 p2) = Ok tt ->
+      peval C Γ p1 true ->
+      peval C Γ p2 V ->
+      peval C Γ (PAnd p1 p2) V
+  | P_neg: forall C Γ p V,
+      Pred.check_type Γ (PNot p) = Ok tt ->
+      peval C Γ p V ->
+      peval C Γ (PNot p) (negb V) 
+  .
+
+  Generalizable All Variables.
+  
+  Fact wf_after_store `(Hstore: store(mtype τ, C.(M), b, δ, v) = ⎣M2⎦) :
+      (forall x b', C.(E) x = ⎣b'⎦ -> M2 ⊨ b').
+  Proof.
+    intros x b' Henv. apply wf in Henv.
+    now erewrite valid_after_store by eauto.
+  Qed.
+
+  
+  (* Rules S-seq and S-while-true are slightly different than their
+     counterparts in the companion paper. *)
+  Inductive seval : forall (C: context) (Γ: type_env) (s: stmt) (M2: mem)
+    (Invariant: forall x b, C.(E) x = ⎣b⎦ -> M2 ⊨ b), Prop :=
+  | S_skip: forall C Γ, seval C Γ SSkip C.(M) C.(wf)
+  | S_assign: forall C Γ e1 e2 τ v b δ M2
+      (Hstore: store(mtype τ, C.(M), b, δ, v) = ⎣M2⎦),
+      Expr.check_type Γ e1 = Ok τ ->
+      Expr.check_type Γ e2 = Ok τ ->
+      eeval C Γ e2 v ->
+      lveval C Γ e2 (b,δ) ->
+      seval C Γ (SAssign e1 e2) M2 (wf_after_store Hstore)
+  (*
+  | S_malloc: forall C Γ e1 e2 τ n b δ b' M2 M3,
+      Expr.check_type Γ e1 = Ok (TPtr τ) ->
+      eeval C Γ e2 (Int n) ->
+      alloc(C.(M), Z.to_nat n) = (b', M2) ->
+      lveval C Γ e1 (b,δ) ->
+      store(mtype (TPtr τ), M2, b, δ, Ptr(b',0%Z)) = ⎣M3⎦ ->
+      seval C Γ (SMalloc e1 e2) M3
+  | S_free: forall C Γ e b M2,
+      eeval C Γ e (Ptr(b, 0%Z)) ->
+      free(C.(M), b) = ⎣M2⎦ ->
+      (forall x, C.(E) x <> ⎣b⎦) ->
+      seval C Γ (SFree e) M2
+      *)
+  | S_logical_assert: forall C Γ p,
+      peval C Γ p true ->
+      seval C Γ (SLogicalassert p) C.(M) C.(wf)
+  | S_seq: forall C Γ s1 s2 M2 Wf2 M3 Wf3,
+      seval C Γ s1 M2 Wf2 ->
+      seval {|E:=C.(E);M:=M2;wf:=Wf2|} Γ s2 M3 Wf3 ->
+      seval C Γ (SSeq s1 s2) M3 Wf3
+  .
   
 End Semantics.
