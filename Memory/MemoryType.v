@@ -42,5 +42,14 @@ Proof.
   now destruct κ.
 Qed.
 
+Definition max: mtyp -> mtyp -> mtyp :=
+  fun κ1 κ2 => if (sizeof κ1 <=? sizeof κ2)%Z
+            then κ2
+            else κ1.
+
+Definition min_int (sz:Z) : Z := ( - 2 ^ (8*sz-1) )%Z.
+
+Definition max_int (sz:Z) : Z := ( 2 ^ (8*sz-1) - 1 )%Z.
+
 Ltac simpl_mtyp_eqb :=
   simpl_generic_eqb Mtyp.eqb Mtyp.eqb_refl Mtyp.eqb_sym Mtyp.eqb_eq Mtyp.eqb_neq.

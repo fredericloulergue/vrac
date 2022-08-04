@@ -9,3 +9,6 @@ ObservationMemoryModel.v
 ObservationMemoryImplementation.v
 Context.v
 Representation.v
+Error.v
+Syntax.v
+Semantics.v

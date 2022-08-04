@@ -14,7 +14,7 @@ Module Type ExecutionMemoryModel(Block: EQB).
   | Ptr : Block.t * Z -> value
   | Undef.
   
-  Parameter machine_word_size : Z.
+  Parameter machine_word : mtyp.
   Parameter alloc: mem * nat -> Block.t * mem.
   Parameter free: mem * Block.t -> option mem. 
   Parameter store: mtyp * mem * Block.t * Z * value -> option mem.
@@ -24,16 +24,12 @@ Module Type ExecutionMemoryModel(Block: EQB).
   Parameter convert: value * mtyp * mtyp -> value. 
   
   Infix "⊨" := valid_block (at level 70).
-  
+
   Definition storable : value -> mtyp -> bool :=
     fun v κ =>
       match (v, κ) with
-      | (Int n, i8) => (-128 <=? n) && (n <=? 127)
-      | (Int n, i16) => (-32768 <=? n) && (n <=? 32767)
-      | (Int n, i32) => (-2147483648 <=? n) && (n <=? 2147483647)
-      | (Int n, i64) => (-9223372036854775808 <=? n)
-                       && (n <=? 9223372036854775807)
-      | (Ptr _, κ) => sizeof κ =? machine_word_size
+      | (Int n, κ) => (min_int (sizeof κ) <=? n) && (n <=? max_int (sizeof κ))
+      | (Ptr _, κ) => sizeof κ =? sizeof machine_word
       | _ => false
       end%bool.
   
@@ -61,6 +57,9 @@ Module Type ExecutionMemoryModel(Block: EQB).
   Notation "b '∈' 'supp' '(' M ')'" := (in_supp b M) (at level 70).
 
   Parameter empty: mem.
+
+  Axiom empty_not_valid:
+    forall b, ~ empty ⊨ b.
   
   Axiom valid_after_alloc_same: forall M1 M2 n b,
       alloc(M1, n) = (b, M2) ->

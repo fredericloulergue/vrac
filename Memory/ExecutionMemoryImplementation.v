@@ -46,7 +46,7 @@ Module Implementation: ExecutionMemoryModel Nat.
   Infix "⊨" := valid_block (at level 70).
   
   
-  Definition machine_word_size := 4.
+  Definition machine_word := i64.
 
   Lemma invariant1_empty:
     forall (b:nat), In b [] -> not(In b []).
@@ -132,7 +132,16 @@ Module Implementation: ExecutionMemoryModel Nat.
            try solve [ by_invariant ];
            auto;
            simpl in *).
-  
+
+  Lemma empty_not_valid:
+    forall b, ~ empty ⊨ b.
+  Proof.
+    unfold valid_block.
+    intros b H.
+    inversion H.
+    trivial.
+  Qed.
+
   Lemma valid_iff_is_valid_true :
     forall M b, is_valid M b = true <-> M ⊨ b.
   Proof.
@@ -148,12 +157,8 @@ Module Implementation: ExecutionMemoryModel Nat.
   Definition storable : value -> mtyp -> bool :=
     fun v κ =>
       match (v, κ) with
-      | (Int n, i8) => (-128 <=? n) && (n <=? 127)
-      | (Int n, i16) => (-32768 <=? n) && (n <=? 32767)
-      | (Int n, i32) => (-2147483648 <=? n) && (n <=? 2147483647)
-      | (Int n, i64) => (-9223372036854775808 <=? n)
-                       && (n <=? 9223372036854775807)
-      | (Ptr _, κ) => sizeof κ =? machine_word_size
+      | (Int n, κ) => (min_int (sizeof κ) <=? n) && (n <=? max_int (sizeof κ))
+      | (Ptr _, κ) => sizeof κ =? sizeof machine_word
       | _ => false
       end%bool.
 
@@ -197,7 +202,7 @@ Module Implementation: ExecutionMemoryModel Nat.
   #[local] Hint Unfold storable convert : local.
   
   Lemma alloc_invariant1 :
-    forall M, let new_b := (1 + max (maximum M.(allocated))
+    forall M, let new_b := (1 + Nat.max (maximum M.(allocated))
                              (maximum M.(forbidden)))%nat in
          forall b, In b M.(forbidden) -> not(In b (new_b::M.(allocated))).
   Proof.
@@ -215,7 +220,7 @@ Module Implementation: ExecutionMemoryModel Nat.
 
   Lemma alloc_invariant2 :
     forall M (b b' : block) (δ δ' : Z) (κ : mtyp),
-      let new_b := (1 + max (maximum M.(allocated))
+      let new_b := (1 + Nat.max (maximum M.(allocated))
                           (maximum M.(forbidden)))%nat in
       (if (b =? new_b)%nat then fun _ : Z => ϵ else content M b) δ =
         ⎣ (κ, Ptr (b', δ')) ⎦ ->
@@ -231,8 +236,8 @@ Module Implementation: ExecutionMemoryModel Nat.
   Definition alloc : mem * nat -> block * mem :=
     fun argument =>
       let (M, n) := argument in
-      let new_b := (1 + max (maximum M.(allocated))
-                            (maximum M.(forbidden)))%nat in
+      let new_b := (1 + Nat.max (maximum M.(allocated))
+                          (maximum M.(forbidden)))%nat in
       (new_b,
         Build_Memory
           (new_b::M.(allocated))

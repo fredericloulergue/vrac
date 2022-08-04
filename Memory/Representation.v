@@ -6,7 +6,7 @@ Require Import Vrac.Tactics Vrac.Option Vrac.Eqb Vrac.MemoryType
 Module Representation(V : DecidableType)(B: Eqb.EQB)
   (Import EMM: ExecutionMemoryModel B)
   (Import OMM: ObservationMemoryModel B)
-  (Import Ctx: Context.CONTEXT V B EMM).
+  (Import Ctx: Context.SIG V B EMM).
 
   Class represents (Me: mem) (Mo : obs) := {
       repr_valid: forall b, Me ⊨ b <-> is_valid(Mo, b) = true;
@@ -221,6 +221,19 @@ Module Representation(V : DecidableType)(B: Eqb.EQB)
           repeat split; eauto.
           erewrite initialize_length by eauto.
           now rewrite <- R.(repr_length).
+  Qed.
+
+  Property representation_empty:
+    EMM.empty ▷ OMM.empty.
+  Proof.
+    constructor.
+    - intros b; split; intro H.
+      + now apply empty_not_valid in H.
+      + now rewrite empty_isvalid in H.
+    - intros b; intro H.
+      now apply empty_not_valid in H.
+    - intros κ b δ [H [H1 H2]].
+      now apply empty_not_valid in H.
   Qed.
   
 End Representation.

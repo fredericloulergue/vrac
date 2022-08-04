@@ -917,6 +917,6 @@ Module Context(V : DecidableType)(B: Eqb.EQB)
   
 End Context.
 
-Module Type CONTEXT(V:DecidableType)(B:Eqb.EQB)(EMM: ExecutionMemoryModel B).
+Module Type SIG(V:DecidableType)(B:Eqb.EQB)(EMM: ExecutionMemoryModel B).
   Include Context.Context V B EMM.
-End CONTEXT.
+End SIG.
