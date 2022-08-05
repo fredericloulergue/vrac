@@ -1,8 +1,8 @@
 Require Import ZArith Arith Lia.
 Require Import List. Import ListNotations.
 
-Require Import Vrac.Option Vrac.Tactics Vrac.MemoryType.
-Require Import Vrac.ObservationMemoryModel.
+From Vrac.Lib Require Import Option Tactics.
+From Vrac.Memory Require Import MemoryType ObservationMemoryModel.
 
 Open Scope Z_scope.
 

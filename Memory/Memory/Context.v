@@ -1,7 +1,7 @@
 Require Import Arith ZArith Lia List Structures.Equalities Logic.FinFun.
-Require Import Vrac.Tactics Vrac.Option Vrac.Eqb
-  Vrac.MemoryType Vrac.ExecutionMemoryModel.
 
+From Vrac.Lib Require Import Option Tactics Eqb.
+From Vrac.Memory Require Import MemoryType ExecutionMemoryModel.
 
 Module Context(V : DecidableType)(B: Eqb.EQB)
   (Import EMM: ExecutionMemoryModel B).

@@ -1,6 +1,5 @@
 Require Import Arith ZArith.
-Require Import Vrac.Tactics.
-Require Import Vrac.Eqb.
+From Vrac.Lib Require Import Tactics Eqb.
 
 Inductive mtyp := i8 | i16 | i32 | i64.
 
