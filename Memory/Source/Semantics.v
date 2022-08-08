@@ -155,96 +155,6 @@ Module Semantics(V : DecidableType)(B: Eqb.EQB)
       peval C Γ p V ->
       peval C Γ (PNot p) (negb V) 
   .
-
-  Generalizable All Variables.
-  
-  Fact wf_after_store `(Hstore: store(mtype τ, C.(M), b, δ, v) = ⎣M2⎦) :
-      (forall x b', C.(E) x = ⎣b'⎦ -> M2 ⊨ b').
-  Proof.
-    intros x b' Henv. apply wf in Henv.
-    now erewrite valid_after_store by eauto.
-  Qed.
-
-  Fact wf_after_free `(Hfree: free(C.(M), b) = ⎣M2⎦)
-    (Him: forall x, C.(E) x <> ⎣b⎦) :
-    (forall x b', C.(E) x = ⎣b'⎦ -> M2 ⊨ b').
-  Proof.
-    intros x b' H.
-    case_eq(B.eqb b' b); intro Hb.
-    - assert(b = b') by now simpl_block_eqb.
-      subst. specialize (Him x).
-      by_contradiction.
-    - apply wf in H.
-      rewrite valid_after_free; eauto.
-      split; eauto; simpl_block_eqb.
-  Qed.
-
-  Fact wf_after_alloc `(Halloc: alloc(C.(M), Z.to_nat n) = (b', M2)):
-    (forall x b'', C.(E) x = ⎣b''⎦ -> M2 ⊨ b'').
-  Proof.
-    intros x b'' H.
-    case_eq(B.eqb b'' b'); intro Hb'.
-    - assert(Heq: b'' = b') by now simpl_block_eqb. subst.
-      eapply valid_after_alloc_same; eauto.
-    - apply wf in H.
-      eapply valid_after_alloc_other; eauto; split; eauto.
-      now simpl_block_eqb.
-  Qed.
-      
-  Fact wf_after_malloc `(Halloc: alloc(C.(M), Z.to_nat n) = (b', M2))
-    `(Hstore: store(mtype (TPtr τ), M2, b, δ, Ptr(b',0%Z)) = ⎣M3⎦) :
-    (forall x b', C.(E) x = ⎣b'⎦ -> M3 ⊨ b').
-  Proof.
-    intros x b'' H.
-    assert(H2: M2 ⊨ b'') by (eapply wf_after_alloc; eauto).
-    now rewrite valid_after_store by eauto.
-  Qed.
-
-  Definition alloc_var (C1: context) (x: V.t) (τ: ctyp) : context :=
-    let res := alloc(C1.(M), Z.to_nat (sizeof(mtype τ))) in
-    let b := fst res in
-    let M2 := snd res in 
-    let E2 := fun x' => if V.eq_dec x' x then ⎣b⎦ else C1.(E) x' in
-    {|
-      E := C1.(E);
-      M := M2;
-      inj:= C1.(inj);
-      wf := wf_after_alloc (surjective_pairing res)
-    |}.  
-
-  Open Scope option_monad_scope.
-  
-  Definition dealloc_var C x : option mem :=
-    do b <- (C.(E) x);
-    do M2 <- free(C.(M), b);
-    ⎣M2⎦.
-
-  Close Scope option_monad_scope.
-
-  Fact wf_after_alloc_dealloc_var
-    `(Hdom: C1.(E) x = ϵ)
-    `(Halloc: C2 = alloc_var C1 x τ)
-    `(Hdealloc: ⎣M4⎦ = dealloc_var {|E:=C2.(E);M:=M3;inj:=C2.(inj);wf:=Wf3|} x) :
-    (forall x' b, C1.(E) x' = ⎣b⎦ -> M4 ⊨ b).
-  Proof.
-    intros x' b H.
-    unfold dealloc_var, Option.bind in Hdealloc; simpl in Hdealloc.
-    assert(HC: C2.(E) = C1.(E)) by (subst; now unfold alloc_var).
-    case_eq(C2.(E) x); [intros b' H' | intros H']; rewrite H' in Hdealloc.
-    - assert(H'': free(M3, b') = ⎣M4⎦)
-        by (destruct(free(M3, b')); now inversion Hdealloc).
-      destruct(V.eq_dec x' x) as [Heq | Hneq].
-      + rewrite HC, Hdom in H'; discriminate.
-      + case_eq(B.eqb b' b); intro Hb.
-        * assert(b = b') by now simpl_block_eqb. subst.
-          unfold alloc_var in H'; simpl in H'.
-          assert(Heq': x = x') by (eapply inj; now rewrite H, H').
-          subst.
-          now contradict Hneq.
-        * rewrite valid_after_free; [idtac|split; eauto; simpl_block_eqb].
-          eapply Wf3. rewrite HC. eauto.
-    - discriminate.
-  Qed.
   
   (* TODO: explanation wrt. to the companion paper. *)
   Inductive sseval : forall (C: context) (Γ: type_env) (s: stmt) (M2: mem)
@@ -308,7 +218,7 @@ Module Semantics(V : DecidableType)(B: Eqb.EQB)
 
   | S_let: forall C1 Γ x τ s C2 M3 Wf3 M4
      (Hdom: C1.(E) x = ϵ)
-     (Halloc: C2 = alloc_var C1 x τ)
+     (Halloc: C2 = alloc_var C1 x (sizeof(mtype τ)))
      (Hdealloc: ⎣M4⎦ = dealloc_var {|E:=C2.(E);M:=M3;inj:=C2.(inj);wf:=Wf3|} x),
       sseval C2 Γ s M3 Wf3 ->
       sseval C1 Γ (SLet x τ s) M4 (wf_after_alloc_dealloc_var Hdom Halloc Hdealloc)
