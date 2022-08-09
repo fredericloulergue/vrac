@@ -21,7 +21,7 @@ Module Representation(V : DecidableType)(B: Eqb.EQB)
 
   Property presentation_access_validity:
     forall Me Mo, Me ▷ Mo ->
-             (forall κ b δ, Me ⫢ κ @ b, δ <-> is_valid_access Mo κ b δ = true).
+             (forall κ b δ, Me ⫢ κ @ b, δ <-> is_valid_access(κ, Mo, b, δ) = true).
   Proof.
     intros Me Mo R κ b δ. split; intro Hva.
     - destruct Hva as [Hv [H1 H2]].

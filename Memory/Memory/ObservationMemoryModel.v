@@ -18,8 +18,11 @@ Module Type ObservationMemoryModel(Block: Eqb.EQB).
   Parameter is_initialized: mtyp * obs * Block.t * Z -> bool.
   Parameter length: obs * Block.t -> Z.
   
-  Definition is_valid_access (M: obs) (κ: mtyp) (b:Block.t) (δ: Z) : bool :=
-    (is_valid(M, b) && (0 <=? δ) && (δ + sizeof κ <=? length(M,b)))%bool.
+  Definition is_valid_access (arg: mtyp * obs * Block.t * Z) : bool := 
+    match arg with
+      | (κ, M, b, δ) =>
+          (is_valid(M, b) && (0 <=? δ) && (δ + sizeof κ <=? length(M,b)))%bool
+    end.
 
   Axiom storeblock_validblock_same: forall M1 M2 n b,
       store_block(M1, b, n) = M2 ->

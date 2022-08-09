@@ -66,9 +66,12 @@ Module Implementation : ObservationMemoryModel Nat.
     fun argument =>
       let (M, b) := argument in
       M.(size) b.
-  
-  Definition is_valid_access (M: obs) (κ: mtyp) (b:block) (δ: Z) : bool :=
-    (is_valid(M, b) && (0 <=? δ) && (δ + sizeof κ <=? length(M,b)))%bool.
+
+  Definition is_valid_access (arg: mtyp * obs * block * Z) : bool := 
+    match arg with
+      | (κ, M, b, δ) =>
+          (is_valid(M, b) && (0 <=? δ) && (δ + sizeof κ <=? length(M,b)))%bool
+    end.
 
   Definition initialize: mtyp * obs * block * Z -> obs :=
     fun argument =>
