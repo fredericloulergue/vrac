@@ -95,7 +95,17 @@ Module Syntax(V : DecidableType).
     | EAddrof (e: expr) (τ: ctyp)(* address *)
     | EUnop (op: unary_operation) (e: expr) (τ: ctyp)
     | EBinop (op: binary_operation) (e1 e2: expr) (τ: ctyp).
-        
+
+    Definition typeof (e: expr) :=
+      match e with
+        | EInt _ τ 
+        | EVar _ τ  
+        | EDeref _ τ  
+        | EAddrof _ τ  
+        | EUnop _ _ τ  
+        | EBinop _ _ _ τ => τ
+      end.
+    
     Fixpoint check_type (Γ: type_env) (e: expr) : result ctyp :=
       match e with
       | EInt n τ => type_int n τ
@@ -132,6 +142,24 @@ Module Syntax(V : DecidableType).
           | _ => Error "incorrect types for binary operation"
           end
       end.
+
+    Lemma type_check_type_of:
+      forall Γ e τ, check_type Γ e = Ok τ -> typeof e = τ.
+    Proof.
+      intros Γ e τ H.
+      destruct e; simpl in *; unfold type_int, match_ctyp in *;
+        try solve [ destruct(check_type Γ e); simpl in *;
+                    try destruct(c); try simpl_if; try discriminate;
+                    now inversion H ].
+      - destruct τ0; repeat simpl_if; try discriminate; now inversion H.
+      - destruct(Γ x); simpl in *;
+          try simpl_if; try discriminate;
+          now inversion H.
+      - destruct(check_type Γ e1); simpl in *;
+          destruct(check_type Γ e2); simpl in *;
+          try destruct op, c, c0; repeat simpl_if; try discriminate;
+          now inversion H.
+    Qed.
 
   End Expr.
 

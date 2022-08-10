@@ -24,9 +24,22 @@ Module Syntax(V : DecidableType)(Import CStx: Syntax.SIG V).
     | TOffset (t: term) (τ: ctyp)
     | TBlocklength (t: term) (τ: ctyp).
 
+    Definition typeof (t: term): ctyp :=
+      match t with
+      | TExpr _ τ 
+      | TDeref _ τ 
+      | TUnop _ _ τ 
+      | TBinop _ _ _ τ
+      | TBaseaddress _ τ
+      | TOffset _ τ
+      | TBlocklength _ τ => τ
+      end.
+    
     Fixpoint check_type (Γ: type_env) (t: term) : result ctyp :=
       match t with
-      | TExpr e τ => Expr.check_type Γ e
+      | TExpr e τ =>
+          do τ' <- Expr.check_type Γ e;
+          match_ctyp τ τ'
       | TDeref t τ =>
           match check_type Γ t with 
           | Ok (TPtr τ') => match_ctyp τ τ'
@@ -70,7 +83,34 @@ Module Syntax(V : DecidableType)(Import CStx: Syntax.SIG V).
           | (_, _) => Error "argument of block_length should be a pointer"
           end
       end.
+
+    Ltac destructs :=
+      match goal with
+      | [H : context [ match ?e with | Ok _ => _ | _ => _ end ] |- _ ] =>
+          destruct e; simpl in *; try discriminate
+      | [H : context [ match ?e with | TInt _ => _ | _ => _ end ] |- _ ] =>
+          destruct e; simpl in *; try discriminate
+      | [H : context [ match ?e with | Oadd => _ | _ => _ end ] |- _ ] =>
+          destruct e; simpl in *; try discriminate
+      | [H : context [ match ?e with | Onot => _ | _ => _ end ] |- _ ] =>
+          destruct e; simpl in *; try discriminate
+      | [H : context [ do _ <- ?e; _ ] |- _ ] =>
+          destruct e; simpl in *; try discriminate
+      end.
+
+    Ltac simpl_match_ctyp := 
+      unfold match_ctyp in *; simpl_if; try discriminate.
     
+    Lemma type_check_type_of:
+      forall Γ t τ, check_type Γ t = Ok τ -> typeof t = τ.
+    Proof.
+      intros Γ t0 τ H.
+      destruct t0 ; simpl in *;
+        try solve [repeat destructs;
+                   repeat simpl_match_ctyp;
+                   now inversion H].
+    Qed.
+
   End Term.
 
   Import Term.
