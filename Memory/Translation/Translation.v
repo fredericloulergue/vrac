@@ -230,6 +230,48 @@ Module Translation (V : DecCountable)
                 (EVar (res vars n) int8)
                 E_tmp))
     end.
+
+  Fixpoint trans (s: stmt) (vars: list V.t) (n:nat) (mw: mtyp): stmt' :=
+    let int8 := Types.TInt i8 in 
+    match s with
+    | SStx.Stmt.SSkip =>
+        SSkip
+    | SStx.Stmt.SAssign e1 e2 =>
+        SSeq
+          (SAssign e1 e2)
+          (SInitialize (EAddrof e2 (Types.TPtr (Expr.typeof e2))))
+    | SStx.Stmt.SSeq s1 s2 =>
+        SSeq (trans s1 vars n mw) (trans s2 vars n mw)
+    | SStx.Stmt.SIf e s1 s2 =>
+        SIf e (trans s1 vars n mw) (trans s2 vars n mw)
+    | SStx.Stmt.SWhile e s =>
+        SWhile e (trans s vars n mw)
+    | SStx.Stmt.SMalloc p e =>
+        SSeq
+          (SMalloc p e)
+          (SSeq
+             (SStoreblock p e)
+             (SInitialize (EAddrof e (Types.TPtr((Expr.typeof e))))))
+    | SStx.Stmt.SFree p =>
+        SSeq
+          (SFree p)
+          (SDeleteblock p)
+    | SStx.Stmt.SLet x τ s =>
+        let addr_of_x := EAddrof (EVar x τ) (Types.TPtr τ) in
+        SLet x τ
+          (SSeq
+             (SStoreblock
+                addr_of_x
+                (EInt (sizeof(Types.mtype mw τ)) int8))
+             (SSeq
+                (trans s vars n mw)
+                (SDeleteblock addr_of_x)))
+    | SLogicalassert p =>
+        SLet (res vars 0) int8
+          (SSeq
+             (p_trans p vars 0)
+             (SAssert (EVar (res vars 0) int8)))
+    end.
   
 End Translation.
 
