@@ -91,7 +91,7 @@ Module Translation (V : DecCountable)
   (Import TStx: Target.Syntax.SIG V CStx)
   (Import F: Fresh.SIG V).
 
-  Import CStx.Expr SStx.Term SStx.Stmt TStx.Stmt.
+  Import CStx.Expr SStx.Term SStx.Pred SStx.Stmt TStx.Stmt.
 
   Notation stmt := SStx.Stmt.stmt.
   Notation stmt' := TStx.Stmt.stmt.
@@ -151,7 +151,7 @@ Module Translation (V : DecCountable)
                 (EVar (res vars n) τ)
                 E_tmp))
     | TBlocklength t1 τ =>
-                let tmp := res vars (n+1) in
+        let tmp := res vars (n+1) in
         let E_tmp := EVar tmp (Term.typeof t1) in
         SLet tmp (typeof t1)
           (SSeq
@@ -160,7 +160,77 @@ Module Translation (V : DecCountable)
                 (EVar (res vars n) τ)
                 E_tmp))
     end.
- 
+
+  Definition cmp2op (cmp: relational_predicate) : binary_operation :=
+    match cmp with
+    | PEq => Oeq
+    | PLt => Olt
+    | PGt => Ogt
+    | PLe => Ole
+    | PGe => Oge
+    end.
+  
+  Fixpoint p_trans (p: pred)(vars: list V.t)(n:nat) : stmt' :=
+    let int8 := Types.TInt i8 in 
+    match p with
+    | PTrue => SAssign (EVar (res vars n) int8) (EInt 1%Z int8)
+    | PFalse => SAssign (EVar (res vars n) int8) (EInt 0%Z int8)
+    | PNot p1 =>
+        let tmp := res vars (n+1) in
+        let E_tmp := EVar tmp int8 in
+        SLet tmp int8
+          (SSeq
+             (p_trans p1 vars (n+1))
+             (SAssign (EVar (res vars n) int8) (EUnop Onot E_tmp int8)))
+    | PAnd p1 p2 =>
+        let tmp1 := res vars (n+1) in
+        let E_tmp1 := EVar tmp1 int8 in
+        let tmp2 := res vars (n+2) in
+        let E_tmp2 := EVar tmp2 int8 in
+        SLet tmp1 int8
+          (SLet tmp2 int8
+             (SSeq
+                (p_trans p1 vars (n+1))
+                (SIf
+                   E_tmp1
+                   (SSeq
+                      (p_trans p2 vars (n+2))
+                      (SAssign (EVar (res vars n) int8) E_tmp2))
+                   (SAssign (EVar (res vars n) int8) (EInt 0%Z int8)))))
+    | PComp R t1 t2 =>
+        let tmp1 := res vars (n+1) in
+        let E_tmp1 := EVar tmp1 (typeof t1) in
+        let tmp2 := res vars (n+2) in
+        let E_tmp2 := EVar tmp2 (typeof t2) in
+        SLet tmp1 (typeof t1)
+          (SLet tmp2 (typeof t2)
+             (SSeq
+                (t_trans t1 vars (n+1))
+                (SSeq
+                   (t_trans t2 vars (n+2))
+                   (SAssign
+                      (EVar (res vars n) int8)
+                      (EBinop (cmp2op R) E_tmp1 E_tmp2 int8)))))       
+    | PValid t1 =>
+        let tmp := res vars (n+1) in
+        let E_tmp := EVar tmp (Term.typeof t1) in
+        SLet tmp (typeof t1)
+          (SSeq
+             (t_trans t1 vars (n+1))
+             (SIsvalid
+                (EVar (res vars n) int8)
+                E_tmp))
+    | PInitialized t1 =>
+        let tmp := res vars (n+1) in
+        let E_tmp := EVar tmp (Term.typeof t1) in
+        SLet tmp (typeof t1)
+          (SSeq
+             (t_trans t1 vars (n+1))
+             (SIsinitialized
+                (EVar (res vars n) int8)
+                E_tmp))
+    end.
+  
 End Translation.
 
 Module Type SIG (V : DecCountable)
