@@ -3,6 +3,7 @@ Lib/Tactics.v
 Lib/Option.v
 Lib/Eqb.v
 Lib/Error.v
+Lib/Maximum.v
 Memory/MemoryType.v
 Memory/ExecutionMemoryModel.v
 Memory/ExecutionMemoryImplementation.v
@@ -16,3 +17,4 @@ Source/Syntax.v
 Source/Semantics.v
 Target/Syntax.v
 Target/Semantics.v
+Translation/Translation.v

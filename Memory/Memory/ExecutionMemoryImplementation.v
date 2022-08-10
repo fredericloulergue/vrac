@@ -1,7 +1,7 @@
 Require Import ZArith Arith Lia.
 Require Import List. Import ListNotations.
 
-From Vrac.Lib Require Import Option Tactics.
+From Vrac.Lib Require Import Option Tactics Maximum.
 From Vrac.Memory Require Import MemoryType ExecutionMemoryModel.
 
 Open Scope Z_scope.
@@ -183,35 +183,6 @@ Module Implementation: ExecutionMemoryModel Nat.
       | (Ptr _, κ) => sizeof κ =? sizeof machine_word
       | _ => false
       end%bool.
-
-  Fixpoint maximum support :=
-    match support with
-    | [] => 0%nat
-    | h::t => Nat.max h (maximum t)
-    end.
-
-  Lemma maximum_lt :
-    forall l x, In x l -> (x <= maximum l)%nat.
-  Proof.
-    induction l as [ | h t IH ].
-    - intros x H. firstorder.
-    - intros x H. simpl in *.
-      destruct H as [H | H].
-      + subst. lia.
-      + specialize (IH _ H). lia.
-  Qed.
-  
-  Lemma S_maximum_not_in:
-    forall l, not(In (S(maximum l)) l).
-  Proof.
-    induction l as [ | h t IH ].
-    - auto.
-    - contradict IH.
-      simpl in IH.
-      destruct IH as [ Heq | Hin ].
-      + rewrite Nat.succ_max_distr in Heq; lia.
-      + apply maximum_lt in Hin; lia.
-  Qed.
 
   Definition convert: value * mtyp * mtyp -> value :=
     fun argument =>
