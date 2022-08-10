@@ -1,4 +1,4 @@
-Require Import ZArith Structures.Equalities String.
+Require Import ZArith Structures.Equalities String List. Import ListNotations.
 
 From Vrac.Lib Require Import Error Option Tactics.
 From Vrac.Memory Require Import MemoryType.
@@ -217,6 +217,41 @@ Module Syntax(V : DecidableType)(Import CStx: Syntax.SIG V).
       | SLogicalassert p =>
           Pred.check_type Γ p
       end.
+
+    Fixpoint defined_vars (s:stmt) : list V.t :=
+      match s with
+      | SSkip
+      | SMalloc _ _ 
+      | SFree _ 
+      | SAssign _ _
+      | SLogicalassert _ => []
+      | SSeq s1 s2
+      | SIf _ s1 s2 =>
+          (defined_vars s1) ++ (defined_vars s2)
+      | SWhile e s => defined_vars s
+      | SLet x τ s => x::(defined_vars s)
+      end.
+
+    Fixpoint no_masking (s:stmt) : Prop :=
+      match s with
+      | SSkip 
+      | SAssign _ _ 
+      | SFree _
+      | SLogicalassert _
+      | SMalloc _ _ =>
+          True
+      | SSeq s1 s2 
+      | SIf _ s1 s2 =>
+          no_masking s1 /\ no_masking s2
+      | SWhile e s =>
+          no_masking s
+      | SLet x τ s =>
+          not(In x (defined_vars s)) /\ no_masking s
+      end.
+    
+    Definition well_formed (s:stmt) : Prop :=
+       (check_type (fun _ => ϵ) s = Ok tt)
+      /\ no_masking s.
 
   End Stmt.
     
