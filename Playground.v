@@ -6,10 +6,7 @@ Require Import ZArith.ZArith.
 Require Import String.
 From Coq Require Import Lists.List.
 Open Scope string_scope.
-Open Scope fsl_scope.
 Open Scope Z_scope.
-Open Scope list_scope.
-
 
 
 Declare Scope mini_c_scope.
@@ -20,14 +17,16 @@ Notation "<{ e }>" := e (at level 0, e custom mini_c at level 99) : mini_c_scope
 Notation "( x )" := x (in custom mini_c, x at level 99) : mini_c_scope.
 Notation "x" := x (in custom mini_c at level 0, x constr at level 0) : mini_c_scope.
 Notation "'skip'" := Skip  (in custom mini_c at level 0) : mini_c_scope.
-Notation "'if' '(' cond ')' '{' _then '}' 'else' '{' _else '}'" := (If cond _then _else)  
+Notation "'if' '(' cond ')' '{' _then '}' 'else' '{' _else '}'" := (If cond _then _else) 
     (in custom mini_c at level 89, cond at level 99, _then at level 99, _else at level 99) : mini_c_scope.
-Notation "x + y"   := (C_Add x y) (in custom mini_c at level 50, left associativity) : mini_c_scope.
-Notation "s1 ';' s2" := (Seq s1 s2) (at level 65, right associativity) : mini_c_scope.
+Notation "x + y"   := (BinOpInt x C_Add y) (in custom mini_c at level 50, left associativity) : mini_c_scope.
+Notation "s1 ';' s2" := (Seq s1 s2) (in custom mini_c at level 90, right associativity) : mini_c_scope.
 Notation "x := y" := (Assign x y) (in custom mini_c at level 0, x constr at level 0, y at level 85, no associativity) : mini_c_scope.
 
 
 Open Scope mini_c_scope. 
+Open Scope fsl_scope.
+
 
 Lemma ir5 : Int.inRange 5. Proof. split ; reflexivity. Qed.
 Lemma ir10 : Int.inRange 10. Proof. split ; reflexivity. Qed.
@@ -42,11 +41,11 @@ Example stmt_5Plus10 :
     let v := fst o in 
     let l := snd o in 
     c_stmt_sem
-    (
-            (Assign "x" 5) ;
-            (Assign "y" 10)  ;
-            (Assign "z" (BinOpInt "x" C_Add "y"))
-    )
+    <{
+         "x" := 5 ;
+         "y" := 10;
+         "z" := "x" + "y"
+    }>
     o m (v{"x" \ five}{"y"\ten}{"z"\fifteen}, l) m
    .
 Proof.
@@ -60,4 +59,5 @@ Proof.
         * reflexivity.
 Qed.
 
-     
+Close Scope mini_c_scope.
+Close Scope fsl_scope.

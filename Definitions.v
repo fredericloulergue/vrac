@@ -188,7 +188,7 @@ Coercion VMpz : nat >-> Values.
 
 
 Definition same_values (v1 v2: option Values) : bool := match v1,v2 with
-    | Some (Int n1), Some (Int n2) =>  Int.mi_eq n1 n2
+    | Some (Int n1), Some (Int n2) =>  Int.mi_eqb n1 n2
     | Some (VMpz n1), Some (VMpz n2) => (n1 =? n2)%nat
     | _,_ => false
 end
@@ -212,22 +212,23 @@ Definition env_partial_orderb (env:Ω) (env':Ω) (v:V) : bool :=
     end
 .
 
-Inductive env_partial_order (env:Ω) (env':Ω) (v:id) : Prop :=
-| sameInt n: 
+Inductive env_partial_order (env:Ω) : Ω -> id -> Prop :=
+| env_refl v : env_partial_order env env v
+| sameInt env' n v: 
     (fst env) v = Some (Int n)
     -> (fst env') v = Some (Int n)
     -> env_partial_order env env' v
-| sameMpz n: 
+| sameMpz n env' v: 
     (fst env) v = Some (VMpz n)
     -> (fst env') v = Some (VMpz n)
     -> env_partial_order env env' v
-| undefInt n : (fst env) v = Some UInt
+| undefInt n env' v : (fst env) v = Some UInt
     -> (fst env') v = Some UInt \/ (fst env') v = Some (Int n)
     -> env_partial_order env env' v
-| undefMpz n : (fst env) v = Some UMpz
+| undefMpz n env' v: (fst env) v = Some UMpz
     -> (fst env') v = Some UMpz \/ (fst env') v = Some (VMpz n)
     -> env_partial_order env env' v
-| none : (fst env) v = None -> env_partial_order env env' v
+| none v env' : (fst env) v = None -> env_partial_order env env' v
 .
 
 
