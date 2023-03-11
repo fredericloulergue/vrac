@@ -14,6 +14,12 @@ Inductive gmp_t := Ctype (t:c_type) | String | Mpz. (* type extension τ *)
 Inductive fsl_decl :=  FSL_Decl (τ:gmp_t) (name:id). (* logic declaration δ *)
 Inductive fsl_binop_bool :=  FSL_Lt | FSL_Le | FSL_Gt | FSL_Ge | FSL_Eq | FSL_NEq.
 Inductive fsl_binop_int := FSL_Add | FSL_Min  | FSL_Mul  | FSL_Div.
+Definition fsl_binop_int_model (x:fsl_binop_int) : Z -> Z -> Z := match x with
+    | FSL_Add => Z.add
+    | FSL_Min => Z.min
+    | FSL_Mul => Z.mul
+    | FSL_Div => Z.div
+end.
 
 Inductive predicate :=
     | P_True | P_False (* truth values *)
@@ -102,14 +108,45 @@ Inductive gmp_statement :=
     .
 
 Inductive statement := S_G (s:gmp_statement) | S_C (c:c_statement). (* statement extension *)
-   
+
+
+
+Declare Scope mini_c_scope.
+
+Declare Custom Entry mini_c.
+
+Notation "<{ e }>" := e (at level 0, e custom mini_c at level 99) : mini_c_scope.
+Notation "( x )" := x (in custom mini_c, x at level 99) : mini_c_scope.
+Notation "x" := x (in custom mini_c at level 0, x constr at level 0) : mini_c_scope.
+Notation "'skip'" := Skip  (in custom mini_c at level 0) : mini_c_scope.
+Notation "'if' '(' cond ')'  _then  'else' _else " := (If cond _then _else) 
+    (in custom mini_c at level 89, cond at level 99, _then at level 99, _else at level 99) : mini_c_scope.
+Notation "x + y"   := (BinOpInt x C_Add y) (in custom mini_c at level 50, left associativity) : mini_c_scope.
+Notation "x - y"   := (BinOpInt x C_Min y) (in custom mini_c at level 50, left associativity) : mini_c_scope.
+Notation "x * y"   := (BinOpInt x C_Mul y) (in custom mini_c at level 50, left associativity) : mini_c_scope.
+Notation "x / y"   := (BinOpInt x C_Div y) (in custom mini_c at level 50, left associativity) : mini_c_scope.
+Notation "x == y"   := (BinOpBool x C_Eq y) (in custom mini_c at level 50, left associativity) : mini_c_scope.
+Notation "x != y"   := (BinOpBool x C_NEq y) (in custom mini_c at level 50, left associativity) : mini_c_scope.
+Notation "x < y"   := (BinOpBool x C_Lt y) (in custom mini_c at level 50, left associativity) : mini_c_scope.
+Notation "x <= y"   := (BinOpBool x C_Le y) (in custom mini_c at level 50, left associativity) : mini_c_scope.
+Notation "x > y"   := (BinOpBool x C_Gt y) (in custom mini_c at level 50, left associativity) : mini_c_scope.
+Notation "x >= y"   := (BinOpBool x C_Ge y) (in custom mini_c at level 50, left associativity) : mini_c_scope.
+
+
+Notation "s1 ';' s2" := (Seq s1 s2) (in custom mini_c at level 90, right associativity) : mini_c_scope.
+Notation "x := y" := (Assign x y) (in custom mini_c at level 0, x constr at level 0, y at level 85, no associativity) : mini_c_scope.
+Notation "'assert' '(' e ')'" := (PAssert e) (in custom mini_c at level 0) : mini_c_scope.
+Notation "'/*@' 'assert' p '*/'" := (LAssert p) (in custom mini_c at level 0) : mini_c_scope.
+Notation "'while' '(' e ')' s" := (While e s) (in custom mini_c at level 0) : mini_c_scope.
+
      
 Definition V : Set := id. (* program variables and routines *)
+Definition L : Set := id. (* logic variables and routines *)
+
 
 #[global] Instance eqdec_v : EqDec V := {eq_dec := string_dec}.
 
 Definition S : Set := c_statement. (* program statements *)
-Definition L : Set := fsl_decl. (* logic variables and routines *)
 Definition LT : Set := fsl_term. (* logical terms *)
 Definition B : Set := predicate. (* predicates *)
 Definition T : Set := gmp_t. (* minigmp types *)
@@ -139,6 +176,9 @@ Proof.
     split ; reflexivity.
 Qed.
 
+
+
+
 Inductive Values := 
     | Int (n:Int.MI) (* set of type int, a machine integer (may overflow) *)
     | VMpz (n:nat)  (* memory location for values of type mpz *) 
@@ -154,13 +194,15 @@ end.
 (* integer from value *)
 Definition z_of_Int : Int.MI -> Z := Int.to_z.
 
-Definition M := nat ⇀ Z. (* memory state, i.e. current mpz value of given mem loc*)
+(* fixme must be specialized for Values of type VMpz *)
+Definition M := Values ⇀ Z. (* memory state, i.e. current mpz value of given mem loc*)
+
 
 Definition Ωᵥ := V ⇀ Values.
 Definition Ωₗ := L ⇀ Z.
 
-(* Record Ω := {decl_env: Ωᵥ; logic_env: Ωₗ}. (* semantic env *) *)
 
+(* todo: use a record with coercion to not having to deal with fst snd *)
 Definition Ω := (Ωᵥ * Ωₗ)%type.
 
 Definition Γ  := c_routines -> T. (* typing env *)
@@ -179,11 +221,27 @@ Definition Tr (o: oracle) (om:Θ) : LT -> Γᵢ -> T := fun lt env => om (o lt e
 
 
 
-Coercion C_Id : string >-> c_exp.
+
+(* Module Todo.
+Hypothesis type_soundness : forall (env:Ω) (t:Z), True.
+
+Hypothesis convergence : forall (type_env:Γ) (r:mini_c_routines), 
+    exists (t:T), type_env r = t.
+End Todo. *)
+
+
+
+Coercion C_Id : id >-> c_exp.
+Coercion T_Id : id >-> fsl_term.
 Coercion Zm : Z >-> c_exp.
+Coercion T_Z : Z >-> fsl_term.
+
 (* Coercion Int.of_z : Z >-> Int.MI. *)
+
 Coercion Int : Int.MI >-> Values. 
 Coercion VMpz : nat >-> Values.
+
+(* Coercion LAssert : predicate >-> c_statement. *)
 
 
 
@@ -194,23 +252,6 @@ Definition same_values (v1 v2: option Values) : bool := match v1,v2 with
 end
 .
 
-
-Definition env_partial_orderb (env:Ω) (env':Ω) (v:V) : bool :=
-    let venv := fst env in
-    let venv' := fst env' in 
-     match venv v with 
-        | Some (Int _) | Some (VMpz _) => same_values (venv v) (venv' v)
-        | Some UInt => match venv' v with 
-            | Some UInt | Some (Int _) => true
-            | _ => false
-            end
-        | Some UMpz => match venv' v with 
-            | Some UMpz | Some (VMpz _) => true
-            | _ => false
-            end
-        | None => true
-    end
-.
 
 Inductive env_partial_order (env:Ω) : Ω -> id -> Prop :=
 | env_refl v : env_partial_order env env v
@@ -232,17 +273,56 @@ Inductive env_partial_order (env:Ω) : Ω -> id -> Prop :=
 .
 
 
+Inductive mems_partial_order (mems:M) : M -> nat -> Prop := (* fixme: definition in paper ? *)
+| mems_refl n : mems_partial_order mems mems n
+| fixme  mems' n:  mems_partial_order mems mems' n 
+.
 
-Notation "e ⊑ e'" := (forall v, env_partial_order e e' v) (at level 99).
+Notation "e ⊑ e'" := (forall v, env_partial_order e e' v).
+
+Notation "'[' ( e , m ) ']' ⊑ '[' ( e' , m' ) ']'" :=  (
+    (forall v, env_partial_order e e' v)
+    /\
+    (forall n, mems_partial_order m m' n)
+
+).
 
 
 
-(* Module Todo.
-Hypothesis type_soundness : forall (env:Ω) (t:Z), True.
+Definition VarNotInStmt (s:c_statement) (v:V) := True. (* todo *)
 
-Hypothesis convergence : forall (type_env:Γ) (r:mini_c_routines), 
-    exists (t:T), type_env r = t.
-End Todo. *)
+
+
+Lemma test_eq : forall (v v' : Ωᵥ) var z, v{var \ z} = v'{var \ z} <-> v = v'. Admitted.
+
+Lemma test_eq2 : forall (v:Ωᵥ) x z var, v x = (v {var \ z}) x. Admitted.
+
+Lemma env_partial_order_next :  forall x v v' l l' var z, 
+    env_partial_order (v{var \ z},l) (v'{var \ z},l') x <-> 
+    env_partial_order (v,l) (v',l') x.
+Proof.
+Admitted.
+
+
+
+Lemma values_dec : forall x y : Values, {x = y} + {x <> y}. Admitted.
+
+#[global] Instance v_eq_dec : EqDec Values := {eq_dec := values_dec}.
+
+
+Inductive add_var (env : Ω) (mem_state : M) (t:gmp_t) (v:V) (z:Values) : Ω * M -> Prop :=
+| typeInt n : 
+    t = Ctype C_Int ->
+    z = Int n \/ z = UInt ->
+    add_var env mem_state t v z (((fst env){v\z}, snd env),mem_state)
+
+| typeMpz x (n:Int.MI) :
+    t = Mpz ->
+    z = Int n \/ z = UInt ->
+    add_var env mem_state t v z (((fst env){v\x}, snd env),mem_state{x\z_of_Int n})
+.
+
+
 
 
 

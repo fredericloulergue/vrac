@@ -24,10 +24,9 @@ Definition p_map {X Y : Type} `{EqDec X}  (f: X -> option Y) (x:X) (y:Y) : X -> 
 Notation "f { x \ y }" := (p_map f x y): fsl_scope.
 
 
-Inductive domain { X Y : Type} (f: X ⇀ Y) (y:Y) := 
-    | exist : (exists x, (f x) = Some y) -> 
-        domain f y
-    .
+Inductive domain { X Y : Type} (f: X ⇀ Y) (x:X) := 
+    | exist: (exists y, (f x) = Some y) ->  domain f x
+.
 Notation "'dom' f" := (domain f) : fsl_scope.
 
 

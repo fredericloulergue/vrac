@@ -29,4 +29,5 @@ Reserved Notation "Ω ⊨ e => v" (at level 90). (* semantic of expressions, v �
 (* Reserved Notation "Ω , M ⊨ s => Ω' , M'" (at level 200).  (* semantic of statements *) *)
 
 
-Reserved Notation "e ⊑ e'" (at level 99).
+Reserved Notation "e ⊑ e'" ( e'  constr at level 0, at level 99).
+Reserved Notation "'[' ( e , m ) ']' ⊑ '[' ( e' , m' ) ']'" (at level 99).
