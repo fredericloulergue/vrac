@@ -4,10 +4,11 @@ From Coq Require Import Setoids.Setoid.
 From Coq Require Import Eqdep_dec. 
 
 Open Scope Z_scope.
-
+Open Scope fsl_scope.
+Open Scope list_scope.
 
 Definition partial_function {X Y : Type} := X -> option Y.
-Definition empty_p {X:Type} := (None: option X).
+Definition empty_p {X Y:Type} := fun (_:X) => (None: option Y).
 
 Notation "⊥" := empty_p : fsl_scope.
 
@@ -18,10 +19,16 @@ Class EqDec X :=
 
 #[global] Instance z_eq_dec : EqDec Z := {eq_dec := Z.eq_dec}.
 
-Definition p_map {X Y : Type} `{EqDec X}  (f: X -> option Y) (x:X) (y:Y) : X -> option Y :=
-    fun i => if eq_dec x i then Some y else f i.
+Definition p_map {X Y : Type} `{EqDec X}  (f: X -> option Y) (xy:X * Y) : X -> option Y :=
+    fun i => if eq_dec (fst xy) i then Some (snd xy) else f i.
 
-Notation "f { x \ y }" := (p_map f x y): fsl_scope.
+Notation "f { xy , .. , xy' }" :=  (p_map .. (p_map f xy') .. xy ) : fsl_scope.
+
+
+
+Definition p_map_addall {X Y: Type} `{EqDec X} env (l:list (X*Y)) :=
+    List.fold_left (fun f (xy:X*Y) => let (x,y) := xy in f {x \ y}) l env
+.
 
 
 Inductive domain { X Y : Type} (f: X ⇀ Y) (x:X) := 
