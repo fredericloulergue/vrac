@@ -18,6 +18,10 @@ Reserved Notation "'dom' f" (at level 10).
 Notation id := string.
 
 
+Declare Custom Entry pmap.
+Notation "x '\' y" := (x,y) (in custom pmap at level 0, x constr, y constr).
+Reserved Notation "f { xy , .. , xy' }" (xy custom pmap, xy' custom pmap, at level 0).
+
 (* Declare Custom Entry exp.
 Declare Custom Entry term.
 Delimit Scope exp_scope with exp. *)

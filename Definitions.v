@@ -115,6 +115,16 @@ Declare Scope mini_c_scope.
 
 Declare Custom Entry mini_c.
 
+Notation " 'int' " := C_Int (in custom mini_c).
+Notation " 'void' " := Void (in custom mini_c).
+Notation "d1 .. dn f1 .. fn" := (Program (cons d1 .. (cons dn nil) ..) (cons f1 .. (cons fn nil) ..)) (in custom mini_c at level 0).
+Notation "t id" := (C_Decl t id) (in custom mini_c at level 0).
+Notation "t id '(' x ',' .. ',' y ')' '{' x' .. y' ';' s '}'" := 
+    (PFun t id (cons x .. (cons y nil) ..) (cons x' .. (cons y' nil) ..) s) (x' custom mini_c, y' custom mini_c, s custom mini_c, in custom mini_c at level 0).
+Notation "'/*@' 'logic' k id '(' x ',' .. ',' y ')' '=' t" := (LFun k id (cons x .. (cons y nil) ..) t) (in custom mini_c at level 0).
+Notation "'/*@' 'predicate' id '(' x ',' .. ',' y ')' '=' p" := (Predicate id (cons x .. (cons y nil) ..) p) (in custom mini_c at level 0).
+
+
 Notation "<{ e }>" := e (at level 0, e custom mini_c at level 99) : mini_c_scope.
 Notation "( x )" := x (in custom mini_c, x at level 99) : mini_c_scope.
 Notation "x" := x (in custom mini_c at level 0, x constr at level 0) : mini_c_scope.
@@ -138,6 +148,10 @@ Notation "x := y" := (Assign x y) (in custom mini_c at level 0, x constr at leve
 Notation "'assert' '(' e ')'" := (PAssert e) (in custom mini_c at level 0) : mini_c_scope.
 Notation "'/*@' 'assert' p '*/'" := (LAssert p) (in custom mini_c at level 0) : mini_c_scope.
 Notation "'while' '(' e ')' s" := (While e s) (in custom mini_c at level 0) : mini_c_scope.
+Notation "'return' '(' e ')'" := (Return e) (in custom mini_c at level 0) : mini_c_scope.
+Notation "c '=' f '(' x ',' .. ',' y ')'" := (FCall c f (cons x .. (cons y nil) ..)) (in custom mini_c at level 0).
+Notation "f '(' x ',' .. ',' y ')'" := (PCall f (cons x .. (cons y nil) ..)) (in custom mini_c at level 0).
+
 
      
 Definition V : Set := id. (* program variables and routines *)
@@ -153,10 +167,10 @@ Definition T : Set := gmp_t. (* minigmp types *)
 
 (* ty the function that gives the type of a mini-GMP expression  -> where are the expressions defined ? *)
 
-Definition F := V ⇀ (V^* -> S). (* program functions *)
-Definition P := V ⇀ (V^* -> S). (* program procedures *)
-Definition Fl :=  L ⇀ (L^* -> Z). (* logic functions *)
-Definition Bl :=  L ⇀ (L^* -> B). (* predicates *)
+Definition F := V ⇀ (V^* * S). (* program functions *)
+Definition P := V ⇀ (V^* * S). (* program procedures *)
+Definition Fl :=  L ⇀ (L^* * Z). (* logic functions *)
+Definition Bl :=  L ⇀ (L^* * B). (* predicates *)
 
 
 Module Int16Bounds.
@@ -166,17 +180,8 @@ End Int16Bounds.
 
 Module Int := MachineInteger Int16Bounds.
 
-Lemma zeroinRange : Int.inRange 0.
-Proof.
-    split ; reflexivity.
-Qed.
-
-Lemma oneinRange : Int.inRange 1.
-Proof.
-    split ; reflexivity.
-Qed.
-
-
+Fact zeroinRange : Int.inRange 0. now split. Qed.
+Fact oneinRange : Int.inRange 1. now split. Qed.
 
 
 Inductive Values := 
@@ -184,6 +189,10 @@ Inductive Values :=
     | VMpz (n:nat)  (* memory location for values of type mpz *) 
     | UInt   (* set of undefined values of type int *) 
     | UMpz  . (* set of undefined values of type mpz *) 
+
+
+Definition zero := Int (Int.of_z 0 zeroinRange).
+Definition one := Int (Int.of_z 1 oneinRange).
 
 Definition values_int (v:Values) : option Values := match v with
 | Int n => Some (Int n)
@@ -241,7 +250,7 @@ Coercion T_Z : Z >-> fsl_term.
 Coercion Int : Int.MI >-> Values. 
 Coercion VMpz : nat >-> Values.
 
-(* Coercion LAssert : predicate >-> c_statement. *)
+Coercion LAssert : predicate >-> c_statement.
 
 
 
@@ -291,9 +300,7 @@ Notation "'[' ( e , m ) ']' ⊑ '[' ( e' , m' ) ']'" :=  (
 
 Definition VarNotInStmt (s:c_statement) (v:V) := True. (* todo *)
 
-
-
-Lemma test_eq : forall (v v' : Ωᵥ) var z, v{var \ z} = v'{var \ z} <-> v = v'. Admitted.
+(* Lemma test_eq : forall (v v' : Ωᵥ) var z, v{var \ z} = v'{var \ z} <-> v = v'. Admitted.
 
 Lemma test_eq2 : forall (v:Ωᵥ) x z var, v x = (v {var \ z}) x. Admitted.
 
@@ -302,9 +309,6 @@ Lemma env_partial_order_next :  forall x v v' l l' var z,
     env_partial_order (v,l) (v',l') x.
 Proof.
 Admitted.
-
-
-
 Lemma values_dec : forall x y : Values, {x = y} + {x <> y}. Admitted.
 
 #[global] Instance v_eq_dec : EqDec Values := {eq_dec := values_dec}.
@@ -321,7 +325,7 @@ Inductive add_var (env : Ω) (mem_state : M) (t:gmp_t) (v:V) (z:Values) : Ω * M
     z = Int n \/ z = UInt ->
     add_var env mem_state t v z (((fst env){v\x}, snd env),mem_state{x\z_of_Int n})
 .
-
+ *)
 
 
 

@@ -22,12 +22,12 @@ Inductive c_exp_sem (env : Ω) : c_exp -> Values -> Prop :=
     env ⊨ e => (Int.of_z z z_ir) ->
     env ⊨ e' => (Int.of_z z z'_ir) ->
     ((◁ op) z z' -> True) ->
-    env ⊨ BinOpBool e op e' => Int.of_z 1 oneinRange
+    env ⊨ BinOpBool e op e' => one
 | C_E_BinOpFalse e e' (z z' : Z) op z_ir z'_ir :
     env ⊨ e => (Int.of_z z z_ir) -> 
     env ⊨ e' => (Int.of_z z' z'_ir) -> 
     ((◁ op) z z' -> False) ->
-    env ⊨ BinOpBool e op e' => Int.of_z 0 zeroinRange
+    env ⊨ BinOpBool e op e' => zero
 
 where  "Ω '⊨' e => v" := (c_exp_sem Ω e v).
 
@@ -64,12 +64,41 @@ Inductive c_stmt_sem (env:Ω) (mem:M) : S -> Ω -> M -> Prop :=
         c_stmt_sem  env mem s env' mem' -> 
         c_stmt_sem  env' mem' s' env'' mem'' ->
         c_stmt_sem env mem <{ s ; s' }>  env'' mem''
-    | S_Assert  e z :
-        env ⊨ e => z -> z <>  Int.of_z 0 zeroinRange ->
+
+    | S_FCall (funs:F) f b env' mem' c xargs eargs zargs resf z  : 
+        let eToz := List.combine eargs zargs in
+        let xToz := List.combine xargs zargs in
+        funs f = Some (xargs,b) ->
+        List.Forall (fun p => p) (List.map (fun ez => env ⊨ (fst ez) => (snd ez)) eToz)  ->
+        c_stmt_sem ((p_map_addall ⊥ xToz),⊥) mem b env' mem' ->
+        (fst env') resf = Some z ->
+        
+        c_stmt_sem env mem (FCall c f eargs) ((fst env){c\z},(snd env)) mem'
+
+    | S_PCall (procs:P) p b env' mem' xargs eargs zargs  : 
+        let eToz := List.combine eargs zargs in
+        let xToz := List.combine xargs zargs in
+        procs p = Some (xargs,b) ->
+        List.Forall (fun p => p) (List.map (fun ez => env ⊨ (fst ez) => (snd ez)) eToz)  ->
+        c_stmt_sem ((p_map_addall ⊥ xToz),⊥) mem b env' mem' ->
+        
+        c_stmt_sem env mem (PCall p eargs) env mem'
+
+    | S_Return e z resf : 
+         env ⊨ e => z -> c_stmt_sem env mem <{ return(e) }> ((fst env){resf\z},snd env) mem
+
+    | S_PAssert  e z :
+        env ⊨ e => z -> z <>  zero ->
         c_stmt_sem env mem <{ assert (e) }> env mem
+
+    (* | S_LAssert p :
+        env ⊨ p => one -> (* must be fsl *)
+        c_stmt_sem env mem <{ /*@ assert p */ }> env mem *)
 
  (* where "Ω ',' M '⊨' s '=>' Ω' ',' M'" := (c_stmt_sem s Ω M Ω' M') *)
     .
+
+
 
 (* TODO: finish mini-fsl semantic *)
 
@@ -96,3 +125,6 @@ Inductive fsl_assert_sem : S -> Ω -> M -> Ω -> M -> Prop :=
 | P_Assert env mem p :  env ⊨ p => Int.of_z 1 oneinRange -> 
     fsl_assert_sem (LAssert p) env mem env mem
 . *)
+
+
+(* todo GMP semantics *)

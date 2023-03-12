@@ -58,7 +58,7 @@ Lemma weakening_of_statement_semantics_1 :
      exists Ω₁' M₁', 
      [(Ω₁ , M₁)] ⊑ [(Ω₁', M₁')] /\  c_stmt_sem Ω₀' M₀' s Ω₁' M₁'.
 Proof.
-    split. 
+    (* split. 
     - induction s ; intro H ; inversion H ; subst ; intros.
         * exists Ω₀'. exists M₀'. split. apply H0. constructor.
         * exists ((fst Ω₀'){var\z}, (snd Ω₀')). exists M₀'. destruct H0 as [H0 _]. split.
@@ -66,6 +66,9 @@ Proof.
             *** intro x. destruct Ω₀,Ω₀'. apply <- env_partial_order_next. apply (H0 x).
             *** apply fixme.
          ** constructor. apply (weakening_of_expression_semantics Ω₀) ; assumption.
+        * admit.
+        * admit.
+        * admit.
         * admit.
         * admit.
         * admit.
@@ -79,7 +82,7 @@ Proof.
                *** assumption.
                *** admit.
                *** admit.
-            **
+            ** *)
 Admitted.
 
 (* 2 *)
@@ -108,7 +111,7 @@ Admitted.
 
 Theorem absence_of_dangling_pointers :
     forall n (z:=VMpz n) (mem_state:M) (var_env:Ωᵥ), 
-        mem_state n <> ⊥ <-> 
+        mem_state n <> ⊥ n <-> 
         exists x, var_env x = Some z /\
         ~(exists x', x <> x' -> var_env x <> Some z)
 .
