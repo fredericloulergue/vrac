@@ -2,13 +2,6 @@ Require Import RAC.Definitions.
 Require Import RAC.Notations.
 Require Import RAC.Utils.
 Require Import RAC.Semantics.
-Require Import ZArith.ZArith.
-Require Import String.
-From Coq Require Import Lists.List.
-Open Scope string_scope.
-Open Scope fsl_scope.
-Open Scope Z_scope.
-Open Scope list_scope.
 
 
 Fact eq_env_partial_order :  forall e e' v z, e ⊑ e' ->  z <> UInt /\ z <> UMpz -> (fst e) v = Some z -> (fst e') v = Some z.
@@ -26,14 +19,14 @@ forall env e x,
 .
 Proof.
     split.
-    - generalize dependent x. induction e.
+    - generalize dependent x. induction e. 
         * intros v H env' Inc. inversion H. subst. apply C_E_Int.
         * intros v H env' Inc. inversion H. subst. apply C_E_Var.
             apply eq_env_partial_order with (v:=var) (z:=z) in Inc.
             ** assumption.
             ** split ; intro contra ; inversion contra.
             ** assumption.
-        * intros v H env' Inc. inversion H ;  subst. 
+        * intros v H env' Inc. inversion H.  subst. 
             apply C_E_BinOpInt with z_ir z'_ir.
              + apply IHe1 ; assumption.
              + apply IHe2 ; assumption.
