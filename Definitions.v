@@ -2,8 +2,6 @@ From RAC Require Import Notations.
 From RAC Require Import Utils.
 From Coq Require Import ZArith.ZArith.
 From Coq Require Import Strings.String.
-Open Scope Z_scope.
-Open Scope fsl_scope.
 
 
 Inductive c_type := C_Int | Void.  (* program types τc *)
@@ -82,13 +80,13 @@ Inductive c_statement :=
 | Return (e:c_exp)
 .
 
-Inductive c_routines :=
+Inductive c_routine :=
 | PFun (ret:c_type) (name:id) (args: c_decl^*) (b_decl: c_decl^* ) (body:c_statement) (* program function *)
 | LFun (ret:fsl_type) (name:id) (args: fsl_decl^*) (body:fsl_term) (* logic function *)
 | Predicate (name:id) (args: fsl_decl^*) (p:predicate) (* predicate *)
 .
 
-Inductive c_program := Program (decls: c_decl^*)  (routines: c_routines^*).  (* annotated program *)
+Inductive c_program := Program (decls: c_decl^*)  (routines: c_routine^*).  (* annotated program *)
 
      
 (*  mini-GMP *)
@@ -112,45 +110,56 @@ Inductive statement := S_G (s:gmp_statement) | S_C (c:c_statement). (* statement
 
 
 Declare Scope mini_c_scope.
+Declare Custom Entry c_decl.
+Declare Custom Entry c_stmt.
+Declare Custom Entry c_exp.
+Declare Custom Entry c_type.
 
-Declare Custom Entry mini_c.
-
-Notation " 'int' " := C_Int (in custom mini_c).
-Notation " 'void' " := Void (in custom mini_c).
-Notation "d1 .. dn f1 .. fn" := (Program (cons d1 .. (cons dn nil) ..) (cons f1 .. (cons fn nil) ..)) (in custom mini_c at level 0).
-Notation "t id" := (C_Decl t id) (in custom mini_c at level 0).
-Notation "t id '(' x ',' .. ',' y ')' '{' x' .. y' ';' s '}'" := 
-    (PFun t id (cons x .. (cons y nil) ..) (cons x' .. (cons y' nil) ..) s) (x' custom mini_c, y' custom mini_c, s custom mini_c, in custom mini_c at level 0).
-Notation "'/*@' 'logic' k id '(' x ',' .. ',' y ')' '=' t" := (LFun k id (cons x .. (cons y nil) ..) t) (in custom mini_c at level 0).
-Notation "'/*@' 'predicate' id '(' x ',' .. ',' y ')' '=' p" := (Predicate id (cons x .. (cons y nil) ..) p) (in custom mini_c at level 0).
+Notation "<[ d ]>" := d (at level 0, d custom c_decl at level 99) : mini_c_scope.
+Notation "<{ s }>" := s (at level 0, s custom c_stmt at level 99) : mini_c_scope.
+Notation "( x )" := x (in custom c_exp, x at level 99) : mini_c_scope.
 
 
-Notation "<{ e }>" := e (at level 0, e custom mini_c at level 99) : mini_c_scope.
-Notation "( x )" := x (in custom mini_c, x at level 99) : mini_c_scope.
-Notation "x" := x (in custom mini_c at level 0, x constr at level 0) : mini_c_scope.
-Notation "'skip'" := Skip  (in custom mini_c at level 0) : mini_c_scope.
+Notation " 'int' " := C_Int (in custom c_type) : mini_c_scope.
+Notation " 'void' " := Void (in custom c_type) : mini_c_scope.
+Notation "e" := e (in custom c_exp at level 0, e constr at level 0) : mini_c_scope.
+Notation "s" := s (in custom c_stmt at level 0, s constr at level 0) : mini_c_scope.
+Notation "d" := d (in custom c_decl at level 0, d constr at level 0) : mini_c_scope.
+
+Notation "t id" := (C_Decl t id) (t custom c_type, in custom c_decl at level 0) : mini_c_scope.
+Notation "t id '(' x ',' .. ',' y ')' '[' x' .. y' ';' s ']'" := (PFun t id (cons x .. (cons y nil) ..) (cons x' .. (cons y' nil) ..) s) 
+    (t custom c_type, s custom c_stmt, in custom c_decl at level 0) : mini_c_scope.
+
+
+
+Notation "x + y"   := (BinOpInt x C_Add y) (in custom c_exp at level 50, left associativity) : mini_c_scope.
+Notation "x - y"   := (BinOpInt x C_Min y) (in custom c_exp at level 50, left associativity) : mini_c_scope.
+Notation "x * y"   := (BinOpInt x C_Mul y) (in custom c_exp at level 50, left associativity) : mini_c_scope.
+Notation "x / y"   := (BinOpInt x C_Div y) (in custom c_exp at level 50, left associativity) : mini_c_scope.
+Notation "x == y"   := (BinOpBool x C_Eq y) (in custom c_exp at level 50, left associativity) : mini_c_scope.
+Notation "x != y"   := (BinOpBool x C_NEq y) (in custom c_exp at level 50, left associativity) : mini_c_scope.
+Notation "x < y"   := (BinOpBool x C_Lt y) (in custom c_exp at level 50, left associativity) : mini_c_scope.
+Notation "x <= y"   := (BinOpBool x C_Le y) (in custom c_exp at level 50, left associativity) : mini_c_scope.
+Notation "x > y"   := (BinOpBool x C_Gt y) (in custom c_exp at level 50, left associativity) : mini_c_scope.
+Notation "x >= y"   := (BinOpBool x C_Ge y) (in custom c_exp at level 50, left associativity) : mini_c_scope.
+
+
+
+Notation "'/*@' 'logic' k id '(' x ',' .. ',' y ')' '=' t" := (LFun k id (cons x .. (cons y nil) ..) t) (in custom c_decl at level 0).
+Notation "'/*@' 'predicate' id '(' x ',' .. ',' y ')' '=' p" := (Predicate id (cons x .. (cons y nil) ..) p) (p custom c_stmt, in custom c_decl at level 0).
+Notation "'/*@' 'assert' p '*/'" := (LAssert p) (in custom c_stmt at level 0) : mini_c_scope.
+
+
+Notation "'skip'" := Skip  (in custom c_stmt at level 0) : mini_c_scope.
 Notation "'if' '(' cond ')'  _then  'else' _else " := (If cond _then _else) 
-    (in custom mini_c at level 89, cond at level 99, _then at level 99, _else at level 99) : mini_c_scope.
-Notation "x + y"   := (BinOpInt x C_Add y) (in custom mini_c at level 50, left associativity) : mini_c_scope.
-Notation "x - y"   := (BinOpInt x C_Min y) (in custom mini_c at level 50, left associativity) : mini_c_scope.
-Notation "x * y"   := (BinOpInt x C_Mul y) (in custom mini_c at level 50, left associativity) : mini_c_scope.
-Notation "x / y"   := (BinOpInt x C_Div y) (in custom mini_c at level 50, left associativity) : mini_c_scope.
-Notation "x == y"   := (BinOpBool x C_Eq y) (in custom mini_c at level 50, left associativity) : mini_c_scope.
-Notation "x != y"   := (BinOpBool x C_NEq y) (in custom mini_c at level 50, left associativity) : mini_c_scope.
-Notation "x < y"   := (BinOpBool x C_Lt y) (in custom mini_c at level 50, left associativity) : mini_c_scope.
-Notation "x <= y"   := (BinOpBool x C_Le y) (in custom mini_c at level 50, left associativity) : mini_c_scope.
-Notation "x > y"   := (BinOpBool x C_Gt y) (in custom mini_c at level 50, left associativity) : mini_c_scope.
-Notation "x >= y"   := (BinOpBool x C_Ge y) (in custom mini_c at level 50, left associativity) : mini_c_scope.
-
-
-Notation "s1 ';' s2" := (Seq s1 s2) (in custom mini_c at level 90, right associativity) : mini_c_scope.
-Notation "x := y" := (Assign x y) (in custom mini_c at level 0, x constr at level 0, y at level 85, no associativity) : mini_c_scope.
-Notation "'assert' '(' e ')'" := (PAssert e) (in custom mini_c at level 0) : mini_c_scope.
-Notation "'/*@' 'assert' p '*/'" := (LAssert p) (in custom mini_c at level 0) : mini_c_scope.
-Notation "'while' '(' e ')' s" := (While e s) (in custom mini_c at level 0) : mini_c_scope.
-Notation "'return' '(' e ')'" := (Return e) (in custom mini_c at level 0) : mini_c_scope.
-Notation "c '=' f '(' x ',' .. ',' y ')'" := (FCall c f (cons x .. (cons y nil) ..)) (in custom mini_c at level 0).
-Notation "f '(' x ',' .. ',' y ')'" := (PCall f (cons x .. (cons y nil) ..)) (in custom mini_c at level 0).
+    (in custom c_stmt at level 89, cond custom c_exp at level 99, _then at level 99, _else at level 99) : mini_c_scope.
+Notation "s1 ';' s2" := (Seq s1 s2) (in custom c_stmt at level 90, right associativity) : mini_c_scope.
+Notation "x = y" := (Assign x y) (in custom c_stmt at level 0, x constr at level 0, y custom c_exp, no associativity) : mini_c_scope.
+Notation "'assert' '(' e ')'" := (PAssert e) (in custom c_stmt at level 0) : mini_c_scope.
+Notation "'while' '(' e ')' s" := (While e s) (in custom c_stmt at level 0) : mini_c_scope.
+Notation "'return' '(' e ')'" := (Return e) (in custom c_stmt at level 0) : mini_c_scope.
+Notation "f '(' x ',' .. ',' y ')'" := (PCall f (cons x .. (cons y nil) ..)) (in custom c_stmt at level 0, x custom c_exp, y custom c_exp).
+Notation "c '<-' '(' x ',' .. ',' y ')' f " := (FCall c f (cons x .. (cons y nil) ..)) (f constr, x custom c_exp, y custom c_exp, in custom c_stmt at level 0).
 
 
      
@@ -180,21 +189,21 @@ End Int16Bounds.
 
 Module Int := MachineInteger Int16Bounds.
 
-Fact zeroinRange : Int.inRange 0. now split. Qed.
+Fact zeroinRange : Int.inRange 0.  now split. Qed.
 Fact oneinRange : Int.inRange 1. now split. Qed.
 
 
-Inductive Values := 
+Inductive Value := 
     | Int (n:Int.MI) (* set of type int, a machine integer (may overflow) *)
     | VMpz (n:nat)  (* memory location for values of type mpz *) 
     | UInt   (* set of undefined values of type int *) 
     | UMpz  . (* set of undefined values of type mpz *) 
 
 
-Definition zero := Int (Int.of_z 0 zeroinRange).
-Definition one := Int (Int.of_z 1 oneinRange).
+Definition zero := Int (Int.mkMI 0 zeroinRange).
+Definition one := Int (Int.mkMI 1 oneinRange).
 
-Definition values_int (v:Values) : option Values := match v with
+Definition values_int (v:Value) : option Value := match v with
 | Int n => Some (Int n)
 | _ => None
 end.
@@ -203,18 +212,18 @@ end.
 (* integer from value *)
 Definition z_of_Int : Int.MI -> Z := Int.to_z.
 
-(* fixme must be specialized for Values of type VMpz *)
-Definition M := Values ⇀ Z. (* memory state, i.e. current mpz value of given mem loc*)
+(* fixme must be specialized for Value of type VMpz *)
+Definition M := Value ⇀ Z. (* memory state, i.e. current mpz value of given mem loc*)
 
 
-Definition Ωᵥ := V ⇀ Values.
+Definition Ωᵥ := V ⇀ Value.
 Definition Ωₗ := L ⇀ Z.
 
 
 (* todo: use a record with coercion to not having to deal with fst snd *)
 Definition Ω := (Ωᵥ * Ωₗ)%type.
 
-Definition Γ  := c_routines -> T. (* typing env *)
+Definition Γ  := c_routine -> T. (* typing env *)
 
 Record I := {min : Z; max : Z}. (* interval *)
 
@@ -234,7 +243,7 @@ Definition Tr (o: oracle) (om:Θ) : LT -> Γᵢ -> T := fun lt env => om (o lt e
 (* Module Todo.
 Hypothesis type_soundness : forall (env:Ω) (t:Z), True.
 
-Hypothesis convergence : forall (type_env:Γ) (r:mini_c_routines), 
+Hypothesis convergence : forall (type_env:Γ) (r:mini_c(((((((((_routines), 
     exists (t:T), type_env r = t.
 End Todo. *)
 
@@ -245,16 +254,14 @@ Coercion T_Id : id >-> fsl_term.
 Coercion Zm : Z >-> c_exp.
 Coercion T_Z : Z >-> fsl_term.
 
-(* Coercion Int.of_z : Z >-> Int.MI. *)
-
-Coercion Int : Int.MI >-> Values. 
-Coercion VMpz : nat >-> Values.
+Coercion Int : Int.MI >-> Value. 
+Coercion VMpz : nat >-> Value.
 
 Coercion LAssert : predicate >-> c_statement.
 
 
 
-Definition same_values (v1 v2: option Values) : bool := match v1,v2 with
+Definition same_values (v1 v2: option Value) : bool := match v1,v2 with
     | Some (Int n1), Some (Int n2) =>  Int.mi_eqb n1 n2
     | Some (VMpz n1), Some (VMpz n2) => (n1 =? n2)%nat
     | _,_ => false
@@ -309,12 +316,12 @@ Lemma env_partial_order_next :  forall x v v' l l' var z,
     env_partial_order (v,l) (v',l') x.
 Proof.
 Admitted.
-Lemma values_dec : forall x y : Values, {x = y} + {x <> y}. Admitted.
+Lemma values_dec : forall x y : Value, {x = y} + {x <> y}. Admitted.
 
-#[global] Instance v_eq_dec : EqDec Values := {eq_dec := values_dec}.
+#[global] Instance v_eq_dec : EqDec Value := {eq_dec := values_dec}.
 
 
-Inductive add_var (env : Ω) (mem_state : M) (t:gmp_t) (v:V) (z:Values) : Ω * M -> Prop :=
+Inductive add_var (env : Ω) (mem_state : M) (t:gmp_t) (v:V) (z:Value) : Ω * M -> Prop :=
 | typeInt n : 
     t = Ctype C_Int ->
     z = Int n \/ z = UInt ->

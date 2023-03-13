@@ -2,11 +2,10 @@ From Coq Require Import ZArith.ZArith.
 From Coq Require Import ZArith.Znat.
 From Coq Require Import Lists.List. 
 From Coq Require Import Strings.String.
-Open Scope Z_scope.
 
 
-Declare Scope fsl_scope.
-Delimit Scope fsl_scope with fsl.
+Declare Scope utils_scope.
+(* Delimit Scope utils_scope with utils. *)
 
 Notation "X ⇀ Y" :=  (X -> option Y) (at level 100): type_scope.
 Notation "A '^*'" := (list A) (at level 20) : type_scope.
@@ -26,7 +25,7 @@ Reserved Notation "f { xy , .. , xy' }" (xy custom pmap, xy' custom pmap, at lev
 Declare Custom Entry term.
 Delimit Scope exp_scope with exp. *)
 
-Reserved Notation "Ω ⊨ e => v" (at level 90). (* semantic of expressions, v ∈ Values *)
+Reserved Notation "Ω ⊨ e => v" (at level 90). (* semantic of expressions, v ∈ Value *)
 (* Reserved Notation "Ω ⊨ t => z" (at level 200).  semantic of terms z ∈ Z*)
 (* Reserved Notation "Ω ⊨ p => b" (at level 200).  semantic of predicates b ∈ Bools *)
 
