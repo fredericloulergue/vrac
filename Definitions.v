@@ -11,10 +11,10 @@ Inductive gmp_t := Ctype (t:c_type) | String | Mpz. (* type extension τ *)
 
 Inductive fsl_decl :=  FSL_Decl (τ:gmp_t) (name:id). (* logic declaration δ *)
 Inductive fsl_binop_bool :=  FSL_Lt | FSL_Le | FSL_Gt | FSL_Ge | FSL_Eq | FSL_NEq.
-Inductive fsl_binop_int := FSL_Add | FSL_Min  | FSL_Mul  | FSL_Div.
+Inductive fsl_binop_int := FSL_Add | FSL_Sub  | FSL_Mul  | FSL_Div.
 Definition fsl_binop_int_model (x:fsl_binop_int) : Z -> Z -> Z := match x with
     | FSL_Add => Z.add
-    | FSL_Min => Z.min
+    | FSL_Sub => Z.sub
     | FSL_Mul => Z.mul
     | FSL_Div => Z.div
 end.
@@ -50,10 +50,10 @@ Definition c_binop_bool_model (x:c_binop_bool) : Z -> Z -> Prop := match x with
 end.
 Notation "◁" := c_binop_bool_model.
 
-Inductive c_binop_int := C_Add | C_Min | C_Mul | C_Div. 
+Inductive c_binop_int := C_Add | C_Sub | C_Mul | C_Div. 
 Definition c_binop_int_model (x:c_binop_int) : Z -> Z -> Z := match x with
     | C_Add => Z.add
-    | C_Min => Z.min
+    | C_Sub => Z.sub
     | C_Mul => Z.mul
     | C_Div => Z.div
 end.
@@ -119,30 +119,30 @@ Notation "<[ d ]>" := d (at level 0, d custom c_decl at level 99) : mini_c_scope
 Notation "<{ s }>" := s (at level 0, s custom c_stmt at level 99) : mini_c_scope.
 Notation "( x )" := x (in custom c_exp, x at level 99) : mini_c_scope.
 
-
 Notation " 'int' " := C_Int (in custom c_type) : mini_c_scope.
 Notation " 'void' " := Void (in custom c_type) : mini_c_scope.
-Notation "e" := e (in custom c_exp at level 0, e constr at level 0) : mini_c_scope.
+Notation "e" := e (in custom c_exp at level 0,  e constr at level 0) : mini_c_scope.
 Notation "s" := s (in custom c_stmt at level 0, s constr at level 0) : mini_c_scope.
-Notation "d" := d (in custom c_decl at level 0, d constr at level 0) : mini_c_scope.
+Notation "d" := d ( in custom c_decl at level 0, d constr at level 0) : mini_c_scope.
 
-Notation "t id" := (C_Decl t id) (t custom c_type, in custom c_decl at level 0) : mini_c_scope.
-Notation "t id '(' x ',' .. ',' y ')' '[' x' .. y' ';' s ']'" := (PFun t id (cons x .. (cons y nil) ..) (cons x' .. (cons y' nil) ..) s) 
-    (t custom c_type, s custom c_stmt, in custom c_decl at level 0) : mini_c_scope.
+
+
+Notation "t id" := (C_Decl t id) (in custom c_decl at level 0, t custom c_type) : mini_c_scope.
+Notation "t id '(' x ',' .. ',' y ')' '[' x' .. y' ';' s ']'" := (PFun t id (cons x .. (cons y nil) ..) (cons x' .. (cons y' nil) ..) s)
+    (in custom c_decl at level 0, t custom c_type, s custom c_stmt) : mini_c_scope.
 
 
 
 Notation "x + y"   := (BinOpInt x C_Add y) (in custom c_exp at level 50, left associativity) : mini_c_scope.
-Notation "x - y"   := (BinOpInt x C_Min y) (in custom c_exp at level 50, left associativity) : mini_c_scope.
-Notation "x * y"   := (BinOpInt x C_Mul y) (in custom c_exp at level 50, left associativity) : mini_c_scope.
-Notation "x / y"   := (BinOpInt x C_Div y) (in custom c_exp at level 50, left associativity) : mini_c_scope.
-Notation "x == y"   := (BinOpBool x C_Eq y) (in custom c_exp at level 50, left associativity) : mini_c_scope.
-Notation "x != y"   := (BinOpBool x C_NEq y) (in custom c_exp at level 50, left associativity) : mini_c_scope.
-Notation "x < y"   := (BinOpBool x C_Lt y) (in custom c_exp at level 50, left associativity) : mini_c_scope.
-Notation "x <= y"   := (BinOpBool x C_Le y) (in custom c_exp at level 50, left associativity) : mini_c_scope.
-Notation "x > y"   := (BinOpBool x C_Gt y) (in custom c_exp at level 50, left associativity) : mini_c_scope.
-Notation "x >= y"   := (BinOpBool x C_Ge y) (in custom c_exp at level 50, left associativity) : mini_c_scope.
-
+Notation "x - y"   := (BinOpInt x C_Sub y) (in custom c_exp at level 50, left associativity) : mini_c_scope.
+Notation "x * y"   := (BinOpInt x C_Mul y) (in custom c_exp at level 40, left associativity) : mini_c_scope.
+Notation "x / y"   := (BinOpInt x C_Div y) (in custom c_exp at level 40, left associativity) : mini_c_scope.
+Notation "x == y"  := (BinOpBool x C_Eq y) (in custom c_exp at level 50, no associativity) : mini_c_scope.
+Notation "x != y"  := (BinOpBool x C_NEq y) (in custom c_exp at level 50, no associativity) : mini_c_scope.
+Notation "x < y"   := (BinOpBool x C_Lt y) (in custom c_exp at level 50, no associativity) : mini_c_scope.
+Notation "x <= y"  := (BinOpBool x C_Le y) (in custom c_exp at level 50, no associativity) : mini_c_scope.
+Notation "x > y"   := (BinOpBool x C_Gt y) (in custom c_exp at level 50, no associativity) : mini_c_scope.
+Notation "x >= y"  := (BinOpBool x C_Ge y) (in custom c_exp at level 50, no associativity) : mini_c_scope.
 
 
 Notation "'/*@' 'logic' k id '(' x ',' .. ',' y ')' '=' t" := (LFun k id (cons x .. (cons y nil) ..) t) (in custom c_decl at level 0).
@@ -150,16 +150,16 @@ Notation "'/*@' 'predicate' id '(' x ',' .. ',' y ')' '=' p" := (Predicate id (c
 Notation "'/*@' 'assert' p '*/'" := (LAssert p) (in custom c_stmt at level 0) : mini_c_scope.
 
 
-Notation "'skip'" := Skip  (in custom c_stmt at level 0) : mini_c_scope.
-Notation "'if' '(' cond ')'  _then  'else' _else " := (If cond _then _else) 
-    (in custom c_stmt at level 89, cond custom c_exp at level 99, _then at level 99, _else at level 99) : mini_c_scope.
+Notation "'skip'" := Skip  (in custom c_stmt at level 99) : mini_c_scope.
+Notation "'if' cond _then  'else' _else " := (If cond _then _else) 
+    (in custom c_stmt at level 89, cond custom c_exp at level 99, _then custom c_stmt at level 99, _else custom c_stmt at level 99) : mini_c_scope.
 Notation "s1 ';' s2" := (Seq s1 s2) (in custom c_stmt at level 90, right associativity) : mini_c_scope.
-Notation "x = y" := (Assign x y) (in custom c_stmt at level 0, x constr at level 0, y custom c_exp, no associativity) : mini_c_scope.
-Notation "'assert' '(' e ')'" := (PAssert e) (in custom c_stmt at level 0) : mini_c_scope.
-Notation "'while' '(' e ')' s" := (While e s) (in custom c_stmt at level 0) : mini_c_scope.
-Notation "'return' '(' e ')'" := (Return e) (in custom c_stmt at level 0) : mini_c_scope.
+Notation "x = y" := (Assign x y) (in custom c_stmt at level 0, x constr at level 0, y custom c_exp at level 85, no associativity) : mini_c_scope.
+Notation "'assert' e" := (PAssert e) (in custom c_stmt at level 0, e custom c_exp at level 99) : mini_c_scope.
+Notation "'while' e s" := (While e s) (in custom c_stmt at level 89, e custom c_exp at level 99, s at level 99) : mini_c_scope.
+Notation "'return' e" := (Return e) (in custom c_stmt at level 0, e custom c_exp at level 99) : mini_c_scope.
 Notation "f '(' x ',' .. ',' y ')'" := (PCall f (cons x .. (cons y nil) ..)) (in custom c_stmt at level 0, x custom c_exp, y custom c_exp).
-Notation "c '<-' '(' x ',' .. ',' y ')' f " := (FCall c f (cons x .. (cons y nil) ..)) (f constr, x custom c_exp, y custom c_exp, in custom c_stmt at level 0).
+Notation "c '<-' '(' x ',' .. ',' y ')' f" := (FCall c f (cons x .. (cons y nil) ..)) (f constr, x custom c_exp, y custom c_exp, in custom c_stmt at level 50).
 
 
      
@@ -294,15 +294,14 @@ Inductive mems_partial_order (mems:M) : M -> nat -> Prop := (* fixme: definition
 | fixme  mems' n:  mems_partial_order mems mems' n 
 .
 
-Notation "e ⊑ e'" := (forall v, env_partial_order e e' v).
+Notation "e ⊑ e'" := (forall v, env_partial_order e e' v) (at level 99) : utils_scope.
 
-Notation "'[' ( e , m ) ']' ⊑ '[' ( e' , m' ) ']'" :=  (
+Notation "( e , m ) ⊑ ( e' , m' )" :=  (
     (forall v, env_partial_order e e' v)
     /\
     (forall n, mems_partial_order m m' n)
 
-).
-
+) : utils_scope.
 
 
 Definition VarNotInStmt (s:c_statement) (v:V) := True. (* todo *)
