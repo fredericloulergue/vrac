@@ -39,7 +39,7 @@ Proof.
                 ++ apply IHe1 ; assumption.
                 ++ apply IHe2 ; assumption.
                 ++ assumption.
-    - intro. apply H. constructor.
+    - intro. apply H. apply refl_env_partial_order.
 Qed.
 
 
@@ -85,8 +85,8 @@ Lemma weakening_of_statement_semantics_2 :
     [Ω₀ ~ M₀] |= s => [Ω₁ ~ M₁] /\ [Ω₀ ~ M₀] |= s => [Ω₀' ~ M₀']  ->
     forall Ω₁' M₁',
     [Ω₀' ~ M₀'] |= s => [Ω₁' ~ M₁'] -> 
-    (forall (v:V), ~(dom (fst Ω₀) v) -> fst Ω₀' v = fst Ω₁' v) /\ 
-    (forall x, ~ exists (v:V), (fst Ω₀ v) = Some x -> M₀' x = M₁' x).
+    (forall (v:𝓥), ~(dom (fst Ω₀) v) -> fst Ω₀' v = fst Ω₁' v) /\ True.
+    (* (forall x, ~ exists (v:𝓥), (fst Ω₀ v) = Some x -> M₀' x = M₁' x). *)
 Admitted.
 
 
@@ -94,8 +94,9 @@ Lemma weakening_of_statement_semantics_3 :
     forall Ω₀ Ω₀' M₀ M₀' s Ω₁ M₁,
     [Ω₀ ~ M₀] |= s => [Ω₁ ~ M₁] ->
     (Ω₀' , M₀') ⊑ (Ω₀, M₀) ->
-    forall v, True (* todo (dom -) (dom (fst Ω₀) - dom (fst Ω₀')) v *) -> VarNotInStmt s v -> 
-    (forall x, True (* (dom M₀ - dom M₀') x *) -> (fst Ω₀) v = x) ->
+    forall v, (dom (fst Ω₀) - dom (fst Ω₀')) v -> 
+    ~ var_in_stmt s v -> 
+    forall x, (dom M₀ - dom M₀') x -> (fst Ω₀) v = Some (VMpz x) ->
     exists Ω₁' M₁', [Ω₀' ~ M₀'] |= s => [Ω₁' ~ M₁'].
 
 Admitted.
@@ -103,7 +104,7 @@ Admitted.
 
 
 Theorem absence_of_dangling_pointers :
-    forall n (z:=VMpz n) (mem_state:M) (var_env:Ωᵥ), 
+    forall n (z:=VMpz n) (mem_state:𝓜) (var_env:Ωᵥ), 
         mem_state n <> ⊥ n <-> 
         exists x, var_env x = Some z /\
         ~(exists x', x <> x' -> var_env x <> Some z)

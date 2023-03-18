@@ -24,7 +24,7 @@ Inductive predicate :=
     | P_BinOp (lt: fsl_term) (op:fsl_binop_bool) (rt : fsl_term)
     | Not (t:fsl_term)
     | Disj (lp:predicate) (rp:predicate)  (* disjunction *)
-    | Call (name:string) (args:fsl_decl^*) (* predicate call *)
+    | Call (name:string) (args:fsl_decl ⃰) (* predicate call *)
 with fsl_term :=
     | T_Z (z:Z) (* integer in Z *)
     | T_Id (name:id) (* variable access *)
@@ -40,13 +40,13 @@ Inductive fsl_type := FSL_Int | Integer. (* logic types *)
 Inductive c_decl :=  C_Decl (type:c_type) (name:id). (* program declaration *)
 
 Inductive c_binop_bool :=  C_Lt | C_Le | C_Gt | C_Ge | C_Eq | C_NEq.
-Definition c_binop_bool_model (x:c_binop_bool) : Z -> Z -> Prop := match x with
-    | C_Lt => Z.lt
-    | C_Le => Z.le
-    | C_Gt => Z.gt
-    | C_Ge => Z.ge
-    | C_Eq => Z.eq
-    | C_NEq => fun b1 b2 => ~ (Z.eq b1 b2)
+Definition c_binop_bool_model (x:c_binop_bool) : Z -> Z -> bool := match x with
+    | C_Lt => Z.ltb
+    | C_Le => Z.leb
+    | C_Gt => Z.gtb
+    | C_Ge => Z.geb
+    | C_Eq => Z.eqb
+    | C_NEq => fun b1 b2 => negb (b1 =? b2)
 end.
 Notation "◁" := c_binop_bool_model.
 
@@ -70,8 +70,8 @@ Inductive c_exp :=
 Inductive c_statement :=
 | Skip (* empty statement *)
 | Assign (var:id) (e: c_exp) (* assignment *)
-| FCall (var:string) (fname:string) (args: c_exp^*) (* function call *)
-| PCall  (fname:string) (args: c_exp^*) (* procedure call *)
+| FCall (var:string) (fname:string) (args: c_exp ⃰) (* function call *)
+| PCall  (fname:string) (args: c_exp ⃰) (* procedure call *)
 | Seq (s1 : c_statement) (s2 : c_statement) (* sequence *)
 | If (cond:c_exp) (_then:c_statement) (_else:c_statement) (* conditional *)
 | While (cond:c_exp) (body:c_statement) (* loop *)
@@ -81,12 +81,12 @@ Inductive c_statement :=
 .
 
 Inductive c_routine :=
-| PFun (ret:c_type) (name:id) (args: c_decl^*) (b_decl: c_decl^* ) (body:c_statement) (* program function *)
-| LFun (ret:fsl_type) (name:id) (args: fsl_decl^*) (body:fsl_term) (* logic function *)
-| Predicate (name:id) (args: fsl_decl^*) (p:predicate) (* predicate *)
+| PFun (ret:c_type) (name:id) (args: c_decl ⃰) (b_decl: c_decl ⃰) (body:c_statement) (* program function *)
+| LFun (ret:fsl_type) (name:id) (args: fsl_decl ⃰) (body:fsl_term) (* logic function *)
+| Predicate (name:id) (args: fsl_decl ⃰) (p:predicate) (* predicate *)
 .
 
-Inductive c_program := Program (decls: c_decl^*)  (routines: c_routine^*).  (* annotated program *)
+Inductive c_program := Program (decls: c_decl ⃰)  (routines: c_routine ⃰).  (* annotated program *)
 
      
 (*  mini-GMP *)
@@ -161,25 +161,26 @@ Notation "'return' e" := (Return e) (in custom c_stmt at level 0, e custom c_exp
 Notation "f '(' x ',' .. ',' y ')'" := (PCall f (cons x .. (cons y nil) ..)) (in custom c_stmt at level 0, x custom c_exp, y custom c_exp).
 Notation "c '<-' '(' x ',' .. ',' y ')' f" := (FCall c f (cons x .. (cons y nil) ..)) (f constr, x custom c_exp, y custom c_exp, in custom c_stmt at level 50).
 
+    
+Definition 𝓥 : Set := id. (* program variables and routines *)
+Definition 𝔏 : Set := id. (* logic variables *)
 
-     
-Definition V : Set := id. (* program variables and routines *)
-Definition L : Set := id. (* logic variables and routines *)
+Definition 𝐒 : Set := c_statement. (* program statements *)
+Definition ℨ : Set := fsl_term. (* logical terms *)
+Definition 𝔅 : Set := predicate. (* predicates *)
+Definition 𝔗 : Set := gmp_t. (* minigmp types *)
 
 
-#[global] Instance eqdec_v : EqDec V := {eq_dec := string_dec}.
+#[global] Instance eqdec_v : EqDec 𝓥 := {eq_dec := string_dec}.
 
-Definition S : Set := c_statement. (* program statements *)
-Definition LT : Set := fsl_term. (* logical terms *)
-Definition B : Set := predicate. (* predicates *)
-Definition T : Set := gmp_t. (* minigmp types *)
+
 
 (* ty the function that gives the type of a mini-GMP expression  -> where are the expressions defined ? *)
 
-Definition F := V ⇀ (V^* * S). (* program functions *)
-Definition P := V ⇀ (V^* * S). (* program procedures *)
-Definition Fl :=  L ⇀ (L^* * Z). (* logic functions *)
-Definition Bl :=  L ⇀ (L^* * B). (* predicates *)
+Definition 𝓕 := 𝓥 ⇀ (𝓥 ⃰ ⨉ 𝐒). (* program functions *)
+Definition 𝓟 := 𝓥 ⇀ (𝓥 ⃰ ⨉ 𝐒). (* program procedures *)
+Definition 𝔉 :=  𝔏 ⇀ (𝔏 ⃰ ⨉ ℨ). (* logic functions *)
+Definition 𝔓 :=  𝔏 ⇀ (𝔏 ⃰ ⨉ 𝔅). (* predicates *)
 
 
 Module Int16Bounds.
@@ -187,24 +188,46 @@ Module Int16Bounds.
     Definition M_int := 32767.
 End Int16Bounds.
 
+Definition location := nat.
 Module Int := MachineInteger Int16Bounds.
+
+Notation "x  ̇ " := (Int.mkMI x) (at level 99).
+Notation "n 'ⁱⁿᵗ'" := (Int.to_z n) (at level 99).
 
 Fact zeroinRange : Int.inRange 0.  now split. Qed.
 Fact oneinRange : Int.inRange 1. now split. Qed.
 
 
-Inductive Value := 
-    | Int (n:Int.MI) (* set of type int, a machine integer (may overflow) *)
-    | VMpz (n:nat)  (* memory location for values of type mpz *) 
+Inductive 𝕍 := 
+    | VInt (n:Int.MI) (* set of type int, a machine integer (may overflow) *)
+    | VMpz (n:location)  (* memory location for values of type mpz *) 
     | UInt   (* set of undefined values of type int *) 
     | UMpz  . (* set of undefined values of type mpz *) 
 
 
-Definition zero := Int (Int.mkMI 0 zeroinRange).
-Definition one := Int (Int.mkMI 1 oneinRange).
+Definition type_of_value : option 𝕍 -> option 𝔗 := fun v => match v with
+| Some (VInt _) | Some UInt => Some (Ctype C_Int)
+| Some (VMpz _) | Some UMpz => Some Mpz
+| None => None
+end.
 
-Definition values_int (v:Value) : option Value := match v with
-| Int n => Some (Int n)
+
+Definition 𝓜 := location ⇀ ℤ.  (* enumerable -> bijection avec nat *)
+
+Definition Uτ (v:𝕍) : option c_type := match v with 
+    | VInt _ => Some C_Int
+    | _  => None
+end
+.
+
+
+Definition inUτ v : bool := if Uτ v then true else false.
+
+Definition zero := Int.mkMI 0 zeroinRange.
+Definition one := Int.mkMI 1 oneinRange.
+
+Definition values_int (v:𝕍) : option 𝕍 := match v with
+| VInt n => Some (VInt n)
 | _ => None
 end.
 
@@ -212,30 +235,23 @@ end.
 (* integer from value *)
 Definition z_of_Int : Int.MI -> Z := Int.to_z.
 
-(* fixme must be specialized for Value of type VMpz *)
-Definition M := Value ⇀ Z. (* memory state, i.e. current mpz value of given mem loc*)
+
+Definition Ωᵥ := 𝓥 ⇀ 𝕍.
+Definition Ωₗ := 𝔏 ⇀ ℤ.
+Definition Ω := Ωᵥ ⨉ Ωₗ.
 
 
-Definition Ωᵥ := V ⇀ Value.
-Definition Ωₗ := L ⇀ Z.
+Record 𝐼 := {min : Z; max : Z}. (* interval *)
+
+(* Definition Γ  := c_routine -> T. (* typing env *) *)
+Definition Γᵢ := 𝔏 ⇀ 𝐼. (* typing env mapping logic binders to  intervals *)
 
 
-(* todo: use a record with coercion to not having to deal with fst snd *)
-Definition Ω := (Ωᵥ * Ωₗ)%type.
+Definition 𝓘 := ℨ -> (𝔏 ⇀ 𝐼) -> 𝐼. (* oracle *)
 
-Definition Γ  := c_routine -> T. (* typing env *)
+Definition ϴ :=  𝐼 -> 𝔗.
 
-Record I := {min : Z; max : Z}. (* interval *)
-
-
-Definition Γᵢ := L ⇀ I. (* typing env mapping logic binders to  intervals *)
-
-
-Definition oracle := LT -> Γᵢ -> I.
-
-Definition Θ :=  I -> T.
-
-Definition Tr (o: oracle) (om:Θ) : LT -> Γᵢ -> T := fun lt env => om (o lt env). (* Θ ◦ oracle. *)
+Definition 𝚪 (o: 𝓘) (om:ϴ) : ℨ -> Γᵢ -> 𝔗 := fun lt env => om (o lt env). (* Θ ◦ oracle. *)
 
 
 
@@ -254,45 +270,89 @@ Coercion T_Id : id >-> fsl_term.
 Coercion Zm : Z >-> c_exp.
 Coercion T_Z : Z >-> fsl_term.
 
-Coercion Int : Int.MI >-> Value. 
-Coercion VMpz : nat >-> Value.
+Coercion VInt : Int.MI >-> 𝕍. 
+(* Coercion VMpz : nat >-> Value. *)
 
 Coercion LAssert : predicate >-> c_statement.
 
 
 
-Definition same_values (v1 v2: option Value) : bool := match v1,v2 with
-    | Some (Int n1), Some (Int n2) =>  Int.mi_eqb n1 n2
+Definition same_values (v1 v2: option 𝕍) : bool := match v1,v2 with
+    | Some (VInt n1), Some (VInt n2) => Int.mi_eqb n1 n2
     | Some (VMpz n1), Some (VMpz n2) => (n1 =? n2)%nat
     | _,_ => false
 end
 .
 
 
-Inductive env_partial_order (env:Ω) : Ω -> id -> Prop :=
-| env_refl v : env_partial_order env env v
-| sameInt env' n v: 
-    (fst env) v = Some (Int n)
-    -> (fst env') v = Some (Int n)
-    -> env_partial_order env env' v
-| sameMpz n env' v: 
-    (fst env) v = Some (VMpz n)
-    -> (fst env') v = Some (VMpz n)
-    -> env_partial_order env env' v
-| undefInt n env' v : (fst env) v = Some UInt
-    -> (fst env') v = Some UInt \/ (fst env') v = Some (Int n)
-    -> env_partial_order env env' v
-| undefMpz n env' v: (fst env) v = Some UMpz
-    -> (fst env') v = Some UMpz \/ (fst env') v = Some (VMpz n)
-    -> env_partial_order env env' v
-| none v env' : (fst env) v = None -> env_partial_order env env' v
+Inductive env_partial_order (env env':Ω) (var:𝓥) : Prop :=
+| EsameInt n : 
+    (fst env) var = Some (VInt n)
+    -> (fst env') var = Some (VInt n)
+    -> env_partial_order env env' var 
+| EsameMpz n : 
+    (fst env) var = Some (VMpz n)
+    -> (fst env') var = Some (VMpz n)
+    -> env_partial_order env env' var 
+| EundefInt : (fst env) var = Some UInt
+    -> (fst env') var = Some UInt \/  (exists n, (fst env') var = Some (VInt n))
+    -> env_partial_order env env' var
+| EundefMpz : (fst env) var = Some UMpz
+    -> (fst env') var = Some UMpz \/  (exists n, (fst env') var = Some (VMpz n))
+    -> env_partial_order env  env' var
+| Enone : (fst env) var = None -> env_partial_order env env' var 
 .
 
+Inductive mems_partial_order (mem mem':𝓜) (n:nat) : Prop := 
+| Msame i : mem n = Some i ->  mem' n = Some i -> mems_partial_order mem mem' n
+| Mnone : mem n = None -> mems_partial_order mem mem' n
+. 
 
-Inductive mems_partial_order (mems:M) : M -> nat -> Prop := (* fixme: definition in paper ? *)
-| mems_refl n : mems_partial_order mems mems n
-| fixme  mems' n:  mems_partial_order mems mems' n 
-.
+
+
+Fact refl_env_partial_order : forall env v, env_partial_order env env v.
+Proof.
+    intros [v l] var. remember (v var) as res. destruct res as [val |]. induction val.
+    - apply EsameInt with n; now rewrite Heqres.
+    - apply EsameMpz with n; now rewrite Heqres.
+    - apply EundefInt. now rewrite Heqres. left ; now rewrite Heqres.
+    - apply EundefMpz. now rewrite Heqres. left ; now rewrite Heqres.
+    - apply Enone. now rewrite Heqres.
+Qed.
+
+
+Fact trans_env_partial_order : forall env env' env'' v, 
+    env_partial_order env env' v  /\ env_partial_order env' env'' v ->
+    env_partial_order env env'' v.
+Proof.
+    intros [v l] [v' l'] [v'' l''] var [H1 H2]. 
+Admitted.
+
+
+Fact antisym_env_partial_order : forall env env' v, 
+ env_partial_order env env' v /\ env_partial_order env' env v -> env = env'.
+Proof.
+    intros [v l] [v' l'] var [H1 H2].
+Admitted.
+
+
+Fact refl_mem_partial_order : forall env v, mems_partial_order env env v.
+Proof.
+Admitted.
+
+
+Fact trans_mem_partial_order : forall env env' env'' v, 
+    mems_partial_order env env' v  /\ mems_partial_order env' env'' v ->
+    mems_partial_order env env'' v.
+Proof.
+Admitted.
+
+
+Fact antisym_mem_partial_order : forall env env' v, 
+    mems_partial_order env env' v /\ mems_partial_order env' env v -> env = env'.
+Proof.
+Admitted.
+
 
 Notation "e ⊑ e'" := (forall v, env_partial_order e e' v) (at level 99) : utils_scope.
 
@@ -304,7 +364,7 @@ Notation "( e , m ) ⊑ ( e' , m' )" :=  (
 ) : utils_scope.
 
 
-Definition VarNotInStmt (s:c_statement) (v:V) := True. (* todo *)
+Definition var_in_stmt (s:c_statement) (v:𝓥) := True. (* todo *)
 
 (* Lemma test_eq : forall (v v' : Ωᵥ) var z, v{var \ z} = v'{var \ z} <-> v = v'. Admitted.
 

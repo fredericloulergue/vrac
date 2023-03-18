@@ -8,10 +8,10 @@ From Coq Require Import Strings.String.
 Open Scope mini_c_scope.
 Declare Scope mini_c_exp_scope.
 
-Inductive c_exp_sem (env : Ω) : c_exp -> Value -> Prop :=
-| C_E_Int (z:Z) in_range: env |= z => (Int.mkMI z in_range)
-| C_E_Var (x:V) z  : 
-    (fst env)(x:string) = Some (Int z) -> 
+Inductive c_exp_sem (env : Ω) : c_exp -> 𝕍 -> Prop :=
+| C_E_Int (z:Z) irz : env |= z => Int.mkMI z irz
+| C_E_Var (x:𝓥) z  : 
+    (fst env)(x:string) = Some (VInt z) -> 
     env |= x => z
 | C_E_BinOpInt e e' (z z':Z) op z_ir z'_ir 
     (H:Int.inRange (⋄ op z z')) :
@@ -21,31 +21,31 @@ Inductive c_exp_sem (env : Ω) : c_exp -> Value -> Prop :=
 | C_E_BinOpTrue e e' (z z' : Z) z_ir z'_ir op :
     env |= e => (Int.mkMI z z_ir) ->
     env |= e' => (Int.mkMI z' z'_ir) ->
-    ((◁ op) z z' -> True) ->
+    (◁ op) z z' = true ->
     env |= BinOpBool e op e' => one
 | C_E_BinOpFalse e e' (z z' : Z) op z_ir z'_ir :
     env |= e => (Int.mkMI z z_ir) -> 
     env |= e' => (Int.mkMI z' z'_ir) -> 
-    ((◁ op) z z' -> False) ->
+    ((◁ op) z z' = false ) ->
     env |= BinOpBool e op e' => zero
 
 where  "Ω '|=' e => v" := (c_exp_sem Ω e v) : mini_c_exp_scope.
 
 Declare Scope mini_c_decl_scope.
-Definition c_decl_sem (env env':Ω) (mem mem':M) d : Prop := 
-        forall t x u,
+Definition c_decl_sem (env env':Ω) (mem mem':𝓜) d : Prop := 
+        forall x t u,
         (fst env) x  = None -> 
-        (u = UInt \/ u = UMpz ) ->
+        (Uτ u) = Some t ->
         d = C_Decl t x -> env' = ((fst env){x\u},snd env) /\ mem = mem'
         .
 Notation " [ Ω ~ M ]  |= d => [ Ω' ~ M' ]" := (c_decl_sem Ω M d Ω' M') : mini_c_decl_scope.
 
 Open Scope mini_c_exp_scope.
 Declare Scope mini_c_stmt_scope.
-Inductive c_stmt_sem (env:Ω) (mem:M) : S -> Ω -> M -> Prop := 
+Inductive c_stmt_sem (env:Ω) (mem:𝓜) : 𝐒 -> Ω -> 𝓜 -> Prop := 
     | S_skip  :  [ env ~ mem ] |= <{ skip }> => [env ~ mem]
-    | S_Assign x z e: 
-        (exists n, (fst env) x = Some (Int n)) \/  (fst env) x = Some UInt ->
+    | S_Assign x z e : 
+        type_of_value ((fst env) x) = Some (Ctype C_Int) ->
         env |= e => z ->
         [env~mem] |= <{x = e}> => [((fst env){x\z},snd env) ~  mem]
     | S_IfTrue env' mem' z e s s' :
@@ -66,18 +66,20 @@ Inductive c_stmt_sem (env:Ω) (mem:M) : S -> Ω -> M -> Prop :=
     [ env' ~ mem'] |= s' => [ env'' ~ mem''] ->
     [ env ~ mem] |= <{ s ; s' }> =>  [ env'' ~ mem''] 
 
-    | S_FCall (funs:F) f b env' mem' c xargs eargs zargs resf z  : 
+    | S_FCall (funs:𝓕) f b env' mem' c xargs eargs zargs resf z n : 
         let eToz := List.combine eargs zargs in
         let xToz := List.combine xargs zargs in
+        List.length xargs = n /\ List.length eargs = n /\ List.length zargs = n ->
         funs f = Some (xargs,b) ->
         List.Forall (fun p => p) (List.map (fun ez => env |= (fst ez) => (snd ez)) eToz)  ->
          [((p_map_addall ⊥ xToz),⊥)  ~ mem] |= b => [env' ~ mem'] ->
         (fst env') resf = Some z ->
         [ env ~ mem ] |= (FCall c f eargs) => [((fst env){c\z},(snd env)) ~ mem']
 
-    | S_PCall (procs:P) p b env' mem' xargs eargs zargs  : 
+    | S_PCall (procs:𝓟) p b env' mem' xargs eargs zargs n : 
         let eToz := List.combine eargs zargs in
         let xToz := List.combine xargs zargs in
+        List.length xargs = n /\ List.length eargs = n /\ List.length zargs = n ->
         procs p = Some (xargs,b) ->
         List.Forall (fun p => p) (List.map (fun ez => env |= (fst ez) => (snd ez)) eToz)  ->
         [ ((p_map_addall ⊥ xToz),⊥) ~ mem] |= b => [env' ~ mem'] ->
@@ -101,7 +103,7 @@ Inductive c_stmt_sem (env:Ω) (mem:M) : S -> Ω -> M -> Prop :=
 
 (* TODO: finish mini-fsl semantic *)
 
-Inductive fsl_term_sem (env:Ω) : LT -> Value -> Prop :=
+Inductive fsl_term_sem (env:Ω) : ℨ -> 𝕍 -> Prop :=
 | FSL_E_Int z : fsl_term_sem env z UMpz
 | FSL_E_LVar x z : (snd env) x = Some z -> fsl_term_sem env x UMpz
 | FSL_E_Var x v : (fst env) v = Some x ->  fsl_term_sem env v x
@@ -126,8 +128,3 @@ Inductive fsl_assert_sem : S -> Ω -> M -> Ω -> M -> Prop :=
 
 
 (* todo GMP semantics *)
-
-
-
-Ltac fstassgn := apply S_Assign ; [now right|idtac] . 
-Ltac reassign n := apply S_Assign ; [ now left ; now exists n| idtac]. 

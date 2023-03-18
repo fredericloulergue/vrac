@@ -13,12 +13,24 @@ Fact ir5 : Int.inRange 5. now split. Qed.
 Fact ir10 : Int.inRange 10 . now split. Qed.
 Fact ir14 : Int.inRange 14. now split. Qed.
 Fact ir15 : Int.inRange 15. now split. Qed.
-Definition two := Int (Int.mkMI 2 ir2).
-Definition three := Int (Int.mkMI 3 ir3).
-Definition five := Int (Int.mkMI 5 ir5).
-Definition ten := Int (Int.mkMI 10 ir10).
-Definition fifteen := Int (Int.mkMI 15 ir15).
+Definition two := VInt (Int.mkMI 2 ir2).
+Definition three := VInt (Int.mkMI 3 ir3).
+Definition five := VInt (Int.mkMI 5 ir5).
+Definition ten := VInt (Int.mkMI 10 ir10).
+Definition fifteen := VInt (Int.mkMI 15 ir15).
 Definition funs := ⊥{"test"\("a" :: "b" :: nil, <{ return ("b") }>)}.
+
+
+(* 
+latex notation :
+BbbA : 𝔸 
+mbfA : 𝐀
+mitA : 𝐴
+mttA : 𝙰
+mscrA : 𝒜
+mfrakA : 𝔄
+mbfscrA : 𝓐
+*)
 
 
 Example stmt_test :
@@ -39,27 +51,27 @@ Example stmt_test :
         "g" = "out" / 5
     }>
     =>
-    [ (v{"g"\ one, "out"\five, "g"\ zero, "z"\ fifteen, "y"\ ten, "x" \ five,"g"\UInt,"z"\UInt,"x"\UInt,"y"\UInt,"out"\UInt}, l) ~ m]
+    [ (v{"g"\ (VInt one), "out"\  five, "g"\ (VInt zero), "z"\ fifteen, "y"\ ten, "x" \  five,"g"\UInt,"z"\UInt,"x"\UInt,"y"\UInt,"out"\UInt}, l) ~ m]
    .
 Proof.
-    intros. eapply S_Seq. fstassgn. apply C_E_Int. eapply S_Seq.
-     - fstassgn. apply C_E_Int.
+    intros. eapply S_Seq. apply S_Assign. reflexivity. apply C_E_Int. 
+    eapply S_Seq.
+     - apply S_Assign. reflexivity. apply C_E_Int.
      - eapply S_Seq.
-        + fstassgn. apply C_E_BinOpInt with (z:=5) (z':=10) (z_ir:=ir5) (z'_ir:=ir10) ; 
+        + apply S_Assign. reflexivity. apply C_E_BinOpInt with (z:=5) (z':=10) (z_ir:=ir5) (z'_ir:=ir10) ; 
           now apply C_E_Var. 
         + eapply S_Seq.
-          ++ fstassgn. apply C_E_Int.
+          ++ apply S_Assign. reflexivity. apply C_E_Int.
           ++ eapply S_Seq.
-          {  
-          apply S_FCall with
+          { simpl.  
+          eapply S_FCall with
               (resf:="out")
-              (z:=five)
-              (env':=  (⊥{"out"\five, "b" \ five, "a" \ three}, ⊥))
+              (env':=  (⊥{"out"\five, "b" \five, "a" \three}, ⊥))
               (b := <{ return ("b") }>)
               (funs:=funs)
               (zargs := three::five::nil)
               (xargs := "a"::"b"::nil)
-            .
+            . split ; split ; reflexivity.
             - reflexivity.
             - simpl. constructor. 
                 apply C_E_BinOpInt with (z_ir:=oneinRange) (z'_ir:=ir2) ; now constructor.
@@ -71,43 +83,42 @@ Proof.
             }
            apply S_IfFalse with zero.
             * apply C_E_BinOpFalse with 15 14 ir15 ir14 ; try now constructor.
-            simpl. intro H. destruct H. reflexivity.
             * reflexivity.
-            * reassign (Int.mkMI 0 zeroinRange). apply C_E_BinOpInt with  (z:=(5)) (z':=5) (z_ir:=ir5) (z'_ir:=ir5) ; now constructor.
+            * apply S_Assign. reflexivity. apply C_E_BinOpInt with  (z:=(5)) (z':=5) (z_ir:=ir5) (z'_ir:=ir5) ; now constructor.
 Qed.
 
-Example test_dom : ~ dom (fun x => if x>?2 then Some (x*2) else None) 2.
-Proof. intro contra. inversion contra. discriminate. Qed.
 
-
-Example whileex : [(⊥{"m"\zero, "n"\three},⊥) ~ ⊥] |= <{ while  "n" > 0  <{"n" = "n" - 1 ; "m" = "m" + 1}> }> => [(⊥{"m"\three, "n"\zero,"m"\two, "n"\one,"m"\one, "n"\two,"m"\zero, "n"\three},⊥) ~ ⊥].
+Example whileex : [(⊥{"m"\VInt zero, "n"\three},⊥) ~ ⊥] |= <{ while  "n" > 0  <{"n" = "n" - 1 ; "m" = "m" + 1}> }> => [(⊥{"m"\three, "n"\VInt zero,"m"\two, "n"\VInt one,"m"\VInt one, "n"\two,"m"\VInt zero, "n"\three},⊥) ~ ⊥].
 Proof.
     apply S_While. apply S_IfTrue with one.
     - apply C_E_BinOpTrue with 3 0 ir3 zeroinRange. apply C_E_Var. reflexivity. apply C_E_Int. reflexivity.
     - intro contra. inversion contra. 
     - { eapply S_Seq.  eapply S_Seq.
-        - reassign (Int.mkMI 3 ir3).  apply C_E_BinOpInt with  (z_ir := ir3) (z'_ir := oneinRange).  apply C_E_Var. reflexivity. apply C_E_Int.
-        - reassign (Int.mkMI 0 zeroinRange). apply C_E_BinOpInt with (z_ir := zeroinRange) (z'_ir := oneinRange). apply C_E_Var. reflexivity. apply C_E_Int.
+        - apply S_Assign. reflexivity.  apply C_E_BinOpInt with  (z_ir := ir3) (z'_ir := oneinRange).  apply C_E_Var. reflexivity. apply C_E_Int.
+        - apply S_Assign. reflexivity. apply C_E_BinOpInt with (z_ir := zeroinRange) (z'_ir := oneinRange). apply C_E_Var. reflexivity. apply C_E_Int.
         -  apply S_While. eapply S_IfTrue.
            apply C_E_BinOpTrue with (z_ir:=ir2) (z'_ir:=zeroinRange). apply C_E_Var. reflexivity. apply C_E_Int. reflexivity.
             intro contra. inversion contra.
             {
                 eapply S_Seq. eapply S_Seq.
-                - reassign (Int.mkMI 2 ir2).  apply C_E_BinOpInt with (z_ir := ir2) (z'_ir := oneinRange). apply C_E_Var. reflexivity. apply C_E_Int.
-                - reassign (Int.mkMI 1 oneinRange). apply C_E_BinOpInt with (z_ir := oneinRange) (z'_ir := oneinRange). apply C_E_Var. reflexivity. apply C_E_Int.
+                - apply S_Assign. reflexivity. apply C_E_BinOpInt with (z_ir := ir2) (z'_ir := oneinRange). apply C_E_Var. reflexivity. apply C_E_Int.
+                - apply S_Assign. reflexivity.  apply C_E_BinOpInt with (z_ir := oneinRange) (z'_ir := oneinRange). apply C_E_Var. reflexivity. apply C_E_Int.
                 - apply S_While. eapply S_IfTrue.
                 apply C_E_BinOpTrue with (z_ir:=oneinRange) (z'_ir:=zeroinRange). apply C_E_Var. reflexivity. apply C_E_Int. reflexivity.
                  intro contra. inversion contra.
                  {
                      eapply S_Seq. eapply S_Seq.
-                     - reassign (Int.mkMI 1 oneinRange).  apply C_E_BinOpInt with (z_ir := oneinRange) (z'_ir := oneinRange). simpl. apply C_E_Var. reflexivity. apply C_E_Int.
-                     - reassign (Int.mkMI 2 ir2). apply C_E_BinOpInt with (z_ir:=ir2) (z'_ir:=oneinRange). apply C_E_Var. reflexivity. apply C_E_Int.
+                     - apply S_Assign. reflexivity.  apply C_E_BinOpInt with (z_ir := oneinRange) (z'_ir := oneinRange). simpl. apply C_E_Var. reflexivity. apply C_E_Int.
+                     - apply S_Assign. reflexivity.  apply C_E_BinOpInt with (z_ir:=ir2) (z'_ir:=oneinRange). apply C_E_Var. reflexivity. apply C_E_Int.
                      - apply S_While. eapply S_IfFalse.
-                     apply C_E_BinOpFalse with (z_ir:=zeroinRange) (z'_ir:=zeroinRange). apply C_E_Var. reflexivity. apply C_E_Int. intro contra. inversion contra. reflexivity.                   
-                    apply S_skip. 
+                     apply C_E_BinOpFalse with (z_ir:=zeroinRange) (z'_ir:=zeroinRange). apply C_E_Var. reflexivity. apply C_E_Int. reflexivity.
+                     reflexivity. apply S_skip. 
                 
                 }
            
            }
      }
 Qed.
+
+Example test_dom : 2 ∉ (fun x => if x>?2 then Some (x*2) else None).
+Proof. now intros [x contra]. Qed.
