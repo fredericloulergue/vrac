@@ -212,7 +212,12 @@ Definition type_of_value : option 𝕍 -> option 𝔗 := fun v => match v with
 end.
 
 
-Definition 𝓜 := location ⇀ ℤ.  (* enumerable -> bijection avec nat *)
+Definition 𝓜 := location ⇀ ℤ. 
+
+From Coq Require Import Logic.FinFun.
+Fact M_is_enumerable: Finite 𝓜.
+Admitted.
+
 
 Definition Uτ (v:𝕍) : option c_type := match v with 
     | VInt _ => Some C_Int
