@@ -12,34 +12,26 @@ Proof.
     - discriminate.
 Qed.
 
+#[global] Hint Constructors c_exp_sem  : core.
+#[global] Hint Constructors c_statement  : core.
+#[global] Hint Constructors c_exp  : core.
+#[global] Hint Constructors c_stmt_sem  : core.
+#[global] Hint Constructors env_partial_order : core.
 
 Lemma weakening_of_expression_semantics : 
 forall env e x,
     env |= e => x <-> (forall env', env ⊑ env' ->  env' |= e => x)
 .
-Proof.
-    split.
-    - generalize dependent x. induction e. 
-        * intros v H env' Inc. inversion H. subst. apply C_E_Int.
-        * intros v H env' Inc. inversion H. subst. apply C_E_Var.
-            apply eq_env_partial_order with (v:=var) (z:=z) in Inc.
-            ** assumption.
-            ** split ; intro contra ; inversion contra.
-            ** assumption.
-        * intros v H env' Inc. inversion H.  subst. 
-            apply C_E_BinOpInt with z_ir z'_ir.
-             + apply IHe1 ; assumption.
-             + apply IHe2 ; assumption.
-        * intros. inversion H ; subst.
-            + apply C_E_BinOpTrue with z z' z_ir z'_ir.
-                ++ apply IHe1 ; assumption.
-                ++ apply IHe2 ; assumption.
-                ++ assumption.
-            + apply C_E_BinOpFalse with z z' z_ir z'_ir.
-                ++ apply IHe1 ; assumption.
-                ++ apply IHe2 ; assumption.
-                ++ assumption.
-    - intro. apply H. apply refl_env_partial_order.
+Proof with auto.
+split.
+- generalize dependent x. induction e.
+    * intros v H env' Inc. inversion H...
+    * intros v H env' Inc. inversion H.
+        eapply eq_env_partial_order in Inc ; eauto.
+        split ; congruence.
+    * intros v H env' Inc. inversion H. eauto.
+    * intros. inversion H ; eauto.
+- auto using refl_env_partial_order.
 Qed.
 
 
