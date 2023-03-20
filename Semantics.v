@@ -4,8 +4,9 @@ Require Import RAC.Utils.
 Require Import ZArith.ZArith.
 From Coq Require Import Strings.String.
 
-
 Open Scope mini_c_scope.
+
+
 Declare Scope mini_c_exp_scope.
 
 Inductive c_exp_sem (env : Ω) : c_exp -> 𝕍 -> Prop :=
@@ -38,66 +39,62 @@ Definition c_decl_sem (env env':Ω) (mem mem':𝓜) d : Prop :=
         (Uτ u) = Some t ->
         d = C_Decl t x -> env' = ((fst env){x\u},snd env) /\ mem = mem'
         .
-Notation " [ Ω ~ M ]  |= d => [ Ω' ~ M' ]" := (c_decl_sem Ω M d Ω' M') : mini_c_decl_scope.
 
 Open Scope mini_c_exp_scope.
 Declare Scope mini_c_stmt_scope.
+
 Inductive c_stmt_sem (env:Ω) (mem:𝓜) : 𝐒 -> Ω -> 𝓜 -> Prop := 
-    | S_skip  :  [ env ~ mem ] |= <{ skip }> => [env ~ mem]
+    | S_skip  :  env ⋅ mem |= <{ skip }> => env ⋅ mem
     | S_Assign x z e : 
         type_of_value ((fst env) x) = Some (Ctype C_Int) ->
         env |= e => z ->
-        [env~mem] |= <{x = e}> => [((fst env){x\z},snd env) ~  mem]
+        env ⋅ mem |= <{x = e}> => ((fst env){x\z},snd env) ⋅ mem
     | S_IfTrue env' mem' z e s s' :
         env |= e => z ->
         z <>  Int.mkMI 0 zeroinRange ->
-        [env~mem ] |= s => [ env' ~ mem'] ->
-        [ env ~ mem ] |= <{ if e s else s'}> => [ env' ~ mem' ]
+        env ⋅ mem  |= s => env' ⋅ mem' ->
+        env ⋅ mem  |= <{ if e s else s'}> => env' ⋅ mem'
     | S_IfFalse env' mem' z e s s' :
         env |= e => z ->
         z = Int.mkMI 0 zeroinRange ->
-        [ env ~ mem] |= s' => [ env' ~ mem'] ->
-        [ env ~ mem ] |= <{ if e s else s'}> => [ env' ~ mem' ]
+        env ⋅ mem |= s' => env' ⋅ mem' ->
+        env ⋅ mem |= <{ if e s else s'}> => env' ⋅ mem'
     | S_While e s   env' mem' :
-        [ env ~ mem] |= <{ if e s ; while e s else skip }> => [ env' ~ mem' ] ->
-        [ env ~ mem] |= <{ while e s }> => [ env' ~ mem' ]
+         env ⋅ mem |= <{ if e s ; while e s else skip }> =>  env' ⋅ mem' ->
+         env ⋅ mem |= <{ while e s }> =>  env' ⋅ mem' 
     | S_Seq  env' mem' env'' mem'' s s' :
-    [ env ~ mem] |= s => [ env' ~ mem'] ->
-    [ env' ~ mem'] |= s' => [ env'' ~ mem''] ->
-    [ env ~ mem] |= <{ s ; s' }> =>  [ env'' ~ mem''] 
+        env ⋅ mem |= s => env' ⋅ mem' ->
+        env' ⋅ mem' |= s' => env'' ⋅ mem''->
+        env ⋅ mem |= <{ s ; s' }> =>  env'' ⋅ mem'' 
 
     | S_FCall (funs:𝓕) f b env' mem' c xargs eargs zargs resf z n : 
-        let eToz := List.combine eargs zargs in
-        let xToz := List.combine xargs zargs in
         List.length xargs = n /\ List.length eargs = n /\ List.length zargs = n ->
         funs f = Some (xargs,b) ->
-        List.Forall (fun p => p) (List.map (fun ez => env |= (fst ez) => (snd ez)) eToz)  ->
-         [((p_map_addall ⊥ xToz),⊥)  ~ mem] |= b => [env' ~ mem'] ->
+        List.Forall2 (fun e z => env |= e => z) eargs zargs ->
+         ((p_map_addall ⊥ xargs zargs),⊥) ⋅ mem |= b => env' ⋅ mem' ->
         (fst env') resf = Some z ->
-        [ env ~ mem ] |= (FCall c f eargs) => [((fst env){c\z},(snd env)) ~ mem']
+         env ⋅ mem |= (FCall c f eargs) => ((fst env){c\z},(snd env)) ⋅ mem'
 
     | S_PCall (procs:𝓟) p b env' mem' xargs eargs zargs n : 
-        let eToz := List.combine eargs zargs in
-        let xToz := List.combine xargs zargs in
         List.length xargs = n /\ List.length eargs = n /\ List.length zargs = n ->
         procs p = Some (xargs,b) ->
-        List.Forall (fun p => p) (List.map (fun ez => env |= (fst ez) => (snd ez)) eToz)  ->
-        [ ((p_map_addall ⊥ xToz),⊥) ~ mem] |= b => [env' ~ mem'] ->
-        [ env ~ mem ] |= PCall p eargs => [ env ~ mem' ]
+        List.Forall2 (fun e z => env |= e => z) eargs zargs  ->
+        ((p_map_addall ⊥ xargs zargs),⊥) ⋅ mem |= b => env'⋅ mem' ->
+        env ⋅ mem |= PCall p eargs => env ⋅ mem'
 
     | S_Return e z resf : 
-         env |= e => z -> [env ~ mem] |= <{ return e }> =>  [((fst env){resf\z},snd env) ~ mem]
+         env |= e => z -> 
+         env ⋅ mem |= <{ return e }> =>  ((fst env){resf\z},snd env)⋅ mem
 
     | S_PAssert  e z :
         env |= e => z -> z <>  zero ->
-        [env ~ mem] |= <{ assert e }> => [env ~ mem] 
+        env ⋅ mem |= <{ assert e }> => env ⋅ mem 
 
     (* | S_LAssert p :
         env |= p => one -> (* must be fsl *)
         c_stmt_sem env mem <{ /*@ assert p */ }> env mem *)
 
-        where " [ Ω  ~ M ]  |= s => [ Ω' ~ M' ] "  := (c_stmt_sem Ω M s Ω' M')
-        .
+where "Ω ⋅ M |= s => Ω' ⋅ M'"  := (c_stmt_sem Ω M s Ω' M') : mini_c_stmt_scope.
 
 
 
@@ -112,7 +109,7 @@ Inductive fsl_term_sem (env:Ω) : ℨ -> 𝕍 -> Prop :=
     values_int z' = Some (Int z'int) ->
     fsl_term_sem env t z ->
     fsl_term_sem env t' z' ->
-    ~ (op = FSL_Div /\ zint = (Int (mkMI 0 zeroinRange))) ->
+    , (op = FSL_Div /\ zint = (Int (mkMI 0 zeroinRange))) ->
     fsl_term_sem env (T_BinOp t op t') ((fsl_binop_int_model op) zint z'int) *)
 .
 

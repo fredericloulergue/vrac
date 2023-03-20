@@ -114,6 +114,7 @@ Declare Custom Entry c_decl.
 Declare Custom Entry c_stmt.
 Declare Custom Entry c_exp.
 Declare Custom Entry c_type.
+Declare Custom Entry c_args.
 
 Notation "<[ d ]>" := d (at level 0, d custom c_decl at level 99) : mini_c_scope.
 Notation "<{ s }>" := s (at level 0, s custom c_stmt at level 99) : mini_c_scope.
@@ -125,12 +126,13 @@ Notation "e" := e (in custom c_exp at level 0,  e constr at level 0) : mini_c_sc
 Notation "s" := s (in custom c_stmt at level 0, s constr at level 0) : mini_c_scope.
 Notation "d" := d ( in custom c_decl at level 0, d constr at level 0) : mini_c_scope.
 
+Notation "'(' x ',' .. ',' y ')'" := (cons x .. (cons y nil) ..) (in custom c_args at level 0, x custom c_exp, y custom c_exp) : mini_c_scope.
+
 
 
 Notation "t id" := (C_Decl t id) (in custom c_decl at level 0, t custom c_type) : mini_c_scope.
-Notation "t id '(' x ',' .. ',' y ')' '[' x' .. y' ';' s ']'" := (PFun t id (cons x .. (cons y nil) ..) (cons x' .. (cons y' nil) ..) s)
-    (in custom c_decl at level 0, t custom c_type, s custom c_stmt) : mini_c_scope.
-
+Notation "t id args '[' x' .. y' ';' s ']'" := (PFun t id args (cons x' .. (cons y' nil) ..) s)
+    (in custom c_decl at level 0, args custom c_args, t custom c_type, s custom c_stmt) : mini_c_scope.
 
 
 Notation "x + y"   := (BinOpInt x C_Add y) (in custom c_exp at level 50, left associativity) : mini_c_scope.
@@ -158,8 +160,9 @@ Notation "x = y" := (Assign x y) (in custom c_stmt at level 0, x constr at level
 Notation "'assert' e" := (PAssert e) (in custom c_stmt at level 0, e custom c_exp at level 99) : mini_c_scope.
 Notation "'while' e s" := (While e s) (in custom c_stmt at level 89, e custom c_exp at level 99, s at level 99) : mini_c_scope.
 Notation "'return' e" := (Return e) (in custom c_stmt at level 0, e custom c_exp at level 99) : mini_c_scope.
-Notation "f '(' x ',' .. ',' y ')'" := (PCall f (cons x .. (cons y nil) ..)) (in custom c_stmt at level 0, x custom c_exp, y custom c_exp).
-Notation "c '<-' '(' x ',' .. ',' y ')' f" := (FCall c f (cons x .. (cons y nil) ..)) (f constr, x custom c_exp, y custom c_exp, in custom c_stmt at level 50).
+
+Notation "f args" := (PCall f args) (in custom c_stmt at level 99, args custom c_args) : mini_c_scope.
+Notation "c '<-' f args" := (FCall c f args) (in custom c_stmt at level 80, f at next level, args custom c_args) : mini_c_scope.
 
     
 Definition 𝓥 : Set := id. (* program variables and routines *)
@@ -215,7 +218,10 @@ end.
 Definition 𝓜 := location ⇀ ℤ. 
 
 From Coq Require Import Logic.FinFun.
+
+
 Fact M_is_enumerable: Finite 𝓜.
+Proof. unfold Finite. unfold Full. 
 Admitted.
 
 
