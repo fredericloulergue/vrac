@@ -5,7 +5,9 @@ Require Import RAC.Semantics.
 Require Import ZArith.ZArith.
 Require Import String.
 From Coq Require Import Lists.List.
+Import ListNotations.
 Open Scope string_scope.
+Open Scope list_scope.
 
 Fact ir2 : Int.inRange 2. now split. Qed.
 Fact ir3 : Int.inRange 3. now split. Qed.
@@ -18,7 +20,7 @@ Definition three := VInt (Int.mkMI 3 ir3).
 Definition five := VInt (Int.mkMI 5 ir5).
 Definition ten := VInt (Int.mkMI 10 ir10).
 Definition fifteen := VInt (Int.mkMI 15 ir15).
-Definition funs := ⊥{"test"\("a" :: "b" :: nil, <{ return ("b") }>)}.
+Definition funs := ⊥{"test"\(["a";"b"] , <{ return ("b") }>)}.
 
 
 (* 
@@ -32,18 +34,18 @@ mfrakA : 𝔄
 mbfscrA : 𝓐
 *)
 
-
+Open Scope mini_c_stmt_scope.
 Example stmt_test :
     forall v l m,     
     
-    [(v{"g"\UInt,"z"\UInt,"x"\UInt,"y"\UInt,"out"\UInt},l)  ~ m ]
+    (v{"g"\UInt,"z"\UInt,"x"\UInt,"y"\UInt,"out"\UInt},l)⋅m
     |=
     <{
     "x" = 5 ;
     "y" = 10;
     "z" = "x" + "y";
     "g" = 0;
-    "out" <- (1+2,"x"+"g") "test";
+    "out" <- "test" (1+2,"x"+"g") ;
 
     if ("z" <= 14)
         "g" = "z"
@@ -51,7 +53,7 @@ Example stmt_test :
         "g" = "out" / 5
     }>
     =>
-    [ (v{"g"\ (VInt one), "out"\  five, "g"\ (VInt zero), "z"\ fifteen, "y"\ ten, "x" \  five,"g"\UInt,"z"\UInt,"x"\UInt,"y"\UInt,"out"\UInt}, l) ~ m]
+    (v{"g"\ (VInt one), "out"\  five, "g"\ (VInt zero), "z"\ fifteen, "y"\ ten, "x" \  five,"g"\UInt,"z"\UInt,"x"\UInt,"y"\UInt,"out"\UInt}, l) ⋅m
    .
 Proof.
     intros. eapply S_Seq. apply S_Assign. reflexivity. apply C_E_Int. 
@@ -69,8 +71,8 @@ Proof.
               (env':=  (⊥{"out"\five, "b" \five, "a" \three}, ⊥))
               (b := <{ return ("b") }>)
               (funs:=funs)
-              (zargs := three::five::nil)
-              (xargs := "a"::"b"::nil)
+              (zargs := [three;five])
+              (xargs := ["a";"b"])
             . split ; split ; reflexivity.
             - reflexivity.
             - simpl. constructor. 
@@ -88,7 +90,7 @@ Proof.
 Qed.
 
 
-Example whileex : [(⊥{"m"\VInt zero, "n"\three},⊥) ~ ⊥] |= <{ while  "n" > 0  <{"n" = "n" - 1 ; "m" = "m" + 1}> }> => [(⊥{"m"\three, "n"\VInt zero,"m"\two, "n"\VInt one,"m"\VInt one, "n"\two,"m"\VInt zero, "n"\three},⊥) ~ ⊥].
+Example whileex : (⊥{"m"\VInt zero, "n"\three},⊥) ⋅ ⊥ |= <{ while  "n" > 0  <{"n" = "n" - 1 ; "m" = "m" + 1}> }> => (⊥{"m"\three, "n"\VInt zero,"m"\two, "n"\VInt one,"m"\VInt one, "n"\two,"m"\VInt zero, "n"\three},⊥)⋅⊥.
 Proof.
     apply S_While. apply S_IfTrue with one.
     - apply C_E_BinOpTrue with 3 0 ir3 zeroinRange. apply C_E_Var. reflexivity. apply C_E_Int. reflexivity.

@@ -19,7 +19,7 @@ Qed.
 #[global] Hint Constructors env_partial_order : core.
 
 Lemma weakening_of_expression_semantics : 
-forall env e x,
+forall env e (x:𝕍),
     env |= e => x <-> (forall env', env ⊑ env' ->  env' |= e => x)
 .
 Proof with auto.
@@ -35,13 +35,13 @@ split.
 Qed.
 
 
-
+Open Scope mini_c_stmt_scope.
 Lemma weakening_of_statement_semantics_1 :
     forall Ω₀ M₀ s Ω₁ M₁,
-    [Ω₀ ~ M₀] |= s => [Ω₁ ~ M₁] <->
+    Ω₀ ⋅ M₀ |= s => Ω₁ ⋅ M₁ <->
     forall Ω₀' M₀', (Ω₀ , M₀) ⊑ (Ω₀', M₀') ->
      exists Ω₁' M₁', 
-     (Ω₁ , M₁) ⊑ (Ω₁', M₁') /\  [Ω₀' ~ M₀'] |= s => [Ω₁' ~ M₁'].
+     (Ω₁ , M₁) ⊑ (Ω₁', M₁') /\  Ω₀' ⋅ M₀' |= s => Ω₁'⋅ M₁'.
 Proof.
     (* split. 
     - induction s ; intro H ; inversion H ; subst ; intros.
@@ -74,9 +74,9 @@ Admitted.
 
 Lemma weakening_of_statement_semantics_2 :
     forall Ω₀ Ω₀' M₀ M₀' s Ω₁ M₁,
-    [Ω₀ ~ M₀] |= s => [Ω₁ ~ M₁] /\ [Ω₀ ~ M₀] |= s => [Ω₀' ~ M₀']  ->
+    Ω₀ ⋅ M₀|= s => Ω₁ ⋅ M₁ /\ Ω₀ ⋅ M₀ |= s => Ω₀' ⋅ M₀'  ->
     forall Ω₁' M₁',
-    [Ω₀' ~ M₀'] |= s => [Ω₁' ~ M₁'] -> 
+    Ω₀' ⋅ M₀' |= s => Ω₁' ⋅ M₁' -> 
     (forall (v:𝓥), ~(dom (fst Ω₀) v) -> fst Ω₀' v = fst Ω₁' v) /\ True.
     (* (forall x, ~ exists (v:𝓥), (fst Ω₀ v) = Some x -> M₀' x = M₁' x). *)
 Admitted.
@@ -84,12 +84,12 @@ Admitted.
 
 Lemma weakening_of_statement_semantics_3 :
     forall Ω₀ Ω₀' M₀ M₀' s Ω₁ M₁,
-    [Ω₀ ~ M₀] |= s => [Ω₁ ~ M₁] ->
-    (Ω₀' , M₀') ⊑ (Ω₀, M₀) ->
+    Ω₀ ⋅ M₀|= s => Ω₁ ⋅ M₁ ->
+    Ω₀' ⋅ M₀'|= s => Ω₀ ⋅ M₀ ->
     forall v, (dom (fst Ω₀) - dom (fst Ω₀')) v -> 
     ~ var_in_stmt s v -> 
     forall x, (dom M₀ - dom M₀') x -> (fst Ω₀) v = Some (VMpz x) ->
-    exists Ω₁' M₁', [Ω₀' ~ M₀'] |= s => [Ω₁' ~ M₁'].
+    exists Ω₁' M₁', Ω₀' ⋅ M₀' |= s => Ω₁' ⋅ M₁'.
 
 Admitted.
 

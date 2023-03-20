@@ -25,8 +25,8 @@ Definition p_map {X Y : Type} `{EqDec X}  (f: X -> option Y) (xy:X * Y) : X -> o
 Notation "f { xy , .. , xy' }" :=  (p_map .. (p_map f xy') .. xy ) : utils_scope.
 
 
-Definition p_map_addall {X Y: Type} `{EqDec X} env (l:list (X*Y)) :=
-    List.fold_left (fun f (xy:X*Y) => let (x,y) := xy in f {x \ y}) l env
+Definition p_map_addall {X Y: Type} `{EqDec X} env (lx:list X) (ly : list Y) :=
+    List.fold_left (fun f xy => f {(fst xy) \ (snd xy)}) (List.combine lx ly) env
 .
 
 Definition in_domain { X Y : Type} (f: X ⇀ Y) (x:X) := (exists y, (f x) = Some y).
