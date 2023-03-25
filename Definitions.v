@@ -2,7 +2,7 @@ From RAC Require Import Notations.
 From RAC Require Import Utils.
 From Coq Require Import ZArith.ZArith.
 From Coq Require Import Strings.String.
-
+Open Scope Z_scope.
 
 Inductive c_type := C_Int | Void.  (* program types τc *)
 Inductive gmp_t := Ctype (t:c_type) | String | Mpz. (* type extension τ *)
@@ -22,7 +22,7 @@ end.
 Inductive predicate :=
     | P_True | P_False (* truth values *)
     | P_BinOp (lt: fsl_term) (op:fsl_binop_bool) (rt : fsl_term)
-    | Not (t:fsl_term)
+    | Not (t:predicate)
     | Disj (lp:predicate) (rp:predicate)  (* disjunction *)
     | Call (name:string) (args:fsl_decl ⃰) (* predicate call *)
 with fsl_term :=
@@ -60,6 +60,25 @@ end.
 Notation "⋄" := c_binop_int_model.
 
 
+Definition fsl_binop_int_to_c (x:fsl_binop_int) : c_binop_int := match x with
+    | FSL_Add => C_Add
+    | FSL_Sub => C_Sub
+    | FSL_Mul => C_Mul
+    | FSL_Div => C_Div
+end.
+Notation "□" := fsl_binop_int_to_c.
+
+Definition fsl_binop_bool_to_c (x:fsl_binop_bool) : c_binop_bool := match x with
+    | FSL_Lt => C_Lt
+    | FSL_Le => C_Le 
+    | FSL_Gt => C_Gt
+    | FSL_Ge => C_Ge
+    | FSL_Eq => C_Eq 
+    | FSL_NEq => C_NEq
+end.
+Notation "◖" := fsl_binop_bool_to_c.
+
+
 Inductive c_exp :=
     | Zm (z : Z) (* machine integer *)
     | C_Id (var : id) (* variable access *)
@@ -78,6 +97,7 @@ Inductive c_statement :=
 | PAssert (e:c_exp) (* program assertion *)
 | LAssert (p:predicate) (* logic assertion *)
 | Return (e:c_exp)
+| Decl (d:c_decl)
 .
 
 Inductive c_routine :=
@@ -86,7 +106,7 @@ Inductive c_routine :=
 | Predicate (name:id) (args: fsl_decl ⃰) (p:predicate) (* predicate *)
 .
 
-Inductive c_program := Program (decls: c_decl ⃰)  (routines: c_routine ⃰).  (* annotated program *)
+Record c_program := mkPgrm { decls: c_decl ⃰ ; routines: c_routine ⃰ }.  (* annotated program *)
 
      
 (*  mini-GMP *)
@@ -105,8 +125,21 @@ Inductive gmp_statement :=
     | Coerc (name n : id) (* mpz coercion *)
     .
 
-Inductive statement := S_G (s:gmp_statement) | S_C (c:c_statement). (* statement extension *)
+Definition op (x:fsl_binop_int) : id -> id -> id -> gmp_statement := match x with
+    | FSL_Add => GMP_Add
+    | FSL_Sub => GMP_Sub
+    | FSL_Mul => GMP_Mul
+    | FSL_Div => GMP_Div
+end.
 
+(* statement extension *)
+Inductive statement := 
+    | S_G (s:gmp_statement) 
+    | S_C (c:c_statement) 
+    | S_Seq (s1:statement) (s2:statement)
+    | S_If (cond:c_exp) (_then:statement) (_else:statement)
+    | S_While (cond:c_exp) (body:statement)
+.
 
 
 Declare Scope mini_c_scope.
@@ -116,8 +149,8 @@ Declare Custom Entry c_exp.
 Declare Custom Entry c_type.
 Declare Custom Entry c_args.
 
-Notation "<[ d ]>" := d (at level 0, d custom c_decl at level 99) : mini_c_scope.
-Notation "<{ s }>" := s (at level 0, s custom c_stmt at level 99) : mini_c_scope.
+Notation "<[ d ]>" := d (at level 0, d custom c_decl at level 99, format "<[ d ]>") : mini_c_scope.    
+Notation "<{ s }>" := s (at level 0, s custom c_stmt at level 99, format "<{ s }>") : mini_c_scope.
 Notation "( x )" := x (in custom c_exp, x at level 99) : mini_c_scope.
 
 Notation " 'int' " := C_Int (in custom c_type) : mini_c_scope.
@@ -128,11 +161,9 @@ Notation "d" := d ( in custom c_decl at level 0, d constr at level 0) : mini_c_s
 
 Notation "'(' x ',' .. ',' y ')'" := (cons x .. (cons y nil) ..) (in custom c_args at level 0, x custom c_exp, y custom c_exp) : mini_c_scope.
 
-
-
-Notation "t id" := (C_Decl t id) (in custom c_decl at level 0, t custom c_type) : mini_c_scope.
-Notation "t id args '[' x' .. y' ';' s ']'" := (PFun t id args (cons x' .. (cons y' nil) ..) s)
-    (in custom c_decl at level 0, args custom c_args, t custom c_type, s custom c_stmt) : mini_c_scope.
+Notation "t id" := (C_Decl t id) (in custom c_decl at level 99, t custom c_type, id constr) : mini_c_scope.
+Notation "'fun' t id '(' x ',' .. ',' y ')' '[' x' .. y' ';' s ']'" := (PFun t id (cons x .. (cons y nil) ..) (cons x' .. (cons y' nil) ..) s)
+    (in custom c_decl at level 80, id at level 0, t custom c_type, s custom c_stmt, x custom c_decl, y custom c_decl, x' custom c_decl, y' custom c_decl) : mini_c_scope.
 
 
 Notation "x + y"   := (BinOpInt x C_Add y) (in custom c_exp at level 50, left associativity) : mini_c_scope.
@@ -147,15 +178,16 @@ Notation "x > y"   := (BinOpBool x C_Gt y) (in custom c_exp at level 50, no asso
 Notation "x >= y"  := (BinOpBool x C_Ge y) (in custom c_exp at level 50, no associativity) : mini_c_scope.
 
 
-Notation "'/*@' 'logic' k id '(' x ',' .. ',' y ')' '=' t" := (LFun k id (cons x .. (cons y nil) ..) t) (in custom c_decl at level 0).
-Notation "'/*@' 'predicate' id '(' x ',' .. ',' y ')' '=' p" := (Predicate id (cons x .. (cons y nil) ..) p) (p custom c_stmt, in custom c_decl at level 0).
+Notation "'/*@' 'logic' k id '(' x ',' .. ',' y ')' '=' t" := (LFun k id (cons x .. (cons y nil) ..) t) (in custom c_decl at level 0): mini_c_scope.
+Notation "'/*@' 'predicate' id '(' x ',' .. ',' y ')' '=' p" := (Predicate id (cons x .. (cons y nil) ..) p) (p custom c_stmt, in custom c_decl at level 0): mini_c_scope.
 Notation "'/*@' 'assert' p '*/'" := (LAssert p) (in custom c_stmt at level 0) : mini_c_scope.
 
 
 Notation "'skip'" := Skip  (in custom c_stmt at level 99) : mini_c_scope.
-Notation "'if' cond _then  'else' _else " := (If cond _then _else) 
-    (in custom c_stmt at level 89, cond custom c_exp at level 99, _then custom c_stmt at level 99, _else custom c_stmt at level 99) : mini_c_scope.
-Notation "s1 ';' s2" := (Seq s1 s2) (in custom c_stmt at level 90, right associativity) : mini_c_scope.
+Notation "'if' cond _then 'else' _else " := (If cond _then _else) 
+    (in custom c_stmt at level 89, cond custom c_exp at level 99, _then custom c_stmt at level 99, _else custom c_stmt at level 99
+    , format "'if'  cond '//' '[v '  _then ']' '//' 'else' '//' '[v '  _else ']'") : mini_c_scope.
+Notation "s1 ';' s2" := (Seq s1 s2) (in custom c_stmt at level 90, right associativity, format "s1 ; '//' s2") : mini_c_scope.
 Notation "x = y" := (Assign x y) (in custom c_stmt at level 0, x constr at level 0, y custom c_exp at level 85, no associativity) : mini_c_scope.
 Notation "'assert' e" := (PAssert e) (in custom c_stmt at level 0, e custom c_exp at level 99) : mini_c_scope.
 Notation "'while' e s" := (While e s) (in custom c_stmt at level 89, e custom c_exp at level 99, s at level 99) : mini_c_scope.
@@ -164,7 +196,31 @@ Notation "'return' e" := (Return e) (in custom c_stmt at level 0, e custom c_exp
 Notation "f args" := (PCall f args) (in custom c_stmt at level 99, args custom c_args) : mini_c_scope.
 Notation "c '<-' f args" := (FCall c f args) (in custom c_stmt at level 80, f at next level, args custom c_args) : mini_c_scope.
 
-    
+
+Declare Scope mini_gmp_scope.   
+Declare Custom Entry gmp_stmt. 
+Notation "e" := e (in custom gmp_stmt at level 0,  e constr at level 0) : mini_c_scope.
+Notation "< s >" := s (at level 0, s custom gmp_stmt at level 99, format "< s >") : mini_gmp_scope.
+Notation "s1 ';' s2" := (S_Seq s1 s2) (in custom c_stmt at level 90, right associativity,format "s1 ; '//' s2") : mini_gmp_scope.
+Notation "s1 ';' s2" := (S_Seq s1 s2) (in custom gmp_stmt at level 90, s1 custom gmp_stmt, s2 custom c_stmt, right associativity, format "s1 ; '//' s2") : mini_gmp_scope.
+
+Notation "'if' cond _then 'else' _else " := (S_If cond _then _else) 
+    (in custom c_stmt at level 89, cond custom c_exp at level 99, _then custom c_stmt at level 99, _else custom c_stmt at level 99) : mini_gmp_scope.
+Notation "'if' cond _then 'else' _else " := (S_If cond _then _else) 
+(in custom gmp_stmt at level 89, cond custom c_exp at level 99, _then custom c_stmt at level 99, _else custom c_stmt at level 99) : mini_gmp_scope.
+
+Notation "'set_i' ( id , e )" := (Set_z id e) (in custom gmp_stmt) : mini_gmp_scope.
+Notation "'set_s' ( id , l )" := (Set_z id l) (in custom gmp_stmt): mini_gmp_scope.
+Notation "'set_z' ( id1 , id2 )" := (Set_z id1 id2) (id1 global, in custom gmp_stmt): mini_gmp_scope.
+Notation "'cl' ( id )" := (Clear id) (in custom gmp_stmt): mini_gmp_scope.
+Notation "id = 'cmp' ( id1 , id2 )" := (Comp id id1 id2) (id1 global, id2 global, in custom gmp_stmt at level 99): mini_gmp_scope.
+Notation "id = 'get_int' ( id1 )" := (Coerc id id1) (in custom gmp_stmt at level 99): mini_gmp_scope.
+Notation "'init' ( id )" := (Init id) (in custom gmp_stmt) : mini_gmp_scope.
+Notation "'add' ( id1 , id2 , id3 )" := (GMP_Add id1 id2 id3) (in custom gmp_stmt) : mini_gmp_scope.
+Notation "'sub' ( id1 , id2 , id3 )" := (GMP_Sub id1 id2 id3) (in custom gmp_stmt) : mini_gmp_scope.
+Notation "'mul' ( id1 , id2 , id3 )" := (GMP_Mul id1 id2 id3) (in custom gmp_stmt): mini_gmp_scope.
+Notation "'div' ( id1 , id2 , id3 )" := (GMP_Div id1 id2 id3) (in custom gmp_stmt): mini_gmp_scope.
+
 Definition 𝓥 : Set := id. (* program variables and routines *)
 Definition 𝔏 : Set := id. (* logic variables *)
 
@@ -177,8 +233,9 @@ Definition 𝔗 : Set := gmp_t. (* minigmp types *)
 #[global] Instance eqdec_v : EqDec 𝓥 := {eq_dec := string_dec}.
 
 
-
 (* ty the function that gives the type of a mini-GMP expression  -> where are the expressions defined ? *)
+Definition ty (e:c_exp) : gmp_t := Mpz. (*fixme *)
+
 
 Definition 𝓕 := 𝓥 ⇀ (𝓥 ⃰ ⨉ 𝐒). (* program functions *)
 Definition 𝓟 := 𝓥 ⇀ (𝓥 ⃰ ⨉ 𝐒). (* program procedures *)
@@ -203,7 +260,7 @@ Fact oneinRange : Int.inRange 1. now split. Qed.
 
 Inductive 𝕍 := 
     | VInt (n:Int.MI) (* set of type int, a machine integer (may overflow) *)
-    | VMpz (n:location)  (* memory location for values of type mpz *) 
+    | VMpz (n:Z)  (* memory location for values of type mpz *) 
     | UInt   (* set of undefined values of type int *) 
     | UMpz  . (* set of undefined values of type mpz *) 
 
@@ -226,8 +283,8 @@ Admitted.
 
 
 Definition Uτ (v:𝕍) : option c_type := match v with 
-    | VInt _ => Some C_Int
-    | _  => None
+    | UInt => Some C_Int
+    | _ => None
 end
 .
 
@@ -282,18 +339,37 @@ Coercion Zm : Z >-> c_exp.
 Coercion T_Z : Z >-> fsl_term.
 
 Coercion VInt : Int.MI >-> 𝕍. 
+Coercion VMpz : Z >-> 𝕍.
+
 (* Coercion VMpz : nat >-> Value. *)
-
+Coercion S_C : c_statement >-> statement.
+Coercion S_G : gmp_statement >-> statement.
+Coercion Ctype : c_type >-> gmp_t.
 Coercion LAssert : predicate >-> c_statement.
-
-
-
+Coercion Decl : c_decl >-> c_statement.
+(* 
 Definition same_values (v1 v2: option 𝕍) : bool := match v1,v2 with
     | Some (VInt n1), Some (VInt n2) => Int.mi_eqb n1 n2
     | Some (VMpz n1), Some (VMpz n2) => (n1 =? n2)%nat
     | _,_ => false
 end
-.
+. *)
+
+
+Fixpoint normalize_statement (s:statement) : statement := 
+  let norm_cstmt := fix aux (s:c_statement) : statement := match s with
+    | Seq Skip s' | Seq s' Skip => aux s'
+    | Seq s1 s2 => S_Seq (aux s1) (aux s2)
+    | s => s
+    end 
+in match s with
+    | S_Seq (Seq s1 s2) s => S_Seq (norm_cstmt s1) (S_Seq (norm_cstmt s2) (normalize_statement s))
+    | S_Seq s (Seq s1 s2) => S_Seq (normalize_statement s) (S_Seq (norm_cstmt s1) (norm_cstmt s2))
+    | S_Seq Skip s' | S_Seq s' Skip => normalize_statement s'
+    | S_Seq s1 s2 => S_Seq (normalize_statement s1) (normalize_statement s2) 
+    | S_C c => norm_cstmt c
+    | x => x
+end.
 
 
 Inductive env_partial_order (env env':Ω) (var:𝓥) : Prop :=

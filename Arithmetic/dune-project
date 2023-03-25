@@ -2,6 +2,11 @@
 
 (using coq 0.7)
 
-(name rac_formal)
+(package
+  ( allow_empty)
+  (name rac_formal)
+  (depends coq-ext-lib)
+)
 
-(generate_opam_files false)
+(generate_opam_files true)
+
