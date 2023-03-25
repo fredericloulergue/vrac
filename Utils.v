@@ -2,6 +2,8 @@ From RAC Require Import Notations.
 From Coq Require Import ZArith.ZArith.
 From Coq Require Import Setoids.Setoid.
 From Coq Require Import Eqdep_dec. 
+From Coq Require Import Strings.String.
+Open Scope string_scope.
 Open Scope Z_scope.
 Open Scope utils_scope.
 
@@ -63,3 +65,31 @@ Module MachineInteger(B:Bounds).
     Definition mi_eqb m1 m2 := val m1 =? val m2.
 End MachineInteger.
 
+
+Require Export ExtLib.Structures.Monads.
+Require Export ExtLib.Data.Monads.StateMonad.
+Export MonadNotation.
+
+Definition state := state nat.
+#[global] Instance MonadCounter : MonadState nat state  :=
+{
+  get := mkState (fun x => (x,x));
+  put := fun v => mkState (fun _ => (tt,(v+1)%nat));
+}.
+Open Scope monad_scope.
+Definition fresh := n <- get ;; put n ;; ret n.
+Close Scope Z_scope.
+
+(* modified from http://poleiro.info/posts/2013-03-31-reading-and-writing-numbers-in-coq.html *)
+Definition string_of_nat (n : nat) : string :=
+    let fix aux (time n : nat) (acc : string) : string :=
+    let acc' := String (Ascii.ascii_of_nat ((n mod 10) + 48)) acc in
+    match time with
+      | 0 => acc'
+      | S time' =>
+        match n / 10 with
+          | 0 => acc'
+          | n' => aux time' n' acc'
+        end
+    end in
+    aux n n "".

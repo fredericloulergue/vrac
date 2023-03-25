@@ -2,12 +2,15 @@ Require Import RAC.Definitions.
 Require Import RAC.Notations.
 Require Import RAC.Utils.
 Require Import RAC.Semantics.
+Require Import RAC.Translation.
 Require Import ZArith.ZArith.
 Require Import String.
 From Coq Require Import Lists.List.
 Import ListNotations.
 Open Scope string_scope.
 Open Scope list_scope.
+Open Scope Z_scope.
+
 
 Fact ir2 : Int.inRange 2. now split. Qed.
 Fact ir3 : Int.inRange 3. now split. Qed.
@@ -22,6 +25,13 @@ Definition ten := VInt (Int.mkMI 10 ir10).
 Definition fifteen := VInt (Int.mkMI 15 ir15).
 Definition funs := ⊥{"test"\(["a";"b"] , <{ return ("b") }>)}.
 
+Open Scope mini_c_decl_scope.
+Example test_decl : (⊥,⊥) ⋅ ⊥ |= <[ int "x" ]> => (⊥{"x"\UInt},⊥)  ⋅ ⊥.
+Proof.
+    constructor. 
+    - simpl in *. inversion H1. unfold Uτ in H0.  destruct u ; now try discriminate.
+    - reflexivity.
+Qed.
 
 (* 
 latex notation :
@@ -34,6 +44,7 @@ mfrakA : 𝔄
 mbfscrA : 𝓐
 *)
 
+Close Scope mini_gmp_scope.
 Open Scope mini_c_stmt_scope.
 Example stmt_test :
     forall v l m,     
@@ -124,3 +135,37 @@ Qed.
 
 Example test_dom : 2 ∉ (fun x => if x>?2 then Some (x*2) else None).
 Proof. now intros [x contra]. Qed.
+
+
+
+Close Scope Z_scope.
+(* monad *)
+Compute (execState (n <- fresh ;; ret n) 0).
+Compute (evalState (n <- fresh ;; ret n) 0).
+
+Export MonadNotation.
+Require Export ExtLib.Structures.Monads.
+Fixpoint test (x:  list bool) : state (list bool) := match x with
+  | i::t => (if i then fresh else ret 0) ;; x <- test t ;; ret (i::x)
+  | nil => ret nil 
+end.
+Compute (execState (test (true::true::false::true::nil)) 0%nat).
+Compute (evalState (test (true::true::false::true::nil)) 0%nat).
+
+Open Scope Z_scope.
+Open Scope mini_gmp_scope.
+
+Definition p := Disj (Not (P_BinOp "x" FSL_Lt 3%Z)) P_False. 
+
+Unset Printing Notations.
+Compute ( 
+    evalState (
+        s <- translate_c_statement ⊥ 
+        <
+            <{ "x" = 1 + 3 }> ;
+            /*@ assert p */ ;
+            <{ "x" = 2  }>
+        > ;;
+        ret (normalize_statement s)
+    ) 0%nat  
+).

@@ -82,7 +82,7 @@ Lemma weakening_of_statement_semantics_2 :
 Admitted.
 
 
-Lemma weakening_of_statement_semantics_3 :
+(* Lemma weakening_of_statement_semantics_3 :
     forall Ω₀ Ω₀' M₀ M₀' s Ω₁ M₁,
     Ω₀ ⋅ M₀|= s => Ω₁ ⋅ M₁ ->
     Ω₀' ⋅ M₀'|= s => Ω₀ ⋅ M₀ ->
@@ -92,14 +92,14 @@ Lemma weakening_of_statement_semantics_3 :
     exists Ω₁' M₁', Ω₀' ⋅ M₀' |= s => Ω₁' ⋅ M₁'.
 
 Admitted.
+ *)
 
 
-
-Theorem absence_of_dangling_pointers :
+(* Theorem absence_of_dangling_pointers :
     forall n (z:=VMpz n) (mem_state:𝓜) (var_env:Ωᵥ), 
         mem_state n <> ⊥ n <-> 
         exists x, var_env x = Some z /\
         ~(exists x', x <> x' -> var_env x <> Some z)
 .
-Admitted.
+Admitted. *)
 

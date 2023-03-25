@@ -37,8 +37,10 @@ Definition c_decl_sem (env env':Ω) (mem mem':𝓜) d : Prop :=
         forall x t u,
         (fst env) x  = None -> 
         (Uτ u) = Some t ->
-        d = C_Decl t x -> env' = ((fst env){x\u},snd env) /\ mem = mem'
-        .
+        d = C_Decl t x -> env' = ((fst env){x\u},snd env) /\ mem = mem'.
+        
+Notation "Ω ⋅ M |= d => Ω' ⋅ M'"  := (c_decl_sem Ω Ω' M M' d) : mini_c_decl_scope.
+
 
 Open Scope mini_c_exp_scope.
 Declare Scope mini_c_stmt_scope.
