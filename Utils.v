@@ -66,18 +66,6 @@ Module MachineInteger(B:Bounds).
 End MachineInteger.
 
 
-Require Export ExtLib.Structures.Monads.
-Require Export ExtLib.Data.Monads.StateMonad.
-Export MonadNotation.
-
-Definition state := state nat.
-#[global] Instance MonadCounter : MonadState nat state  :=
-{
-  get := mkState (fun x => (x,x));
-  put := fun v => mkState (fun _ => (tt,(v+1)%nat));
-}.
-Open Scope monad_scope.
-Definition fresh := n <- get ;; put n ;; ret n.
 Close Scope Z_scope.
 
 (* modified from http://poleiro.info/posts/2013-03-31-reading-and-writing-numbers-in-coq.html *)
@@ -93,3 +81,29 @@ Definition string_of_nat (n : nat) : string :=
         end
     end in
     aux n n "".
+
+
+
+    Module CounterMonad.
+
+    Definition state {T : Type} : Type := nat -> T * nat.
+
+
+    Definition ret {A : Type} (a : A) : state (T:=A) := fun c => (a, c).
+    
+    Definition bind {A B : Type} (m : state (T:=A)) (f : A -> state (T:=B)) : state (T:=B) :=
+        let f' := fun c => 
+            let (a, c') := m c in f a c' 
+        in f'.
+    
+    Notation "x <- f ;; c" := (bind f (fun x => c)) (f at next level, at level 61, right associativity) .
+    Notation "x <- f ;;; c" := (bind f (fun x => ret c)) (f at next level, at level 61, right associativity) .
+    Notation "f ;; c" := (bind f (fun _ => c)) ( at level 61, right associativity).
+    Notation "f ;;; c" := (bind f (fun _ => ret c)) ( at level 61, right associativity).
+    
+    Definition tick : state := fun c => (tt, S c).
+    Definition getTick : state := fun c => (c, c).
+    Definition fresh := n <- getTick ;; tick ;;; n.
+    Definition exec {A:Type} (m: state (T:=A)) := fst (m 0).
+
+  End CounterMonad.

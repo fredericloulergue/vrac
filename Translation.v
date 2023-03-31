@@ -9,7 +9,7 @@ Require Import List.
 Import ListNotations.
 Open Scope list_scope.
 Open Scope Z_scope.
-
+Export CounterMonad.
 Require Import ZArith.ZArith.
 
 Open Scope mini_gmp_scope.
@@ -128,7 +128,7 @@ Record translated_statement {T: Type} := mkSTR
 
 Definition fresh_variable :=  c <- fresh ;; ret ("_v" ++ string_of_nat c)%string.
 
-Fixpoint translate_predicate (e: ψ) (p: predicate) : state translated_statement := match p with
+Fixpoint translate_predicate (e: ψ) (p: predicate) : state := match p with
     | P_True => 
         c <- fresh_variable ;;
         let decl := [(Ctype C_Int,c)] in
@@ -175,7 +175,7 @@ Fixpoint translate_predicate (e: ψ) (p: predicate) : state translated_statement
     | Call _ _ =>  let _ := translate_term in ret (mkSTR statement (mkTR statement Skip e nil) nil "") (* fixme : defined ? *)
 end 
 
-with translate_term (e: ψ) (t : fsl_term) : state translated_statement := match t with
+with translate_term (e: ψ) (t : fsl_term) : state := match t with
     | T_Z z =>
         c <- fresh_variable ;;
         let decl := [(Ctype C_Int, c)] (*fixme *) in 
@@ -235,7 +235,7 @@ with translate_term (e: ψ) (t : fsl_term) : state translated_statement := match
 
 
 (* translation of statements *)
-Fixpoint translate_c_statement (env: ψ) (s : statement) : state statement := match s with
+Fixpoint translate_c_statement (env: ψ) (s : statement) : state := match s with
     | LAssert p  => 
         p_tr <- translate_predicate env p ;;
         let d := DECLS p_tr.(decls) in
