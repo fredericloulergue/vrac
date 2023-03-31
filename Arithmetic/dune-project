@@ -4,9 +4,7 @@
 
 (package
   ( allow_empty)
-  (name rac_formal)
-  (depends coq-ext-lib)
-)
+  (name rac_formal))
 
-(generate_opam_files true)
+(generate_opam_files false)
 

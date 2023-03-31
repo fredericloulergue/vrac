@@ -139,33 +139,31 @@ Proof. now intros [x contra]. Qed.
 
 
 Close Scope Z_scope.
-(* monad *)
-Compute (execState (n <- fresh ;; ret n) 0).
-Compute (evalState (n <- fresh ;; ret n) 0).
 
-Export MonadNotation.
-Require Export ExtLib.Structures.Monads.
-Fixpoint test (x:  list bool) : state (list bool) := match x with
-  | i::t => (if i then fresh else ret 0) ;; x <- test t ;; ret (i::x)
+(* monad *)
+Export CounterMonad.
+Compute (exec (n <- fresh ;;; n)).
+
+Fixpoint test (x:  list bool) : state := match x with
+  | i::t => c <- (if i then fresh else ret 9) ;; let v := (i,c) in x <- test t ;;; v::x
   | nil => ret nil 
 end.
-Compute (execState (test (true::true::false::true::nil)) 0%nat).
-Compute (evalState (test (true::true::false::true::nil)) 0%nat).
+Compute (exec (test (true::true::false::false::true::false::nil))).
+
 
 Open Scope Z_scope.
 Open Scope mini_gmp_scope.
 
 Definition p := Disj (Not (P_BinOp "x" FSL_Lt 3%Z)) P_False. 
 
-Unset Printing Notations.
 Compute ( 
-    evalState (
+    exec (
         s <- translate_c_statement ⊥ 
         <
             <{ "x" = 1 + 3 }> ;
             /*@ assert p */ ;
             <{ "x" = 2  }>
-        > ;;
-        ret (normalize_statement s)
-    ) 0%nat  
+        > ;;;
+       normalize_statement s
+    ) 
 ).
