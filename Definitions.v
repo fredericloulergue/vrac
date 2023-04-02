@@ -86,7 +86,7 @@ Inductive c_exp :=
     | BinOpBool (le : c_exp) (op:c_binop_bool) (re : c_exp)
     .
 
-Inductive c_statement :=
+Inductive c_statement {S:Set} :=
 | Skip (* empty statement *)
 | Assign (var:id) (e: c_exp) (* assignment *)
 | FCall (var:string) (fname:string) (args: c_exp ⃰) (* function call *)
@@ -95,18 +95,18 @@ Inductive c_statement :=
 | If (cond:c_exp) (_then:c_statement) (_else:c_statement) (* conditional *)
 | While (cond:c_exp) (body:c_statement) (* loop *)
 | PAssert (e:c_exp) (* program assertion *)
-| LAssert (p:predicate) (* logic assertion *)
 | Return (e:c_exp)
 | Decl (d:c_decl)
+| Extension (stmt:S)
 .
 
-Inductive c_routine :=
-| PFun (ret:c_type) (name:id) (args: c_decl ⃰) (b_decl: c_decl ⃰) (body:c_statement) (* program function *)
+Inductive c_routine {S : Set} :=
+| PFun (ret:c_type) (name:id) (args: c_decl ⃰) (b_decl: c_decl ⃰) (body:c_statement (S:=S)) (* program function *)
 | LFun (ret:fsl_type) (name:id) (args: fsl_decl ⃰) (body:fsl_term) (* logic function *)
 | Predicate (name:id) (args: fsl_decl ⃰) (p:predicate) (* predicate *)
 .
 
-Record c_program := mkPgrm { decls: c_decl ⃰ ; routines: c_routine ⃰ }.  (* annotated program *)
+Record c_program {S : Set}:= mkPgrm { decls: c_decl ⃰ ; routines: c_routine (S:=S) ⃰ }.  (* annotated program *)
 
      
 (*  mini-GMP *)
@@ -132,14 +132,13 @@ Definition op (x:fsl_binop_int) : id -> id -> id -> gmp_statement := match x wit
     | FSL_Div => GMP_Div
 end.
 
-(* statement extension *)
-Inductive statement := 
-    | S_G (s:gmp_statement) 
-    | S_C (c:c_statement) 
-    | S_Seq (s1:statement) (s2:statement)
-    | S_If (cond:c_exp) (_then:statement) (_else:statement)
-    | S_While (cond:c_exp) (body:statement)
-.
+Definition statement := c_statement (S:=gmp_statement).
+
+Definition mini_gmp := c_statement (S:=gmp_statement).
+
+Inductive mini_fsl := LAssert (p:predicate). (* logic assertion *)
+
+Definition mini_c_fsl := c_statement (S:=mini_fsl).
 
 
 Declare Scope mini_c_scope.
@@ -201,19 +200,11 @@ Declare Scope mini_gmp_scope.
 Declare Custom Entry gmp_stmt. 
 Notation "e" := e (in custom gmp_stmt at level 0,  e constr at level 0) : mini_c_scope.
 Notation "< s >" := s (at level 0, s custom gmp_stmt at level 99, format "< s >") : mini_gmp_scope.
-Notation "s1 ';' s2" := (S_Seq s1 s2) (in custom c_stmt at level 90, right associativity,format "s1 ; '//' s2") : mini_gmp_scope.
-Notation "s1 ';' s2" := (S_Seq s1 s2) (in custom gmp_stmt at level 90, s1 custom gmp_stmt, s2 custom c_stmt, right associativity, format "s1 ; '//' s2") : mini_gmp_scope.
-
-Notation "'if' cond _then 'else' _else " := (S_If cond _then _else) 
-    (in custom c_stmt at level 89, cond custom c_exp at level 99, _then custom c_stmt at level 99, _else custom c_stmt at level 99) : mini_gmp_scope.
-Notation "'if' cond _then 'else' _else " := (S_If cond _then _else) 
-(in custom gmp_stmt at level 89, cond custom c_exp at level 99, _then custom c_stmt at level 99, _else custom c_stmt at level 99) : mini_gmp_scope.
-
 Notation "'set_i' ( id , e )" := (Set_z id e) (in custom gmp_stmt) : mini_gmp_scope.
 Notation "'set_s' ( id , l )" := (Set_z id l) (in custom gmp_stmt): mini_gmp_scope.
-Notation "'set_z' ( id1 , id2 )" := (Set_z id1 id2) (id1 global, in custom gmp_stmt): mini_gmp_scope.
+Notation "'set_z' ( id1 , id2 )" := (Set_z id1 id2) (in custom gmp_stmt): mini_gmp_scope.
 Notation "'cl' ( id )" := (Clear id) (in custom gmp_stmt): mini_gmp_scope.
-Notation "id = 'cmp' ( id1 , id2 )" := (Comp id id1 id2) (id1 global, id2 global, in custom gmp_stmt at level 99): mini_gmp_scope.
+Notation "id = 'cmp' ( id1 , id2 )" := (Comp id id1 id2) (in custom gmp_stmt at level 99): mini_gmp_scope.
 Notation "id = 'get_int' ( id1 )" := (Coerc id id1) (in custom gmp_stmt at level 99): mini_gmp_scope.
 Notation "'init' ( id )" := (Init id) (in custom gmp_stmt) : mini_gmp_scope.
 Notation "'add' ( id1 , id2 , id3 )" := (GMP_Add id1 id2 id3) (in custom gmp_stmt) : mini_gmp_scope.
@@ -224,7 +215,7 @@ Notation "'div' ( id1 , id2 , id3 )" := (GMP_Div id1 id2 id3) (in custom gmp_stm
 Definition 𝓥 : Set := id. (* program variables and routines *)
 Definition 𝔏 : Set := id. (* logic variables *)
 
-Definition 𝐒 : Set := c_statement. (* program statements *)
+Definition 𝐒 : Set := statement. (* program statements *)
 Definition ℨ : Set := fsl_term. (* logical terms *)
 Definition 𝔅 : Set := predicate. (* predicates *)
 Definition 𝔗 : Set := gmp_t. (* minigmp types *)
@@ -335,12 +326,12 @@ Coercion T_Z : Z >-> fsl_term.
 
 Coercion VInt : Int.MI >-> 𝕍. 
 Coercion VMpz : Z >-> 𝕍.
+Coercion gmp_ext  (s:gmp_statement) := Extension s.
+Coercion fsl_ext  (s:mini_fsl) := Extension s.
+
 
 (* Coercion VMpz : nat >-> Value. *)
-Coercion S_C : c_statement >-> statement.
-Coercion S_G : gmp_statement >-> statement.
 Coercion Ctype : c_type >-> gmp_t.
-Coercion LAssert : predicate >-> c_statement.
 Coercion Decl : c_decl >-> c_statement.
 (* 
 Definition same_values (v1 v2: option 𝕍) : bool := match v1,v2 with
@@ -349,22 +340,6 @@ Definition same_values (v1 v2: option 𝕍) : bool := match v1,v2 with
     | _,_ => false
 end
 . *)
-
-
-Fixpoint normalize_statement (s:statement) : statement := 
-  let norm_cstmt := fix aux (s:c_statement) : statement := match s with
-    | Seq Skip s' | Seq s' Skip => aux s'
-    | Seq s1 s2 => S_Seq (aux s1) (aux s2)
-    | s => s
-    end 
-in match s with
-    | S_Seq (Seq s1 s2) s => S_Seq (norm_cstmt s1) (S_Seq (norm_cstmt s2) (normalize_statement s))
-    | S_Seq s (Seq s1 s2) => S_Seq (normalize_statement s) (S_Seq (norm_cstmt s1) (norm_cstmt s2))
-    | S_Seq Skip s' | S_Seq s' Skip => normalize_statement s'
-    | S_Seq s1 s2 => S_Seq (normalize_statement s1) (normalize_statement s2) 
-    | S_C c => norm_cstmt c
-    | x => x
-end.
 
 
 Inductive env_partial_order (env env':Ω) (var:𝓥) : Prop :=
@@ -446,7 +421,7 @@ Notation "( e , m ) ⊑ ( e' , m' )" :=  (
 ) : utils_scope.
 
 
-Definition var_in_stmt (s:c_statement) (v:𝓥) := True. (* todo *)
+(* Definition var_in_stmt (s:c_statement) (v:𝓥) := True. todo *)
 
 (* Lemma test_eq : forall (v v' : Ωᵥ) var z, v{var \ z} = v'{var \ z} <-> v = v'. Admitted.
 

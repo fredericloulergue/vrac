@@ -102,4 +102,3 @@ Admitted.
         ~(exists x', x <> x' -> var_env x <> Some z)
 .
 Admitted. *)
-

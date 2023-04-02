@@ -23,7 +23,8 @@ Definition three := VInt (Int.mkMI 3 ir3).
 Definition five := VInt (Int.mkMI 5 ir5).
 Definition ten := VInt (Int.mkMI 10 ir10).
 Definition fifteen := VInt (Int.mkMI 15 ir15).
-Definition funs := ⊥{"test"\(["a";"b"] , <{ return ("b") }>)}.
+
+Definition funs  := ⊥{"test"\(["a";"b"] , <{ return ("b") }> : statement)} .
 
 Open Scope mini_c_decl_scope.
 Example test_decl : (⊥,⊥) ⋅ ⊥ |= <[ int "x" ]> => (⊥{"x"\UInt},⊥)  ⋅ ⊥.
@@ -158,12 +159,11 @@ Definition p := Disj (Not (P_BinOp "x" FSL_Lt 3%Z)) P_False.
 
 Compute ( 
     exec (
-        s <- translate_c_statement ⊥ 
-        <
-            <{ "x" = 1 + 3 }> ;
+        translate_c_statement ⊥ 
+        <{
+            "x" = 1 + 3  ;
             /*@ assert p */ ;
-            <{ "x" = 2  }>
-        > ;;;
-       normalize_statement s
+             "x" = 2  
+        }>
     ) 
 ).
