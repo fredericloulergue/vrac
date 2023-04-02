@@ -51,7 +51,7 @@ Definition CMP c e₁ e₂ v₁ v₂ : statement := match ty e₁, ty e₂ with
     | _,_ => 
         let a1 := mpz_ASSGN v₁ e₁ in 
         let a2 := mpz_ASSGN v₂ e₂ in
-        < a1 ; a2 ; < c = cmp(v₁,v₂)> >
+        <{ a1 ; a2 ; < c = cmp(v₁,v₂)> }>
 end
 .
 
@@ -64,11 +64,11 @@ Definition binop_ASSGN(fsl_op:fsl_binop_int) (v:gmp_t ⨉ 𝓥) e₁ e₂ r v₁
         let s1 :=  mpz_ASSGN v₁ e₁ in
         let s2 :=  mpz_ASSGN v₂ e₂ in
         let s3 := match τ with
-                    | C_Int => <(op fsl_op r v₁ v₂) ; (int_ASSGN c r)>
+                    | C_Int => <{ < (op fsl_op r v₁ v₂) > ; < (int_ASSGN c r) > }>
                     | Mpz => op fsl_op c v₁ v₂
                     | _ => Skip
                     end
-        in <s1;s2;s3>
+        in <{s1;s2;s3}>
 
     end
     .
@@ -86,14 +86,14 @@ Definition var_list := (gmp_t ⨉ 𝓥) ⃰.
 (* helper functions *)
 Definition DECLS (vars:var_list)  : statement := (* generates declarations *)
     List.fold_right (fun (v:gmp_t ⨉ 𝓥) a => let (t,s) := v in   (*fixme t -> int*)
-    <<[int s]> ; a>) Skip vars.
+    <{ (<<[int s]>>) ; a}>) Skip vars.
 
 Definition INITS (vars : var_list) : statement := (* generates initialization *)
     List.fold_right 
     (
         fun (v:gmp_t ⨉ 𝓥) a => let (t,z) := v in 
         match t with
-        | Mpz => <init(z) ; a>
+        | Mpz => <{ < init(z) > ; a}>
         | C_Int | _  => a
         end        
     ) Skip vars.
@@ -103,7 +103,7 @@ List.fold_right
 (
     fun (v:gmp_t ⨉ 𝓥) a => let (t,z) := v in 
     match t with
-    | Mpz => <cl(z); a>
+    | Mpz => <{ <cl(z)> ; a }>
     | C_Int | _  => a
     end        
 ) Skip vars.
@@ -145,7 +145,7 @@ Fixpoint translate_predicate (e: ψ) (p: predicate) : state := match p with
         p_tr <- translate_predicate e t ;;
         let _res := p_tr.(res) in
         let decl := (Ctype C_Int,c)::p_tr.(decls) in
-        let code := S_Seq p_tr.(tr).(chunk statement) <{if _res c = 0 else c = 1 }> in
+        let code := <{ (p_tr.(tr).(chunk statement)) ; if _res c = 0 else c = 1 }> in
         ret (mkSTR statement (mkTR statement code p_tr.(tr).(env statement) nil) decl c)
     
     | Disj p1 p2 => 
@@ -157,7 +157,7 @@ Fixpoint translate_predicate (e: ψ) (p: predicate) : state := match p with
         let p2_res := tr_p2.(res) in
         let p2_code := tr_p2.(tr).(chunk statement) in
         let decl := (Ctype C_Int,c)::tr_p1.(decls) ++ tr_p2.(decls) in
-        let code := <p1_code; if p1_res c = 1 else <p2_code ; <{c = p2_res}>> > 
+        let code := <{ p1_code ; if p1_res c = 1 else <{ p2_code ; <{c = p2_res}> }> }> 
         in
         ret (mkSTR statement (mkTR statement code tr_p2.(tr).(env statement) nil) decl c)
 
@@ -169,7 +169,7 @@ Fixpoint translate_predicate (e: ψ) (p: predicate) : state := match p with
         let t2_code := tr_t2.(tr).(chunk statement) in
         let decl := (Mpz, "v1")::(Mpz,"v2")::(Ctype C_Int,c)::tr_t1.(decls) ++ tr_t2.(decls) in
         let comp := CMP c tr_t1.(res) tr_t2.(res) "v1" "v2" in 
-        let code := <t1_code ; t2_code; comp ; (Assign c (BinOpBool c (◖fsl_op) 0))>  in
+        let code := <{ t1_code ; t2_code; comp ; (Assign c (BinOpBool c (◖fsl_op) 0)) }>  in
         ret (mkSTR statement (mkTR statement code tr_t2.(tr).(env statement) nil) decl c)
 
     | Call _ _ =>  let _ := translate_term in ret (mkSTR statement (mkTR statement Skip e nil) nil "") (* fixme : defined ? *)
@@ -198,7 +198,7 @@ with translate_term (e: ψ) (t : fsl_term) : state := match t with
         let t2_res := t2_tr.(res) in
         let decl := (τ,c) :: (Mpz,v1) :: (Mpz,v2) :: (Mpz,r) :: t1_tr.(decls) ++ t2_tr.(decls) in
         let assgn := binop_ASSGN _op (τ,c) t1_res t2_res r v1 v2 in
-        let code := < t1_code ; t2_code ; assgn > in
+        let code := <{ t1_code ; t2_code ; assgn }> in
         ret (mkSTR statement (mkTR statement code t2_tr.(tr).(env statement) nil) decl c)
 
     | Conditional p t1 t2 => 
@@ -217,7 +217,7 @@ with translate_term (e: ψ) (t : fsl_term) : state := match t with
         let t2_assgn :=  int_ASSGN c t2_res (* fixme macros *) in
         let decl := (τ,c) :: p_tr.(decls) ++ t1_tr.(decls) ++ t2_tr.(decls) in
         let code := 
-            <
+            <{
                 p_code;
                 if (p_res) <{ 
                    t1_code ;
@@ -227,29 +227,43 @@ with translate_term (e: ψ) (t : fsl_term) : state := match t with
                     t2_code ;
                     t2_assgn
                 }>
-            > in
+            }> in
         ret (mkSTR statement (mkTR statement code t2_tr.(tr).(env statement) nil) decl c)
     end
 .
  
-
-
 (* translation of statements *)
-Fixpoint translate_c_statement (env: ψ) (s : statement) : state := match s with
-    | LAssert p  => 
+Fixpoint translate_c_statement (env: ψ) (s : mini_c_fsl) : state := match s with
+    | Extension (LAssert p)  => 
         p_tr <- translate_predicate env p ;;
         let d := DECLS p_tr.(decls) in
         let i := INITS p_tr.(decls) in
         let c := p_tr.(tr).(chunk statement) in
         let asrt := PAssert p_tr.(res) in
         let clr := CLEARS p_tr.(decls) in
-        ret < d ; i ;c ; asrt ; clr >
-    | S_Seq s1 s2  => 
+        ret <{ d ; i ;c ; asrt ; clr }>
+        
+    | Seq s1 s2  => 
         s1_tr <- translate_c_statement env s1 ;;
-        s2_tr <- translate_c_statement env s2 ;;
-        ret < s1_tr ; s2_tr >
+        s2_tr <- translate_c_statement env s2 ;;;
 
-    | s => ret s
+        <{ s1_tr ; s2_tr }>
+    | If e s1 s2 => 
+        s1_tr <- translate_c_statement env s1 ;;
+        s2_tr <- translate_c_statement env s2 ;;;
+        If e s1_tr s2_tr
+    | While e b =>  
+        tr <- translate_c_statement env b ;;; 
+        While e tr
+
+    | Assign id e => ret (Assign id e)
+    | FCall x x1 x2 => ret (FCall x x1 x2)
+
+    | PAssert e => ret (PAssert e)
+    | Return e => ret (Return e)
+    | Decl d => ret (Decl d)
+    | PCall id args => ret (PCall id args)
+    | Skip => ret Skip
 end.
 
 (*
