@@ -4,8 +4,9 @@ From Coq Require Import ZArith.ZArith.
 From Coq Require Import Strings.String.
 Open Scope Z_scope.
 
-Inductive c_type := C_Int | Void.  (* program types τc *)
-Inductive gmp_t := Ctype (t:c_type) | String | Mpz. (* type extension τ *)
+Inductive c_type {T:Set} := C_Int | Void | T_Ext (t:T).  (* program types τc *)
+Inductive _gmp_t := String | Mpz.
+Definition gmp_t := @c_type _gmp_t.  (* type extension τ *)
 
 (* mini-FSL *)
 
@@ -37,7 +38,7 @@ Inductive fsl_type := FSL_Int | Integer. (* logic types *)
    
 
 (* mini-C *)
-Inductive c_decl :=  C_Decl (type:c_type) (name:id). (* program declaration *)
+Inductive c_decl {T:Set} :=  C_Decl (type: @c_type T) (name:id). (* program declaration *)
 
 Inductive c_binop_bool :=  C_Lt | C_Le | C_Gt | C_Ge | C_Eq | C_NEq.
 Definition c_binop_bool_model (x:c_binop_bool) : Z -> Z -> bool := match x with
@@ -86,7 +87,7 @@ Inductive c_exp :=
     | BinOpBool (le : c_exp) (op:c_binop_bool) (re : c_exp)
     .
 
-Inductive c_statement {S:Set} :=
+Inductive c_statement {S T : Set} :=
 | Skip (* empty statement *)
 | Assign (var:id) (e: c_exp) (* assignment *)
 | FCall (var:string) (fname:string) (args: c_exp ⃰) (* function call *)
@@ -96,22 +97,22 @@ Inductive c_statement {S:Set} :=
 | While (cond:c_exp) (body:c_statement) (* loop *)
 | PAssert (e:c_exp) (* program assertion *)
 | Return (e:c_exp)
-| Decl (d:c_decl)
-| Extension (stmt:S)
+| Decl (d: @c_decl T)
+| S_Ext (stmt:S)
 .
 
-Inductive c_routine {S : Set} :=
-| PFun (ret:c_type) (name:id) (args: c_decl ⃰) (b_decl: c_decl ⃰) (body:c_statement (S:=S)) (* program function *)
+Inductive c_routine {S T : Set} :=
+| PFun (ret: @c_type T) (name:id) (args: @c_decl T ⃰) (b_decl: @c_decl T ⃰) (body: @c_statement T S) (* program function *)
 | LFun (ret:fsl_type) (name:id) (args: fsl_decl ⃰) (body:fsl_term) (* logic function *)
 | Predicate (name:id) (args: fsl_decl ⃰) (p:predicate) (* predicate *)
 .
 
-Record c_program {S : Set}:= mkPgrm { decls: c_decl ⃰ ; routines: c_routine (S:=S) ⃰ }.  (* annotated program *)
+Record c_program {S T : Set}:= mkPgrm { decls: @c_decl T ⃰ ; routines: @c_routine T S ⃰ }.  (* annotated program *)
 
      
 (*  mini-GMP *)
 
-Inductive gmp_statement := 
+Inductive _gmp_statement := 
     | Init (name:id) (* mpz allocation *)
     | Set_i (name:id) (e:c_exp) (* assignment from an int *)
     | Set_s (name:id) (l:string) (* assignment from a string literal *)
@@ -125,20 +126,22 @@ Inductive gmp_statement :=
     | Coerc (name n : id) (* mpz coercion *)
     .
 
-Definition op (x:fsl_binop_int) : id -> id -> id -> gmp_statement := match x with
+Definition op (x:fsl_binop_int) : id -> id -> id -> _gmp_statement := match x with
     | FSL_Add => GMP_Add
     | FSL_Sub => GMP_Sub
     | FSL_Mul => GMP_Mul
     | FSL_Div => GMP_Div
 end.
 
-Definition statement := c_statement (S:=gmp_statement).
+Definition statement := @c_statement _gmp_statement _gmp_t.
 
-Definition mini_gmp := c_statement (S:=gmp_statement).
+Definition mini_gmp := @c_statement _gmp_statement _gmp_t.
+
+Definition gmp_decl := @c_decl _gmp_t.
 
 Inductive mini_fsl := LAssert (p:predicate). (* logic assertion *)
 
-Definition mini_c_fsl := c_statement (S:=mini_fsl).
+Definition mini_c_fsl := @c_statement mini_fsl _gmp_t.
 
 
 Declare Scope mini_c_scope.
@@ -200,8 +203,8 @@ Declare Scope mini_gmp_scope.
 Declare Custom Entry gmp_stmt. 
 Notation "e" := e (in custom gmp_stmt at level 0,  e constr at level 0) : mini_c_scope.
 Notation "< s >" := s (at level 0, s custom gmp_stmt at level 99, format "< s >") : mini_gmp_scope.
-Notation "'set_i' ( id , e )" := (Set_z id e) (in custom gmp_stmt) : mini_gmp_scope.
-Notation "'set_s' ( id , l )" := (Set_z id l) (in custom gmp_stmt): mini_gmp_scope.
+Notation "'set_i' ( id , e )" := (Set_i id e) (in custom gmp_stmt) : mini_gmp_scope.
+Notation "'set_s' ( id , l )" := (Set_s id l) (in custom gmp_stmt): mini_gmp_scope.
 Notation "'set_z' ( id1 , id2 )" := (Set_z id1 id2) (in custom gmp_stmt): mini_gmp_scope.
 Notation "'cl' ( id )" := (Clear id) (in custom gmp_stmt): mini_gmp_scope.
 Notation "id = 'cmp' ( id1 , id2 )" := (Comp id id1 id2) (in custom gmp_stmt at level 99): mini_gmp_scope.
@@ -212,20 +215,25 @@ Notation "'sub' ( id1 , id2 , id3 )" := (GMP_Sub id1 id2 id3) (in custom gmp_stm
 Notation "'mul' ( id1 , id2 , id3 )" := (GMP_Mul id1 id2 id3) (in custom gmp_stmt): mini_gmp_scope.
 Notation "'div' ( id1 , id2 , id3 )" := (GMP_Div id1 id2 id3) (in custom gmp_stmt): mini_gmp_scope.
 
-Definition 𝓥 : Set := id. (* program variables and routines *)
-Definition 𝔏 : Set := id. (* logic variables *)
+Definition 𝓥 := id. (* program variables and routines *)
+Definition 𝔏 := id. (* logic variables *)
 
-Definition 𝐒 : Set := statement. (* program statements *)
-Definition ℨ : Set := fsl_term. (* logical terms *)
-Definition 𝔅 : Set := predicate. (* predicates *)
-Definition 𝔗 : Set := gmp_t. (* minigmp types *)
+Definition 𝐒 := statement. (* program statements *)
+Definition ℨ := fsl_term. (* logical terms *)
+Definition 𝔅 := predicate. (* predicates *)
+Definition 𝔗 := gmp_t. (* minigmp types *)
 
 
 #[global] Instance eqdec_v : EqDec 𝓥 := {eq_dec := string_dec}.
 
 
-(* ty the function that gives the type of a mini-GMP expression  -> where are the expressions defined ? *)
-Definition ty (e:c_exp) : gmp_t := Mpz. (*fixme *)
+(* ty the function that gives the type of a mini-GMP expression *)
+Definition ty (e:c_exp) : gmp_t := match e with
+    | Zm _ => C_Int
+    | BinOpBool _ _ _=> C_Int 
+    | BinOpInt _ _ _ => C_Int
+    | C_Id _ => C_Int
+end.
 
 
 Definition 𝓕 := 𝓥 ⇀ (𝓥 ⃰ ⨉ 𝐒). (* program functions *)
@@ -251,14 +259,34 @@ Fact oneinRange : Int.inRange 1. now split. Qed.
 
 Inductive 𝕍 := 
     | VInt (n:Int.MI) (* set of type int, a machine integer (may overflow) *)
-    | VMpz (n:Z)  (* memory location for values of type mpz *) 
+    | VMpz (n:location)  (* memory location for values of type mpz *) 
     | UInt   (* set of undefined values of type int *) 
     | UMpz  . (* set of undefined values of type mpz *) 
 
+Coercion C_Id : id >-> c_exp.
+Coercion T_Id : id >-> fsl_term.
+Coercion Zm : Z >-> c_exp.
+Coercion T_Z : Z >-> fsl_term.
+Coercion VInt : Int.MI >-> 𝕍. 
+Coercion VMpz : location >-> 𝕍.
+Coercion gmp_s_ext (s:_gmp_statement) := S_Ext s (T:=_gmp_t).
+Coercion fsl_s_ext (s:mini_fsl) := S_Ext s (T:=_gmp_t).
+Coercion gmp_t_ext (t:_gmp_t) : c_type := T_Ext t.
+Coercion Decl : c_decl >-> c_statement.
+
+
+(* Coercion VMpz : nat >-> Value. *)
+(* 
+Definition same_values (v1 v2: option 𝕍) : bool := match v1,v2 with
+    | Some (VInt n1), Some (VInt n2) => Int.mi_eqb n1 n2
+    | Some (VMpz n1), Some (VMpz n2) => (n1 =? n2)%nat
+    | _,_ => false
+end
+. *)
 
 Definition type_of_value : option 𝕍 -> option 𝔗 := fun v => match v with
-| Some (VInt _) | Some UInt => Some (Ctype C_Int)
-| Some (VMpz _) | Some UMpz => Some Mpz
+| Some (VInt _) | Some UInt => Some C_Int
+| Some (VMpz _) | Some UMpz => Some (T_Ext Mpz)
 | None => None
 end.
 
@@ -268,8 +296,8 @@ Definition 𝓜 := location ⇀ ℤ.
 From Coq Require Import Logic.FinFun.
 
 
-Definition Uτ (v:𝕍) : option c_type := match v with 
-    | UInt => Some C_Int
+Definition Uτ (v:𝕍) : option (@c_type Empty_set) := match v with 
+    | UInt => Some C_Int 
     | _ => None
 end
 .
@@ -295,19 +323,23 @@ Definition Ωₗ := 𝔏 ⇀ ℤ.
 Definition Ω := Ωᵥ ⨉ Ωₗ.
 
 
-Record 𝐼 := {min : Z; max : Z}. (* interval *)
-
-(* Definition Γ  := c_routine -> T. (* typing env *) *)
-Definition Γᵢ := 𝔏 ⇀ 𝐼. (* typing env mapping logic binders to  intervals *)
-
+Record 𝐼 := mkInterval {min : Z; max : Z}. (* interval *)
 
 Definition 𝓘 := ℨ -> (𝔏 ⇀ 𝐼) -> 𝐼. (* oracle *)
 
 Definition ϴ :=  𝐼 -> 𝔗.
 
-Definition 𝚪 (o: 𝓘) (om:ϴ) : ℨ -> Γᵢ -> 𝔗 := fun lt env => om (o lt env). (* Θ ◦ oracle. *)
+Definition Γᵢ := 𝔏 ⇀ 𝐼. (* typing env mapping logic binders to intervals *)
+Definition Γᵥ := 𝔏 ⇀ 𝓥 ⨉ 𝐼. (* environment for bindings :  variable and interval infered from it *)
+
+Definition ψ := 𝔏 ⨉ (𝔏 ⇀ 𝐼) ⇀ 𝓥 . (* global definitions env *)
 
 
+Notation "'Γ' '(' x ')' " := (Γᵥ x, Γᵢ x).
+
+Definition 𝚪 (oracle: 𝓘) (o:ϴ) := fun (t:ℨ) (τᵢ: Γᵢ) =>  o (oracle t τᵢ) : 𝔗. (* Θ ◦ oracle. *)
+
+Record type_inf := { oracle : 𝓘 ; t_env : Γᵢ ; i_op : ϴ }.
 
 
 (* Module Todo.
@@ -317,29 +349,6 @@ Hypothesis convergence : forall (type_env:Γ) (r:mini_c(((((((((_routines),
     exists (t:T), type_env r = t.
 End Todo. *)
 
-
-
-Coercion C_Id : id >-> c_exp.
-Coercion T_Id : id >-> fsl_term.
-Coercion Zm : Z >-> c_exp.
-Coercion T_Z : Z >-> fsl_term.
-
-Coercion VInt : Int.MI >-> 𝕍. 
-Coercion VMpz : Z >-> 𝕍.
-Coercion gmp_ext  (s:gmp_statement) := Extension s.
-Coercion fsl_ext  (s:mini_fsl) := Extension s.
-
-
-(* Coercion VMpz : nat >-> Value. *)
-Coercion Ctype : c_type >-> gmp_t.
-Coercion Decl : c_decl >-> c_statement.
-(* 
-Definition same_values (v1 v2: option 𝕍) : bool := match v1,v2 with
-    | Some (VInt n1), Some (VInt n2) => Int.mi_eqb n1 n2
-    | Some (VMpz n1), Some (VMpz n2) => (n1 =? n2)%nat
-    | _,_ => false
-end
-. *)
 
 
 Inductive env_partial_order (env env':Ω) (var:𝓥) : Prop :=

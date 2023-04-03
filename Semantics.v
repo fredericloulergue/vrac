@@ -48,7 +48,7 @@ Declare Scope mini_c_stmt_scope.
 Inductive c_stmt_sem (env:Ω) (mem:𝓜) : 𝐒 -> Ω -> 𝓜 -> Prop := 
     | S_skip  :  env ⋅ mem |= <{ skip }> => env ⋅ mem
     | S_Assign x z e : 
-        type_of_value ((fst env) x) = Some (Ctype C_Int) ->
+        type_of_value ((fst env) x) = Some C_Int ->
         env |= e => z ->
         env ⋅ mem |= <{x = e}> => ((fst env){x\z},snd env) ⋅ mem
     | S_IfTrue env' mem' z e s s' :

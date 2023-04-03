@@ -157,9 +157,21 @@ Open Scope mini_gmp_scope.
 
 Definition p := Disj (Not (P_BinOp "x" FSL_Lt 3%Z)) P_False. 
 
+
+Definition dummy_iop : ϴ := fun i => Mpz. 
+Definition dummy_oracle : 𝓘 := fun t li => mkInterval (-10) 10.
+
+Definition dummy_tinf : type_inf := 
+    {| oracle := dummy_oracle; t_env := ⊥; i_op := dummy_iop|}.
+
+
+Definition dummy_bindings : Γᵥ := ⊥.
+
+Definition dummy_defs : ψ := ⊥.
+
 Compute ( 
     exec (
-        translate_c_statement ⊥ 
+        translate_c_statement dummy_bindings dummy_tinf dummy_defs 
         <{
             "x" = 1 + 3  ;
             /*@ assert p */ ;
