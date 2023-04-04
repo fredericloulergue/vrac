@@ -19,7 +19,7 @@ Qed.
 #[global] Hint Constructors env_partial_order : core.
 
 Lemma weakening_of_expression_semantics : 
-forall env e (x:𝕍),
+forall T env (e : @c_exp T) (x:𝕍),
     env |= e => x <-> (forall env', env ⊑ env' ->  env' |= e => x)
 .
 Proof with auto.

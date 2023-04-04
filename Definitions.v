@@ -5,7 +5,7 @@ From Coq Require Import Strings.String.
 Open Scope Z_scope.
 
 Inductive c_type {T:Set} := C_Int | Void | T_Ext (t:T).  (* program types τc *)
-Inductive _gmp_t := String | Mpz.
+Inductive _gmp_t := String | Mpz. 
 Definition gmp_t := @c_type _gmp_t.  (* type extension τ *)
 
 (* mini-FSL *)
@@ -80,23 +80,24 @@ end.
 Notation "◖" := fsl_binop_bool_to_c.
 
 
-Inductive c_exp :=
-    | Zm (z : Z) (* machine integer *)
-    | C_Id (var : id) (* variable access *)
-    | BinOpInt (le : c_exp) (op:c_binop_int) (re : c_exp)
-    | BinOpBool (le : c_exp) (op:c_binop_bool) (re : c_exp)
-    .
+Inductive c_exp {T : Set}  :=
+    | Zm (z : Z) (* machine integer *) (* can only be of type int *)
+    | C_Id (var : id) (ty : @c_type T) (* variable access *) (* can be either int or mpz *)
+    | BinOpInt (le : c_exp) (op:c_binop_int) (re : c_exp) (* can only be of type int *)
+    | BinOpBool (le : c_exp) (op:c_binop_bool) (re : c_exp) (* can only be of type int *)
+.
+
 
 Inductive c_statement {S T : Set} :=
 | Skip (* empty statement *)
-| Assign (var:id) (e: c_exp) (* assignment *)
-| FCall (var:string) (fname:string) (args: c_exp ⃰) (* function call *)
-| PCall  (fname:string) (args: c_exp ⃰) (* procedure call *)
+| Assign (var:id) (e: @c_exp T) (* assignment *)
+| FCall (var:string) (fname:string) (args: @c_exp T ⃰) (* function call *)
+| PCall  (fname:string) (args: @c_exp T ⃰) (* procedure call *)
 | Seq (s1 : c_statement) (s2 : c_statement) (* sequence *)
-| If (cond:c_exp) (_then:c_statement) (_else:c_statement) (* conditional *)
-| While (cond:c_exp) (body:c_statement) (* loop *)
-| PAssert (e:c_exp) (* program assertion *)
-| Return (e:c_exp)
+| If (cond:@c_exp T) (_then:c_statement) (_else:c_statement) (* conditional *)
+| While (cond:@c_exp T) (body:c_statement) (* loop *)
+| PAssert (e:@c_exp T) (* program assertion *)
+| Return (e:@c_exp T)
 | Decl (d: @c_decl T)
 | S_Ext (stmt:S)
 .
@@ -112,9 +113,9 @@ Record c_program {S T : Set}:= mkPgrm { decls: @c_decl T ⃰ ; routines: @c_rout
      
 (*  mini-GMP *)
 
-Inductive _gmp_statement := 
+Inductive gmp_statement := 
     | Init (name:id) (* mpz allocation *)
-    | Set_i (name:id) (e:c_exp) (* assignment from an int *)
+    | Set_i (name:id) (i:@c_exp _gmp_t) (* assignment from an int *)
     | Set_s (name:id) (l:string) (* assignment from a string literal *)
     | Set_z (name z:id)(* assignment from a mpz *)
     | Clear (name:id) (* mpz de-allocation *)
@@ -126,16 +127,14 @@ Inductive _gmp_statement :=
     | Coerc (name n : id) (* mpz coercion *)
     .
 
-Definition op (x:fsl_binop_int) : id -> id -> id -> _gmp_statement := match x with
+Definition op (x:fsl_binop_int) : id -> id -> id -> gmp_statement := match x with
     | FSL_Add => GMP_Add
     | FSL_Sub => GMP_Sub
     | FSL_Mul => GMP_Mul
     | FSL_Div => GMP_Div
 end.
 
-Definition statement := @c_statement _gmp_statement _gmp_t.
-
-Definition mini_gmp := @c_statement _gmp_statement _gmp_t.
+Definition statement := @c_statement gmp_statement _gmp_t.
 
 Definition gmp_decl := @c_decl _gmp_t.
 
@@ -143,6 +142,14 @@ Inductive mini_fsl := LAssert (p:predicate). (* logic assertion *)
 
 Definition mini_c_fsl := @c_statement mini_fsl _gmp_t.
 
+
+(* ty the function that gives the type of a mini-GMP expression *)
+Definition ty (e: @c_exp _gmp_t) : gmp_t := match e with 
+    | Zm _  => C_Int
+    | C_Id _ ty => ty
+    | BinOpInt _ _ _  => C_Int
+    | BinOpBool _ _ _ => C_Int
+    end.
 
 Declare Scope mini_c_scope.
 Declare Custom Entry c_decl.
@@ -227,14 +234,6 @@ Definition 𝔗 := gmp_t. (* minigmp types *)
 #[global] Instance eqdec_v : EqDec 𝓥 := {eq_dec := string_dec}.
 
 
-(* ty the function that gives the type of a mini-GMP expression *)
-Definition ty (e:c_exp) : gmp_t := match e with
-    | Zm _ => C_Int
-    | BinOpBool _ _ _=> C_Int 
-    | BinOpInt _ _ _ => C_Int
-    | C_Id _ => C_Int
-end.
-
 
 Definition 𝓕 := 𝓥 ⇀ (𝓥 ⃰ ⨉ 𝐒). (* program functions *)
 Definition 𝓟 := 𝓥 ⇀ (𝓥 ⃰ ⨉ 𝐒). (* program procedures *)
@@ -263,16 +262,16 @@ Inductive 𝕍 :=
     | UInt   (* set of undefined values of type int *) 
     | UMpz  . (* set of undefined values of type mpz *) 
 
-Coercion C_Id : id >-> c_exp.
-Coercion T_Id : id >-> fsl_term.
+
 Coercion Zm : Z >-> c_exp.
+Coercion Decl : c_decl >-> c_statement.
+Coercion T_Id : id >-> fsl_term.
 Coercion T_Z : Z >-> fsl_term.
 Coercion VInt : Int.MI >-> 𝕍. 
 Coercion VMpz : location >-> 𝕍.
-Coercion gmp_s_ext (s:_gmp_statement) := S_Ext s (T:=_gmp_t).
+Coercion gmp_s_ext (s:gmp_statement) := S_Ext s (T:=_gmp_t).
 Coercion fsl_s_ext (s:mini_fsl) := S_Ext s (T:=_gmp_t).
 Coercion gmp_t_ext (t:_gmp_t) : c_type := T_Ext t.
-Coercion Decl : c_decl >-> c_statement.
 
 
 (* Coercion VMpz : nat >-> Value. *)

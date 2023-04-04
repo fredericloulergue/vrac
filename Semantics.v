@@ -9,21 +9,21 @@ Open Scope mini_c_scope.
 
 Declare Scope mini_c_exp_scope.
 
-Inductive c_exp_sem (env : Ω) : c_exp -> 𝕍 -> Prop :=
+Inductive c_exp_sem {T:Set} (env : Ω) : @c_exp T -> 𝕍 -> Prop :=
 | C_E_Int (z:Z) irz : env |= z => Int.mkMI z irz
-| C_E_Var (x:𝓥) z  : 
-    (fst env)(x:string) = Some (VInt z) -> 
-    env |= x => z
-| C_E_BinOpInt e e' (z z':Z) op z_ir z'_ir 
+| C_E_Var (x:𝓥) z : 
+    (fst env) x = Some (VInt z) -> 
+    env |=  (C_Id x C_Int) => z
+| C_E_BinOpInt e e' (z z':Z) op z_ir z'_ir
     (H:Int.inRange (⋄ op z z')) :
     env |= e =>  (Int.mkMI z z_ir) ->
     env |= e' =>  (Int.mkMI z' z'_ir) ->
-    env |= BinOpInt e op e' => Int.mkMI ((⋄ op) z z') H
+    env |=  BinOpInt e op e' => Int.mkMI ((⋄ op) z z') H
 | C_E_BinOpTrue e e' (z z' : Z) z_ir z'_ir op :
     env |= e => (Int.mkMI z z_ir) ->
     env |= e' => (Int.mkMI z' z'_ir) ->
     (◁ op) z z' = true ->
-    env |= BinOpBool e op e' => one
+    env |= BinOpBool e op e'  => one
 | C_E_BinOpFalse e e' (z z' : Z) op z_ir z'_ir :
     env |= e => (Int.mkMI z z_ir) -> 
     env |= e' => (Int.mkMI z' z'_ir) -> 
