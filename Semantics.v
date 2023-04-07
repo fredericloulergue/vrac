@@ -3,6 +3,7 @@ Require Import RAC.Notations.
 Require Import RAC.Utils.
 Require Import ZArith.ZArith.
 From Coq Require Import Strings.String.
+From Coq Require Import BinaryString.
 
 Open Scope mini_c_scope.
 
@@ -32,6 +33,21 @@ Inductive c_exp_sem {T:Set} (env : Ω) : @c_exp T -> 𝕍 -> Prop :=
 
 where  "Ω '|=' e => v" := (c_exp_sem Ω e v) : mini_c_exp_scope.
 
+
+Declare Scope mini_gmp_exp_scope.
+
+
+Inductive gmp_exp_sem (env : Ω) (mem:𝓜) : gmp_exp -> 𝕍 -> Prop :=
+| GMP_E_Var (x:𝓥) l (z:Z) : 
+    (fst env) x = Some (VMpz l) -> 
+    mem l = Some z ->
+    env ⋅ mem |= (C_Id x Mpz) => VMpz l
+
+| C_E (e:gmp_exp) v : 
+    c_exp_sem env e v -> 
+    env ⋅ mem |= e => v
+where  "Ω ⋅ M '|=' e => z" := (gmp_exp_sem Ω M e z) : mini_gmp_exp_scope.
+
 Declare Scope mini_c_decl_scope.
 Definition c_decl_sem (env env':Ω) (mem mem':𝓜) d : Prop := 
         forall x t u,
@@ -43,22 +59,24 @@ Notation "Ω ⋅ M |= d => Ω' ⋅ M'"  := (c_decl_sem Ω Ω' M M' d) : mini_c_d
 
 
 Open Scope mini_c_exp_scope.
+Open Scope mini_gmp_scope.
+Open Scope mini_gmp_exp_scope.
 Declare Scope mini_c_stmt_scope.
+Open Scope Z_scope.
 
-Inductive c_stmt_sem (env:Ω) (mem:𝓜) : 𝐒 -> Ω -> 𝓜 -> Prop := 
+
+Inductive c_stmt_sem (env:Ω) (mem:𝓜) : c_statement -> Ω -> 𝓜 -> Prop := 
     | S_skip  :  env ⋅ mem |= <{ skip }> => env ⋅ mem
     | S_Assign x z e : 
         type_of_value ((fst env) x) = Some C_Int ->
         env |= e => z ->
         env ⋅ mem |= <{x = e}> => ((fst env){x\z},snd env) ⋅ mem
     | S_IfTrue env' mem' z e s s' :
-        env |= e => z ->
-        z <>  Int.mkMI 0 zeroinRange ->
+        env |= e => z /\ ~ (z = zero) ->
         env ⋅ mem  |= s => env' ⋅ mem' ->
         env ⋅ mem  |= <{ if e s else s'}> => env' ⋅ mem'
-    | S_IfFalse env' mem' z e s s' :
-        env |= e => z ->
-        z = Int.mkMI 0 zeroinRange ->
+    | S_IfFalse env' mem' e s s' :
+        env |= e =>  zero ->
         env ⋅ mem |= s' => env' ⋅ mem' ->
         env ⋅ mem |= <{ if e s else s'}> => env' ⋅ mem'
     | S_While e s   env' mem' :
@@ -83,20 +101,68 @@ Inductive c_stmt_sem (env:Ω) (mem:𝓜) : 𝐒 -> Ω -> 𝓜 -> Prop :=
         List.Forall2 (fun e z => env |= e => z) eargs zargs  ->
         ((p_map_addall ⊥ xargs zargs),⊥) ⋅ mem |= b => env'⋅ mem' ->
         env ⋅ mem |= PCall p eargs => env ⋅ mem'
-
+    
     | S_Return e z resf : 
-         env |= e => z -> 
-         env ⋅ mem |= <{ return e }> =>  ((fst env){resf\z},snd env)⋅ mem
+        env ⋅ mem |= e => z -> 
+        env ⋅ mem |= <{ return e }> =>  ((fst env){resf\z},snd env)⋅ mem
 
     | S_PAssert  e z :
-        env |= e => z -> z <>  zero ->
-        env ⋅ mem |= <{ assert e }> => env ⋅ mem 
+       env |= e => z -> z <>  zero ->
+       env ⋅ mem |= <{ assert e }> => env ⋅ mem 
+        where "Ω ⋅ M |= s => Ω' ⋅ M'"  := (c_stmt_sem Ω M s Ω' M') : mini_c_stmt_scope.
 
-    (* | S_LAssert p :
-        env |= p => one -> (* must be fsl *)
-        c_stmt_sem env mem <{ /*@ assert p */ }> env mem *)
+Close Scope mini_c_stmt_scope.
+Declare Scope mini_gmp_stmt_scope.
 
-where "Ω ⋅ M |= s => Ω' ⋅ M'"  := (c_stmt_sem Ω M s Ω' M') : mini_c_stmt_scope.
+Inductive gmp_stmt_sem (env:Ω) (mem:𝓜) : 𝐒 -> Ω -> 𝓜 -> Prop := 
+    | GMP_Seq  env' mem' env'' mem'' s s' :
+        env ⋅ mem |= s => env' ⋅ mem' ->
+        env' ⋅ mem' |= s' => env'' ⋅ mem''->
+        env ⋅ mem |= <{ s ; s' }> =>  env'' ⋅ mem'' 
+    | S_C_stmt s env' mem': 
+        c_stmt_sem env mem s env' mem' ->
+        env ⋅ mem |= s => env' ⋅ mem' 
+    | S_set_i x y z a :  
+        (fst env) x = Some (VMpz a) ->
+        env ⋅ mem |= y => VInt z ->
+        env ⋅ mem |= <set_i(x,y)> => env ⋅ mem{a\z ̇} 
+
+    | S_set_z x y z (a n : location) :  
+        (fst env) x = Some (VMpz a) ->
+        (fst env) y = Some (VMpz n) ->
+        mem n = Some z ->
+        env ⋅ mem |= <set_z(x,y)> => env ⋅ mem{a\z} 
+    | S_get_int x (y:id) z v (ir:Int.inRange z) :
+        env ⋅ mem |= C_Id y Mpz => VMpz v ->
+        mem v = Some z -> 
+        env ⋅ mem |= <x = get_int(y)> => ((fst env){x\z ⁱⁿᵗ ir},(snd env)) ⋅ mem 
+
+    | S_set_s s x z a :
+        (fst env) x = Some (VMpz a) ->
+        BinaryString.to_Z s = z ->
+        env ⋅ mem |= <set_s(x,s)> => env ⋅ mem{a\z} 
+
+    | S_cmp c x (vx vy :location) lx y ly (b:𝕍):
+        env ⋅ mem |= C_Id x Mpz => vx ->
+        env ⋅ mem |= C_Id y Mpz =>  vy ->
+        mem vx = Some lx ->
+        mem vy = Some ly ->
+        (
+            (Z.gt lx ly <-> b = one) /\
+            (Z.lt lx ly <-> b = sub_one) /\
+            (Z.eq lx ly <-> b = zero)
+        ) ->
+        env ⋅ mem |= <c = cmp(x,y)> => ((fst env){c\b}, snd env) ⋅ mem
+    
+    | S_op bop r lr x y (vx vy : location) z1 z2 :
+        env ⋅ mem |= C_Id x Mpz => vx ->
+        mem vx = Some z1 -> 
+        env ⋅ mem |= C_Id y Mpz =>  vy ->
+        mem vy = Some z2 -> 
+        (fst env) r = Some (VMpz lr) ->
+        env ⋅ mem |= op bop r x y => env ⋅ mem{lr\(⋄ (□ bop) z1 z2) }
+
+where "Ω ⋅ M |= s => Ω' ⋅ M'"  := (gmp_stmt_sem Ω M s Ω' M') : mini_gmp_stmt_scope.
 
 
 
@@ -126,4 +192,30 @@ Inductive fsl_assert_sem : S -> Ω -> M -> Ω -> M -> Prop :=
 . *)
 
 
-(* todo GMP semantics *)
+Declare Scope mini_fsl_scope.
+
+Notation "Ω '|=' e => v" := True : mini_fsl_scope.
+
+
+(* macro semantic *)
+
+Reserved Notation "Ω ⋅ M '|=' e ⇝ z" (M at next level, at level 70).
+
+Inductive macro_sem (env : Ω) (mem:𝓜) (e:gmp_exp): Z -> Prop :=
+| M_Int x :  
+    env ⋅ mem |= e => VInt x ->
+    env ⋅ mem |= e ⇝ x ̇
+| M_Mpz l z : 
+    env ⋅ mem |= e => VMpz l ->
+    mem l = Some z ->
+    env ⋅ mem |= e ⇝ z
+where "Ω ⋅ M '|=' e ⇝ z" := (macro_sem Ω M e z).
+
+#[global] Hint Constructors c_exp_sem  : rac_hint.
+#[global] Hint Constructors c_statement  : rac_hint.
+#[global] Hint Constructors c_exp  : rac_hint.
+#[global] Hint Constructors c_stmt_sem  : rac_hint.
+#[global] Hint Constructors env_partial_order : rac_hint.
+#[global] Hint Constructors macro_sem : rac_hint.
+#[global] Hint Constructors gmp_exp_sem : rac_hint.
+#[global] Hint Constructors gmp_stmt_sem : rac_hint.

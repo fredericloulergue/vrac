@@ -92,42 +92,43 @@ Proof.
                 constructor.
                 apply C_E_BinOpInt with (z_ir:=ir5) (z'_ir:=zeroinRange) ; now constructor.
                 constructor.
-            - simpl. constructor. now constructor.
+            - simpl. constructor. constructor. now constructor.
             - simpl. constructor.
             }
-           apply S_IfFalse with zero.
+           apply S_IfFalse.
             * apply C_E_BinOpFalse with 15 14 ir15 ir14 ; try now constructor.
-            * reflexivity.
-            * apply S_Assign. reflexivity. apply C_E_BinOpInt with  (z:=(5)) (z':=5) (z_ir:=ir5) (z'_ir:=ir5) ; now constructor.
+            * constructor. reflexivity. simpl. apply C_E_BinOpInt with  (z:=(5)) (z':=5) (z_ir:=ir5) (z'_ir:=ir5) ; now constructor.
 Qed.
 
 
 Example whileex : (⊥{"m"\VInt zero, "n"\three},⊥) ⋅ ⊥ |= <{ while  "n" > 0  <{"n" = "n" - 1 ; "m" = "m" + 1}> }> => (⊥{"m"\three, "n"\VInt zero,"m"\two, "n"\VInt one,"m"\VInt one, "n"\two,"m"\VInt zero, "n"\three},⊥)⋅⊥.
 Proof.
-    apply S_While. apply S_IfTrue with one.
-    - apply C_E_BinOpTrue with 3 0 ir3 zeroinRange. apply C_E_Var. reflexivity. apply C_E_Int. reflexivity.
+    apply S_While. apply S_IfTrue with one. split. 
+    - eapply C_E_BinOpTrue. apply C_E_Var. reflexivity. apply C_E_Int. reflexivity.
     - intro contra. inversion contra. 
     - { eapply S_Seq.  eapply S_Seq.
-        - apply S_Assign. reflexivity.  apply C_E_BinOpInt with  (z_ir := ir3) (z'_ir := oneinRange).  apply C_E_Var. reflexivity. apply C_E_Int.
-        - apply S_Assign. reflexivity. apply C_E_BinOpInt with (z_ir := zeroinRange) (z'_ir := oneinRange). apply C_E_Var. reflexivity. apply C_E_Int.
-        -  apply S_While. eapply S_IfTrue.
-           apply C_E_BinOpTrue with (z_ir:=ir2) (z'_ir:=zeroinRange). apply C_E_Var. reflexivity. apply C_E_Int. reflexivity.
+        - apply S_Assign.  reflexivity. eapply C_E_BinOpInt.  apply C_E_Var. reflexivity. apply C_E_Int.
+        - apply S_Assign. reflexivity. eapply C_E_BinOpInt. apply C_E_Var. reflexivity. apply C_E_Int.
+        -  apply S_While. eapply S_IfTrue. split.
+            eapply C_E_BinOpTrue. apply C_E_Var. reflexivity. apply C_E_Int. reflexivity.
             intro contra. inversion contra.
             {
                 eapply S_Seq. eapply S_Seq.
-                - apply S_Assign. reflexivity. apply C_E_BinOpInt with (z_ir := ir2) (z'_ir := oneinRange). apply C_E_Var. reflexivity. apply C_E_Int.
-                - apply S_Assign. reflexivity.  apply C_E_BinOpInt with (z_ir := oneinRange) (z'_ir := oneinRange). apply C_E_Var. reflexivity. apply C_E_Int.
-                - apply S_While. eapply S_IfTrue.
-                apply C_E_BinOpTrue with (z_ir:=oneinRange) (z'_ir:=zeroinRange). apply C_E_Var. reflexivity. apply C_E_Int. reflexivity.
+                - apply S_Assign. reflexivity. eapply C_E_BinOpInt. apply C_E_Var. reflexivity. apply C_E_Int.
+                - apply S_Assign. reflexivity.  eapply C_E_BinOpInt.  apply C_E_Var. reflexivity. apply C_E_Int.
+                - apply S_While. eapply S_IfTrue. split.
+                    eapply C_E_BinOpTrue. apply C_E_Var. reflexivity. apply C_E_Int. reflexivity.
                  intro contra. inversion contra.
                  {
                      eapply S_Seq. eapply S_Seq.
-                     - apply S_Assign. reflexivity.  apply C_E_BinOpInt with (z_ir := oneinRange) (z'_ir := oneinRange). simpl. apply C_E_Var. reflexivity. apply C_E_Int.
-                     - apply S_Assign. reflexivity.  apply C_E_BinOpInt with (z_ir:=ir2) (z'_ir:=oneinRange). apply C_E_Var. reflexivity. apply C_E_Int.
-                     - apply S_While. eapply S_IfFalse.
-                     apply C_E_BinOpFalse with (z_ir:=zeroinRange) (z'_ir:=zeroinRange). apply C_E_Var. reflexivity. apply C_E_Int. reflexivity.
-                     reflexivity. apply S_skip. 
-                
+                     - apply S_Assign. reflexivity.  eapply C_E_BinOpInt. apply C_E_Var. reflexivity. apply C_E_Int.
+                     - apply S_Assign. reflexivity.  eapply C_E_BinOpInt. apply C_E_Var. reflexivity. apply C_E_Int.
+                     - apply S_While.  eapply S_IfFalse.
+                     eapply C_E_BinOpFalse. apply C_E_Var. reflexivity. apply C_E_Int. reflexivity.
+                     constructor. 
+                     Unshelve. apply zeroinRange. apply oneinRange. apply oneinRange.  apply oneinRange. 
+                                apply zeroinRange.  apply oneinRange. apply zeroinRange.  apply oneinRange.  
+                                apply oneinRange.  apply zeroinRange.    
                 }
            
            }
