@@ -6,6 +6,11 @@ From Coq Require Import Strings.String.
 Open Scope string_scope.
 Open Scope Z_scope.
 Open Scope utils_scope.
+Delimit Scope utils_scope with utils.
+
+Create HintDb rac_hint.
+
+
 
 Definition partial_function {X Y : Type} := X -> option Y.
 Definition empty_p {X Y:Type} := fun (_:X) => (None: option Y).
@@ -21,6 +26,7 @@ Class EqDec X :=
 
 #[global] Instance z_eq_dec : EqDec Z := {eq_dec := Z.eq_dec}.
 
+
 Definition p_map {X Y : Type} `{EqDec X}  (f: X -> option Y) (xy:X * Y) : X -> option Y :=
     fun i => if eq_dec (fst xy) i then Some (snd xy) else f i.
 
@@ -31,16 +37,32 @@ Definition p_map_addall {X Y: Type} `{EqDec X} env (lx:list X) (ly : list Y) :=
     List.fold_left (fun f xy => f {(fst xy) \ (snd xy)}) (List.combine lx ly) env
 .
 
-Definition in_domain { X Y : Type} (f: X ⇀ Y) (x:X) := (exists y, (f x) = Some y).
 
-(* fixme domain def here *)
+
+
+
+Definition in_domain { X Y : Type} (f: X ⇀ Y) (x:X) := exists y, (f x) = Some y.
 
 Notation "'dom' f" := (in_domain f) : utils_scope.
 Notation "x ∈ E" := (in_domain E x) (at level 99) : utils_scope.
 Notation "x ∉ E" := (~ in_domain E x) (at level 99) : utils_scope.
 
-Definition min_domain { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) (x:X) := dom1 x /\ ~ dom2 x.
-Infix "-" := min_domain : utils_scope.
+
+Definition domain_incl { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) := forall (x:X), (dom1 x -> dom2 x).
+Infix "⊂" := domain_incl (at level 99) : utils_scope.
+
+Definition eq_domain { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) := (dom1 ⊂ dom2) /\ (dom2 ⊂ dom1).
+Infix "=" := eq_domain : utils_scope.
+
+
+Definition sub_domain { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) (x:X) := dom1 x /\ ~ dom2 x.
+Infix "-" := sub_domain : utils_scope.
+
+Definition add_domain { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) (x:X) := dom1 x \/ dom2 x.
+Infix "+" := add_domain : utils_scope.
+
+
+
 
 
 Fact d_sub_d_empty {X Y : Type} : forall (f : (X ⇀ Y)),

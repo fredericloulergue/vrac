@@ -142,9 +142,11 @@ Inductive mini_fsl := LAssert (p:predicate). (* logic assertion *)
 
 Definition mini_c_fsl := @c_statement mini_fsl _gmp_t.
 
+Definition gmp_exp := @c_exp _gmp_t.
+
 
 (* ty the function that gives the type of a mini-GMP expression *)
-Definition ty (e: @c_exp _gmp_t) : gmp_t := match e with 
+Definition ty (e: gmp_exp) : gmp_t := match e with 
     | Zm _  => C_Int
     | C_Id _ ty => ty
     | BinOpInt _ _ _  => C_Int
@@ -249,11 +251,17 @@ End Int16Bounds.
 Definition location := nat.
 Module Int := MachineInteger Int16Bounds.
 
-Notation "x  ̇ " := (Int.mkMI x) (at level 99).
-Notation "n 'ⁱⁿᵗ'" := (Int.to_z n) (at level 99).
+
+#[global] Instance location_eq_dec : EqDec location := {eq_dec := Nat.eq_dec}.
 
 Fact zeroinRange : Int.inRange 0.  now split. Qed.
 Fact oneinRange : Int.inRange 1. now split. Qed.
+Fact suboneinRange : Int.inRange (-1). now split. Qed.
+
+#[global] Hint Resolve zeroinRange: rac_hint.
+#[global] Hint Resolve oneinRange: rac_hint.
+#[global] Hint Resolve suboneinRange: rac_hint.
+
 
 
 Inductive 𝕍 := 
@@ -262,6 +270,10 @@ Inductive 𝕍 :=
     | UInt   (* set of undefined values of type int *) 
     | UMpz  . (* set of undefined values of type mpz *) 
 
+
+    Notation "z ̇" := (Int.to_z z) (at level 0).
+    Notation "z 'ⁱⁿᵗ' ir" := (VInt (Int.mkMI z ir)) (at level 99).
+    
 
 Coercion Zm : Z >-> c_exp.
 Coercion Decl : c_decl >-> c_statement.
@@ -306,6 +318,8 @@ Definition inUτ v : bool := if Uτ v then true else false.
 
 Definition zero := Int.mkMI 0 zeroinRange.
 Definition one := Int.mkMI 1 oneinRange.
+Definition sub_one := Int.mkMI (-1) suboneinRange.
+
 
 Definition values_int (v:𝕍) : option 𝕍 := match v with
 | VInt n => Some (VInt n)
@@ -330,6 +344,8 @@ Definition ϴ :=  𝐼 -> 𝔗.
 
 Definition Γᵢ := 𝔏 ⇀ 𝐼. (* typing env mapping logic binders to intervals *)
 Definition Γᵥ := 𝔏 ⇀ 𝓥 ⨉ 𝐼. (* environment for bindings :  variable and interval infered from it *)
+Definition Γ := Γᵥ ⨉ Γᵢ.
+
 
 Definition ψ := 𝔏 ⨉ (𝔏 ⇀ 𝐼) ⇀ 𝓥 . (* global definitions env *)
 
@@ -348,7 +364,7 @@ Hypothesis convergence : forall (type_env:Γ) (r:mini_c(((((((((_routines),
     exists (t:T), type_env r = t.
 End Todo. *)
 
-
+Close Scope utils_scope.
 
 Inductive env_partial_order (env env':Ω) (var:𝓥) : Prop :=
 | EsameInt n : 
@@ -384,7 +400,6 @@ Proof.
     - apply EundefMpz. now rewrite Heqres. left ; now rewrite Heqres.
     - apply Enone. now rewrite Heqres.
 Qed.
-
 
 Fact trans_env_partial_order : forall env env' env'' v, 
     env_partial_order env env' v  /\ env_partial_order env' env'' v ->
@@ -429,34 +444,66 @@ Notation "( e , m ) ⊑ ( e' , m' )" :=  (
 ) : utils_scope.
 
 
-(* Definition var_in_stmt (s:c_statement) (v:𝓥) := True. todo *)
+(* invariants for routine translation *)
 
-(* Lemma test_eq : forall (v v' : Ωᵥ) var z, v{var \ z} = v'{var \ z} <-> v = v'. Admitted.
-
-Lemma test_eq2 : forall (v:Ωᵥ) x z var, v x = (v {var \ z}) x. Admitted.
-
-Lemma env_partial_order_next :  forall x v v' l l' var z, 
-    env_partial_order (v{var \ z},l) (v'{var \ z},l') x <-> 
-    env_partial_order (v,l) (v',l') x.
-Proof.
-Admitted.
-Lemma values_dec : forall x y : Value, {x = y} + {x <> y}. Admitted.
-
-#[global] Instance v_eq_dec : EqDec Value := {eq_dec := values_dec}.
-
-
-Inductive add_var (env : Ω) (mem_state : M) (t:gmp_t) (v:V) (z:Value) : Ω * M -> Prop :=
-| typeInt n : 
-    t = Ctype C_Int ->
-    z = Int n \/ z = UInt ->
-    add_var env mem_state t v z (((fst env){v\z}, snd env),mem_state)
+(* notations *)
+Inductive add_var (env : Ω) (mem_state : 𝓜) (τ:gmp_t) (v:id) (z:Z) : Ω * 𝓜 -> Prop :=
+| typeInt irz : 
+    τ = C_Int ->
+    add_var env mem_state τ v z (((fst env){v\ z ⁱⁿᵗ irz }, snd env),mem_state)%utils
 
 | typeMpz x (n:Int.MI) :
-    t = Mpz ->
-    z = Int n \/ z = UInt ->
-    add_var env mem_state t v z (((fst env){v\x}, snd env),mem_state{x\z_of_Int n})
+    τ  = Mpz ->
+    (~ exists v',  (fst env) v' = Some (VMpz x) )->
+    add_var env mem_state τ v z (((fst env){v\VMpz x}, snd env),mem_state{x\z_of_Int n})%utils
 .
- *)
+
+
+Definition 𝐴 := list (gmp_t * id * Z).
+
+Inductive add_var_𝐴 (env : Ω) (mem_state : 𝓜) : 𝐴 -> Ω * 𝓜 -> Prop := 
+| add_var_nil : add_var_𝐴  env mem_state nil (env,mem_state)
+
+| add_var_cons t v z A env' mem_state': 
+    True -> 
+    add_var env mem_state t v z (env',mem_state') -> 
+    add_var_𝐴 env mem_state A (env',mem_state')
+.
+
+Open Scope utils_scope.
+
+Example envaddnil : add_var_𝐴 (⊥,⊥) ⊥ nil ((⊥,⊥), ⊥).
+Proof.
+ constructor.
+Qed.
+
+Open Scope list.
+Example envaddone : add_var_𝐴 (⊥,⊥) ⊥ ((T_Ext Mpz, "y", 3)::nil) ((⊥{"y"\VMpz (S O)},⊥), ⊥{(S O)\3}).
+Proof.
+    assert (ir3: Int.inRange 3). easy.
+    eapply add_var_cons with (t:=Mpz) (v:="y") (z:=3).
+ - auto.
+ - apply (typeMpz (⊥,⊥) ⊥ Mpz "y" 3 1%nat (Int.mkMI 3 ir3)).
+    * reflexivity.
+    * intro contra. inversion contra. inversion H.
+Qed.
+
+
+(* synchronicity invariant *)
+Definition I1 (env:Ω) (ienv:Γ) := ((dom (snd env)) = (dom (fst ienv) + dom (snd ienv)))%utils.
+
+(* suitability invariant *)
+Definition I2 (env:ψ) := True. (* todo *)
+
+
+Inductive pgrm_var_representation (iop:ϴ) (env:Ω) (mem : 𝓜) (ienv:Γ) : (Ω * 𝓜) -> Prop :=
+| empty ΩΓ 𝓜Γ :   
+    I1 env ienv ->
+    let A := nil  (* { (iop ((snd ienv) v), v, (snd env) v ) | v in dom ienv  } *)
+    in
+    add_var_𝐴 env mem A (ΩΓ,𝓜Γ) -> 
+    pgrm_var_representation iop env mem ienv (ΩΓ,𝓜Γ)
+.
 
 
 
