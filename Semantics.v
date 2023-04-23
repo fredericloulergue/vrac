@@ -4,79 +4,75 @@ Require Import RAC.Utils.
 Require Import ZArith.ZArith.
 From Coq Require Import Strings.String.
 From Coq Require Import BinaryString.
-
-Open Scope mini_c_scope.
-
-
-Declare Scope mini_c_exp_scope.
-
-Inductive c_exp_sem {T:Set} (env : Ω) : @c_exp T -> 𝕍 -> Prop :=
-| C_E_Int (z:Z) irz : env |= z => Int.mkMI z irz
-| C_E_Var (x:𝓥) z : 
-    (fst env) x = Some (VInt z) -> 
-    env |=  (C_Id x C_Int) => z
-| C_E_BinOpInt e e' (z z':Z) op z_ir z'_ir
-    (H:Int.inRange (⋄ op z z')) :
-    env |= e =>  (Int.mkMI z z_ir) ->
-    env |= e' =>  (Int.mkMI z' z'_ir) ->
-    env |=  BinOpInt e op e' => Int.mkMI ((⋄ op) z z') H
-| C_E_BinOpTrue e e' (z z' : Z) z_ir z'_ir op :
-    env |= e => (Int.mkMI z z_ir) ->
-    env |= e' => (Int.mkMI z' z'_ir) ->
-    (◁ op) z z' = true ->
-    env |= BinOpBool e op e'  => one
-| C_E_BinOpFalse e e' (z z' : Z) op z_ir z'_ir :
-    env |= e => (Int.mkMI z z_ir) -> 
-    env |= e' => (Int.mkMI z' z'_ir) -> 
-    ((◁ op) z z' = false ) ->
-    env |= BinOpBool e op e' => zero
-
-where  "Ω '|=' e => v" := (c_exp_sem Ω e v) : mini_c_exp_scope.
-
-
-Declare Scope mini_gmp_exp_scope.
-
-
-Inductive gmp_exp_sem (env : Ω) (mem:𝓜) : gmp_exp -> 𝕍 -> Prop :=
-| GMP_E_Var (x:𝓥) l (z:Z) : 
-    (fst env) x = Some (VMpz l) -> 
-    mem l = Some z ->
-    env ⋅ mem |= (C_Id x Mpz) => VMpz l
-
-| C_E (e:gmp_exp) v : 
-    c_exp_sem env e v -> 
-    env ⋅ mem |= e => v
-where  "Ω ⋅ M '|=' e => z" := (gmp_exp_sem Ω M e z) : mini_gmp_exp_scope.
-
-Declare Scope mini_c_decl_scope.
-Definition c_decl_sem (env env':Ω) (mem mem':𝓜) d : Prop := 
-        forall x t u,
-        (fst env) x  = None -> 
-        (Uτ u) = Some t ->
-        d = C_Decl t x -> env' = ((fst env){x\u},snd env) /\ mem = mem'.
-        
-Notation "Ω ⋅ M |= d => Ω' ⋅ M'"  := (c_decl_sem Ω Ω' M M' d) : mini_c_decl_scope.
-
-
-Open Scope mini_c_exp_scope.
-Open Scope mini_gmp_scope.
-Open Scope mini_gmp_exp_scope.
-Declare Scope mini_c_stmt_scope.
 Open Scope Z_scope.
 
 
-Inductive c_stmt_sem (env:Ω) (mem:𝓜) : c_statement -> Ω -> 𝓜 -> Prop := 
+#[local] Declare Scope generic_sem_scope.
+(* #[local] Declare Scope _gmp_exp_sem_scope. *)
+#[local] Declare Scope _gmp_stmt_sem_scope.
+
+
+
+Declare Scope c_exp_sem_scope.
+Declare Scope c_stmt_sem_scope.
+Declare Scope mini_c_decl_scope.
+Declare Scope gmp_exp_sem_scope.
+Declare Scope gmp_stmt_sem_scope.
+Declare Scope fsl_exp_sem_scope.
+Declare Scope fsl_stmt_sem_scope.
+
+
+
+Definition exp_sem_sig {T : Set} : Type := Ω -> 𝓜 -> @_c_exp T -> 𝕍 -> Prop.
+Definition stmt_sem_sig {S T: Set} : Type  :=  Ω -> 𝓜 -> @_c_statement S T ->  Ω -> 𝓜 -> Prop.
+Definition Empty_exp_sem : @exp_sem_sig Empty_set := fun _ _ _  _ => False.
+Definition Empty_stmt_sem : @stmt_sem_sig Empty_set Empty_set := fun _ _ _  _ _ => False.
+
+
+(* extensible expression semantic *)
+Inductive generic_exp_sem {T:Set} {ext_exp : @exp_sem_sig T} (env : Ω) (mem:𝓜): @_c_exp T -> 𝕍 -> Prop :=
+| C_E_Int (z:Z) irz : env ⋅ mem |= z => Int.mkMI z irz
+| C_E_Var (x:𝓥) z : 
+    (fst env) x = Some (VInt z) -> 
+    env ⋅ mem |=  (C_Id x C_Int) => z
+| C_E_BinOpInt e e' (z z':Z) op z_ir z'_ir
+    (H:Int.inRange (⋄ op z z')) :
+    env ⋅ mem |= e =>  (Int.mkMI z z_ir) ->
+    env ⋅ mem |= e' =>  (Int.mkMI z' z'_ir) ->
+    env ⋅ mem |=  BinOpInt e op e' => Int.mkMI ((⋄ op) z z') H
+| C_E_BinOpTrue e e' (z z' : Z) z_ir z'_ir op :
+    env ⋅ mem |= e => (Int.mkMI z z_ir) ->
+    env ⋅ mem |= e' => (Int.mkMI z' z'_ir) ->
+    (◁ op) z z' = true ->
+    env ⋅ mem |= BinOpBool e op e'  => one
+| C_E_BinOpFalse e e' (z z' : Z) op z_ir z'_ir :
+    env ⋅ mem |= e => (Int.mkMI z z_ir) -> 
+    env ⋅ mem |= e' => (Int.mkMI z' z'_ir) -> 
+    ((◁ op) z z' = false ) ->
+    env ⋅ mem |= BinOpBool e op e' => zero
+| C_Ext e v:  ext_exp env mem e v -> env ⋅ mem |= e => v
+
+where  "Ω ⋅ M '|=' e => z" := (generic_exp_sem Ω M e z) : generic_sem_scope.
+
+Definition c_exp_sem := @generic_exp_sem Empty_set Empty_exp_sem.
+
+Notation "Ω |= e => v"  := (c_exp_sem Ω ⊥ e v) : c_exp_sem_scope.
+
+Open Scope mini_c_scope.
+
+(* extensible statement semantic *)
+Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt_sem_sig S T} (env:Ω) (mem:𝓜) : @_c_statement S T -> Ω -> 𝓜 -> Prop := 
     | S_skip  :  env ⋅ mem |= <{ skip }> => env ⋅ mem
-    | S_Assign x z e : 
+    | S_Assign x z (e : @_c_exp T) : 
         type_of_value ((fst env) x) = Some C_Int ->
-        env |= e => z ->
+        @generic_exp_sem T ext_exp env mem e z -> 
         env ⋅ mem |= <{x = e}> => ((fst env){x\z},snd env) ⋅ mem
     | S_IfTrue env' mem' z e s s' :
-        env |= e => z /\ ~ (z = zero) ->
+       @generic_exp_sem T ext_exp env mem e z /\ ~ (z = zero) ->
         env ⋅ mem  |= s => env' ⋅ mem' ->
         env ⋅ mem  |= <{ if e s else s'}> => env' ⋅ mem'
     | S_IfFalse env' mem' e s s' :
-        env |= e =>  zero ->
+        @generic_exp_sem T ext_exp env mem e zero ->
         env ⋅ mem |= s' => env' ⋅ mem' ->
         env ⋅ mem |= <{ if e s else s'}> => env' ⋅ mem'
     | S_While e s   env' mem' :
@@ -87,41 +83,62 @@ Inductive c_stmt_sem (env:Ω) (mem:𝓜) : c_statement -> Ω -> 𝓜 -> Prop :=
         env' ⋅ mem' |= s' => env'' ⋅ mem''->
         env ⋅ mem |= <{ s ; s' }> =>  env'' ⋅ mem'' 
 
-    | S_FCall (funs:𝓕) f b env' mem' c xargs eargs zargs resf z n : 
+    | S_FCall (funs:𝓕) f (b: @_c_statement S T) (env' : Ω) mem' c xargs eargs (zargs : 𝕍 ⃰ ) resf z n : 
         List.length xargs = n /\ List.length eargs = n /\ List.length zargs = n ->
         funs f = Some (xargs,b) ->
-        List.Forall2 (fun e z => env |= e => z) eargs zargs ->
-         ((p_map_addall ⊥ xargs zargs),⊥) ⋅ mem |= b => env' ⋅ mem' ->
+        List.Forall2 (fun e z =>  @generic_exp_sem T ext_exp env mem e z) eargs zargs ->
+        ((p_map_addall ⊥ xargs zargs),⊥) ⋅ mem |= b => env' ⋅ mem' -> 
         (fst env') resf = Some z ->
-         env ⋅ mem |= (FCall c f eargs) => ((fst env){c\z},(snd env)) ⋅ mem'
+        env ⋅ mem |= (FCall c f eargs) => ((fst env){c\z},(snd env)) ⋅ mem' 
 
-    | S_PCall (procs:𝓟) p b env' mem' xargs eargs zargs n : 
+    | S_PCall (procs:𝓟) p b (env' : Ω) mem' xargs eargs zargs n : 
         List.length xargs = n /\ List.length eargs = n /\ List.length zargs = n ->
         procs p = Some (xargs,b) ->
-        List.Forall2 (fun e z => env |= e => z) eargs zargs  ->
+        List.Forall2 (fun e z =>   @generic_exp_sem T ext_exp env mem e z) eargs zargs  ->
         ((p_map_addall ⊥ xargs zargs),⊥) ⋅ mem |= b => env'⋅ mem' ->
-        env ⋅ mem |= PCall p eargs => env ⋅ mem'
-    
+        env ⋅ mem |= PCall p eargs => env ⋅ mem' 
+
     | S_Return e z resf : 
-        env ⋅ mem |= e => z -> 
+        @generic_exp_sem  T ext_exp env mem e z ->
         env ⋅ mem |= <{ return e }> =>  ((fst env){resf\z},snd env)⋅ mem
 
     | S_PAssert  e z :
-       env |= e => z -> z <>  zero ->
+        @generic_exp_sem T ext_exp env mem e z -> z <>  zero ->
        env ⋅ mem |= <{ assert e }> => env ⋅ mem 
-        where "Ω ⋅ M |= s => Ω' ⋅ M'"  := (c_stmt_sem Ω M s Ω' M') : mini_c_stmt_scope.
 
-Close Scope mini_c_stmt_scope.
-Declare Scope mini_gmp_stmt_scope.
+    | S_Ext s env' mem' : ext_stmt env mem s env' mem' ->   env ⋅ mem |= s => env' ⋅ mem'
+    
+    where "Ω ⋅ M |= s => Ω' ⋅ M'"  := (generic_stmt_sem Ω M s Ω' M') : generic_sem_scope.
+    
 
-Inductive gmp_stmt_sem (env:Ω) (mem:𝓜) : 𝐒 -> Ω -> 𝓜 -> Prop := 
-    | GMP_Seq  env' mem' env'' mem'' s s' :
-        env ⋅ mem |= s => env' ⋅ mem' ->
-        env' ⋅ mem' |= s' => env'' ⋅ mem''->
-        env ⋅ mem |= <{ s ; s' }> =>  env'' ⋅ mem'' 
-    | S_C_stmt s env' mem': 
-        c_stmt_sem env mem s env' mem' ->
-        env ⋅ mem |= s => env' ⋅ mem' 
+    Definition c_stmt_sem := @generic_stmt_sem Empty_set Empty_set Empty_exp_sem Empty_stmt_sem.
+    Notation "Ω ⋅ M |= s => Ω' ⋅ M'"  := (c_stmt_sem Ω M s Ω' M') : c_stmt_sem_scope.
+
+
+Definition c_decl_sem (env env':Ω) (mem mem':𝓜) d : Prop := 
+        forall x t u,
+        (fst env) x  = None -> 
+        (Uτ u) = Some t ->
+        d = C_Decl Empty_set t x -> env' = ((fst env){x\u},snd env) /\ mem = mem'.
+        
+Notation "Ω ⋅ M |= d => Ω' ⋅ M'"  := (c_decl_sem Ω Ω' M M' d) : mini_c_decl_scope.
+
+
+Inductive _gmp_exp_sem (env : Ω) (mem:𝓜) : gmp_exp -> 𝕍 -> Prop :=
+| GMP_E_Var (x:𝓥) l (z:Z) : 
+    (fst env) x = Some (VMpz l) -> 
+    mem l = Some z ->
+    _gmp_exp_sem env mem (C_Id x Mpz) (VMpz l)
+.
+
+Definition gmp_exp_sem := @generic_exp_sem _gmp_t _gmp_exp_sem.
+Notation "Ω ⋅ M '|=' e => z" := (gmp_exp_sem Ω M e z) : gmp_exp_sem_scope.
+
+
+Open Scope gmp_exp_sem_scope.
+Open Scope mini_gmp_scope.
+
+Inductive _gmp_stmt_sem (env:Ω) (mem:𝓜) : gmp_statement -> Ω -> 𝓜 -> Prop := 
     | S_set_i x y z a :  
         (fst env) x = Some (VMpz a) ->
         env ⋅ mem |= y => VInt z ->
@@ -162,7 +179,11 @@ Inductive gmp_stmt_sem (env:Ω) (mem:𝓜) : 𝐒 -> Ω -> 𝓜 -> Prop :=
         (fst env) r = Some (VMpz lr) ->
         env ⋅ mem |= op bop r x y => env ⋅ mem{lr\(⋄ (□ bop) z1 z2) }
 
-where "Ω ⋅ M |= s => Ω' ⋅ M'"  := (gmp_stmt_sem Ω M s Ω' M') : mini_gmp_stmt_scope.
+where "Ω ⋅ M |= s => Ω' ⋅ M'"  := (_gmp_stmt_sem Ω M s Ω' M') : _gmp_stmt_sem_scope.
+
+
+Definition gmp_stmt_sem := @generic_stmt_sem _gmp_statement _gmp_t gmp_exp_sem _gmp_stmt_sem.
+Notation "Ω ⋅ M |= s => Ω' ⋅ M'"  := (gmp_stmt_sem Ω M s Ω' M') : gmp_stmt_sem_scope. 
 
 
 
@@ -191,16 +212,12 @@ Inductive fsl_assert_sem : S -> Ω -> M -> Ω -> M -> Prop :=
     fsl_assert_sem (LAssert p) env mem env mem
 . *)
 
-
-Declare Scope mini_fsl_scope.
-
-Notation "Ω '|=' e => v" := True : mini_fsl_scope.
+Notation "Ω '|=' e => v" := True : fsl_exp_sem_scope.
 
 
 (* macro semantic *)
 
 Reserved Notation "Ω ⋅ M '|=' e ⇝ z" (M at next level, at level 70).
-
 Inductive macro_sem (env : Ω) (mem:𝓜) (e:gmp_exp): Z -> Prop :=
 | M_Int x :  
     env ⋅ mem |= e => VInt x ->
@@ -211,11 +228,20 @@ Inductive macro_sem (env : Ω) (mem:𝓜) (e:gmp_exp): Z -> Prop :=
     env ⋅ mem |= e ⇝ z
 where "Ω ⋅ M '|=' e ⇝ z" := (macro_sem Ω M e z).
 
-#[global] Hint Constructors c_exp_sem  : rac_hint.
-#[global] Hint Constructors c_statement  : rac_hint.
-#[global] Hint Constructors c_exp  : rac_hint.
-#[global] Hint Constructors c_stmt_sem  : rac_hint.
+
+#[global] Hint Constructors _c_statement  : rac_hint.
+#[global] Hint Constructors _c_exp  : rac_hint.
+#[global] Hint Constructors _gmp_statement  : rac_hint.
+
+#[global] Hint Constructors generic_exp_sem  : rac_hint.
+#[global] Hint Constructors generic_stmt_sem  : rac_hint.
+
+#[global] Hint Constructors _gmp_exp_sem  : rac_hint.
+#[global] Hint Constructors _gmp_stmt_sem  : rac_hint.
+
+
 #[global] Hint Constructors env_partial_order : rac_hint.
 #[global] Hint Constructors macro_sem : rac_hint.
-#[global] Hint Constructors gmp_exp_sem : rac_hint.
-#[global] Hint Constructors gmp_stmt_sem : rac_hint.
+
+
+Close Scope generic_sem_scope.

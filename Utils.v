@@ -15,9 +15,9 @@ Create HintDb rac_hint.
 Definition partial_function {X Y : Type} := X -> option Y.
 Definition empty_p {X Y:Type} := fun (_:X) => (None: option Y).
 
-Infix "⨉" := prod (at level 99).
+Infix "⨉" := prod (at level 99) : utils_scope.
 Notation "⊥" := empty_p : utils_scope.
-Notation "'ℤ'" := Z (at level 99).
+Notation "'ℤ'" := Z (at level 99) : utils_scope.
 
 Class EqDec X :=
 {
