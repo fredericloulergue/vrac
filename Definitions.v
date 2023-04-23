@@ -4,9 +4,12 @@ From Coq Require Import ZArith.ZArith.
 From Coq Require Import Strings.String.
 Open Scope Z_scope.
 
-Inductive c_type {T:Set} := C_Int | Void | T_Ext (t:T).  (* program types τc *)
+Declare Scope definition_scope.
+Open Scope definition_scope.
+
+Inductive _c_type {T:Set} := C_Int | Void | T_Ext (t:T).  (* program types τc *)
 Inductive _gmp_t := String | Mpz. 
-Definition gmp_t := @c_type _gmp_t.  (* type extension τ *)
+Definition gmp_t := @_c_type _gmp_t.  (* type extension τ *)
 
 (* mini-FSL *)
 
@@ -35,10 +38,13 @@ with fsl_term :=
 
 
 Inductive fsl_type := FSL_Int | Integer. (* logic types *)
+
+Inductive mini_fsl := LAssert (p:predicate). (* logic assertion *)
+
    
 
 (* mini-C *)
-Inductive c_decl {T:Set} :=  C_Decl (type: @c_type T) (name:id). (* program declaration *)
+Inductive _c_decl (T:Set) :=  C_Decl (type: @_c_type T) (name:id). (* program declaration *)
 
 Inductive c_binop_bool :=  C_Lt | C_Le | C_Gt | C_Ge | C_Eq | C_NEq.
 Definition c_binop_bool_model (x:c_binop_bool) : Z -> Z -> bool := match x with
@@ -49,7 +55,7 @@ Definition c_binop_bool_model (x:c_binop_bool) : Z -> Z -> bool := match x with
     | C_Eq => Z.eqb
     | C_NEq => fun b1 b2 => negb (b1 =? b2)
 end.
-Notation "◁" := c_binop_bool_model.
+Notation "◁" := c_binop_bool_model : definition_scope.
 
 Inductive c_binop_int := C_Add | C_Sub | C_Mul | C_Div. 
 Definition c_binop_int_model (x:c_binop_int) : Z -> Z -> Z := match x with
@@ -67,7 +73,7 @@ Definition fsl_binop_int_to_c (x:fsl_binop_int) : c_binop_int := match x with
     | FSL_Mul => C_Mul
     | FSL_Div => C_Div
 end.
-Notation "□" := fsl_binop_int_to_c.
+Notation "□" := fsl_binop_int_to_c : definition_scope.
 
 Definition fsl_binop_bool_to_c (x:fsl_binop_bool) : c_binop_bool := match x with
     | FSL_Lt => C_Lt
@@ -77,45 +83,46 @@ Definition fsl_binop_bool_to_c (x:fsl_binop_bool) : c_binop_bool := match x with
     | FSL_Eq => C_Eq 
     | FSL_NEq => C_NEq
 end.
-Notation "◖" := fsl_binop_bool_to_c.
+Notation "◖" := fsl_binop_bool_to_c : definition_scope.
 
 
-Inductive c_exp {T : Set}  :=
+Inductive _c_exp {T : Set}  :=
     | Zm (z : Z) (* machine integer *) (* can only be of type int *)
-    | C_Id (var : id) (ty : @c_type T) (* variable access *) (* can be either int or mpz *)
-    | BinOpInt (le : c_exp) (op:c_binop_int) (re : c_exp) (* can only be of type int *)
-    | BinOpBool (le : c_exp) (op:c_binop_bool) (re : c_exp) (* can only be of type int *)
+    | C_Id (var : id) (ty : @_c_type T) (* variable access *) (* can be either int or mpz *)
+    | BinOpInt (le : _c_exp) (op:c_binop_int) (re : _c_exp) (* can only be of type int *)
+    | BinOpBool (le : _c_exp) (op:c_binop_bool) (re : _c_exp) (* can only be of type int *)
 .
 
 
-Inductive c_statement {S T : Set} :=
+Inductive _c_statement {S T : Set} :=
 | Skip (* empty statement *)
-| Assign (var:id) (e: @c_exp T) (* assignment *)
-| FCall (var:string) (fname:string) (args: @c_exp T ⃰) (* function call *)
-| PCall  (fname:string) (args: @c_exp T ⃰) (* procedure call *)
-| Seq (s1 : c_statement) (s2 : c_statement) (* sequence *)
-| If (cond:@c_exp T) (_then:c_statement) (_else:c_statement) (* conditional *)
-| While (cond:@c_exp T) (body:c_statement) (* loop *)
-| PAssert (e:@c_exp T) (* program assertion *)
-| Return (e:@c_exp T)
-| Decl (d: @c_decl T)
+| Assign (var:id) (e: @_c_exp T) (* assignment *)
+| FCall (var:string) (fname:string) (args: @_c_exp T ⃰) (* function call *)
+| PCall  (fname:string) (args: @_c_exp T ⃰) (* procedure call *)
+| Seq (s1 : _c_statement) (s2 : _c_statement) (* sequence *)
+| If (cond:@_c_exp T) (_then:_c_statement) (_else:_c_statement) (* conditional *)
+| While (cond:@_c_exp T) (body:_c_statement) (* loop *)
+| PAssert (e:@_c_exp T) (* program assertion *)
+| Return (e:@_c_exp T)
+| Decl (d: @_c_decl T)
 | S_Ext (stmt:S)
 .
 
-Inductive c_routine {S T : Set} :=
-| PFun (ret: @c_type T) (name:id) (args: @c_decl T ⃰) (b_decl: @c_decl T ⃰) (body: @c_statement T S) (* program function *)
+Inductive _c_routine {S T : Set} :=
+| PFun (ret: @_c_type T) (name:id) (args: @_c_decl T ⃰) (b_decl: @_c_decl T ⃰) (body: @_c_statement T S) (* program function *)
 | LFun (ret:fsl_type) (name:id) (args: fsl_decl ⃰) (body:fsl_term) (* logic function *)
 | Predicate (name:id) (args: fsl_decl ⃰) (p:predicate) (* predicate *)
 .
 
-Record c_program {S T : Set}:= mkPgrm { decls: @c_decl T ⃰ ; routines: @c_routine T S ⃰ }.  (* annotated program *)
+Record _c_program {S T : Set}:= mkPgrm { decls: @_c_decl T ⃰ ; routines: @_c_routine T S ⃰ }. 
+
 
      
 (*  mini-GMP *)
 
-Inductive gmp_statement := 
+Inductive _gmp_statement := 
     | Init (name:id) (* mpz allocation *)
-    | Set_i (name:id) (i:@c_exp _gmp_t) (* assignment from an int *)
+    | Set_i (name:id) (i:@_c_exp _gmp_t) (* assignment from an int *)
     | Set_s (name:id) (l:string) (* assignment from a string literal *)
     | Set_z (name z:id)(* assignment from a mpz *)
     | Clear (name:id) (* mpz de-allocation *)
@@ -127,22 +134,26 @@ Inductive gmp_statement :=
     | Coerc (name n : id) (* mpz coercion *)
     .
 
-Definition op (x:fsl_binop_int) : id -> id -> id -> gmp_statement := match x with
+Definition op (x:fsl_binop_int) : id -> id -> id -> _gmp_statement := match x with
     | FSL_Add => GMP_Add
     | FSL_Sub => GMP_Sub
     | FSL_Mul => GMP_Mul
     | FSL_Div => GMP_Div
 end.
 
-Definition statement := @c_statement gmp_statement _gmp_t.
 
-Definition gmp_decl := @c_decl _gmp_t.
 
-Inductive mini_fsl := LAssert (p:predicate). (* logic assertion *)
 
-Definition mini_c_fsl := @c_statement mini_fsl _gmp_t.
 
-Definition gmp_exp := @c_exp _gmp_t.
+
+Definition c_exp := @_c_exp Empty_set.
+Definition c_statement := @_c_statement Empty_set Empty_set.
+
+Definition gmp_decl := @_c_decl _gmp_t.
+
+Definition gmp_exp := @_c_exp _gmp_t.
+Definition mini_c_fsl := @_c_statement mini_fsl _gmp_t.
+Definition gmp_statement := @_c_statement _gmp_statement _gmp_t.
 
 
 (* ty the function that gives the type of a mini-GMP expression *)
@@ -227,7 +238,7 @@ Notation "'div' ( id1 , id2 , id3 )" := (GMP_Div id1 id2 id3) (in custom gmp_stm
 Definition 𝓥 := id. (* program variables and routines *)
 Definition 𝔏 := id. (* logic variables *)
 
-Definition 𝐒 := statement. (* program statements *)
+Definition 𝐒 := gmp_statement. (* program statements *)
 Definition ℨ := fsl_term. (* logical terms *)
 Definition 𝔅 := predicate. (* predicates *)
 Definition 𝔗 := gmp_t. (* minigmp types *)
@@ -237,8 +248,8 @@ Definition 𝔗 := gmp_t. (* minigmp types *)
 
 
 
-Definition 𝓕 := 𝓥 ⇀ (𝓥 ⃰ ⨉ 𝐒). (* program functions *)
-Definition 𝓟 := 𝓥 ⇀ (𝓥 ⃰ ⨉ 𝐒). (* program procedures *)
+Definition 𝓕 {S T : Set} := 𝓥 ⇀ (𝓥 ⃰ ⨉ @_c_statement S T). (* program functions *)
+Definition 𝓟 {S T : Set} := 𝓥 ⇀ (𝓥 ⃰ ⨉ @_c_statement S T). (* program procedures *)
 Definition 𝔉 :=  𝔏 ⇀ (𝔏 ⃰ ⨉ ℨ). (* logic functions *)
 Definition 𝔓 :=  𝔏 ⇀ (𝔏 ⃰ ⨉ 𝔅). (* predicates *)
 
@@ -271,19 +282,20 @@ Inductive 𝕍 :=
     | UMpz  . (* set of undefined values of type mpz *) 
 
 
-    Notation "z ̇" := (Int.to_z z) (at level 0).
-    Notation "z 'ⁱⁿᵗ' ir" := (VInt (Int.mkMI z ir)) (at level 99).
+    Notation "z ̇" := (Int.to_z z) (at level 0) : definition_scope.
+    Notation "z 'ⁱⁿᵗ' ir" := (VInt (Int.mkMI z ir)) (at level 99) : definition_scope.
     
 
-Coercion Zm : Z >-> c_exp.
-Coercion Decl : c_decl >-> c_statement.
+Coercion Zm : Z >-> _c_exp.
+Coercion Decl : _c_decl >-> _c_statement.
 Coercion T_Id : id >-> fsl_term.
 Coercion T_Z : Z >-> fsl_term.
 Coercion VInt : Int.MI >-> 𝕍. 
 Coercion VMpz : location >-> 𝕍.
-Coercion gmp_s_ext (s:gmp_statement) := S_Ext s (T:=_gmp_t).
+Coercion gmp_s_ext (s:_gmp_statement) := S_Ext s (T:=_gmp_t).
 Coercion fsl_s_ext (s:mini_fsl) := S_Ext s (T:=_gmp_t).
-Coercion gmp_t_ext (t:_gmp_t) : c_type := T_Ext t.
+Coercion gmp_t_ext (t:_gmp_t) : _c_type := T_Ext t.
+
 
 
 (* Coercion VMpz : nat >-> Value. *)
@@ -307,7 +319,7 @@ Definition 𝓜 := location ⇀ ℤ.
 From Coq Require Import Logic.FinFun.
 
 
-Definition Uτ (v:𝕍) : option (@c_type Empty_set) := match v with 
+Definition Uτ (v:𝕍) : option (@_c_type Empty_set) := match v with 
     | UInt => Some C_Int 
     | _ => None
 end
@@ -350,7 +362,7 @@ Definition Γ := Γᵥ ⨉ Γᵢ.
 Definition ψ := 𝔏 ⨉ (𝔏 ⇀ 𝐼) ⇀ 𝓥 . (* global definitions env *)
 
 
-Notation "'Γ' '(' x ')' " := (Γᵥ x, Γᵢ x).
+Notation "'Γ' '(' x ')' " := (Γᵥ x, Γᵢ x) : definition_scope.
 
 Definition 𝚪 (oracle: 𝓘) (o:ϴ) := fun (t:ℨ) (τᵢ: Γᵢ) =>  o (oracle t τᵢ) : 𝔗. (* Θ ◦ oracle. *)
 
@@ -434,14 +446,14 @@ Proof.
 Admitted.
 
 
-Notation "e ⊑ e'" := (forall v, env_partial_order e e' v) (at level 99) : utils_scope.
+Notation "e ⊑ e'" := (forall v, env_partial_order e e' v) (at level 99) : definition_scope.
 
 Notation "( e , m ) ⊑ ( e' , m' )" :=  (
     (forall v, env_partial_order e e' v)
     /\
     (forall n, mems_partial_order m m' n)
 
-) : utils_scope.
+) : definition_scope.
 
 
 (* invariants for routine translation *)

@@ -12,6 +12,7 @@ Open Scope list_scope.
 Open Scope Z_scope.
 
 
+
 Fact ir2 : Int.inRange 2. now split. Qed.
 Fact ir3 : Int.inRange 3. now split. Qed.
 Fact ir5 : Int.inRange 5. now split. Qed.
@@ -24,15 +25,20 @@ Definition five := VInt (Int.mkMI 5 ir5).
 Definition ten := VInt (Int.mkMI 10 ir10).
 Definition fifteen := VInt (Int.mkMI 15 ir15).
 
-Definition funs  := ⊥{"test"\(["a";"b"] , <{ return ("b") }> : statement)} .
+#[local] Coercion gmp_id (var:id) : _c_exp := C_Id var C_Int (T:=Empty_set).
+
+Definition funs  := ⊥{"test"\(["a";"b"] , <{ return ("b") }> : c_statement)} .
 
 Open Scope mini_c_decl_scope.
+(*
 Example test_decl : (⊥,⊥) ⋅ ⊥ |= <[ int "x" ]> => (⊥{"x"\UInt},⊥)  ⋅ ⊥.
 Proof.
     constructor. 
     - simpl in *. inversion H1. unfold Uτ in H0.  destruct u ; now try discriminate.
     - reflexivity.
 Qed.
+*)
+
 
 (* 
 latex notation :
@@ -45,8 +51,14 @@ mfrakA : 𝔄
 mbfscrA : 𝓐
 *)
 
+Open Scope c_stmt_sem_scope.
 Close Scope mini_gmp_scope.
-Open Scope mini_c_stmt_scope.
+Close Scope gmp_stmt_sem_scope.
+Close Scope gmp_exp_sem_scope.
+Close Scope c_exp_sem_scope.
+Close Scope mini_c_decl_scope.
+Close Scope mini_gmp_scope.
+
 Example stmt_test :
     forall v l m,     
     
@@ -68,7 +80,7 @@ Example stmt_test :
     (v{"g"\ (VInt one), "out"\  five, "g"\ (VInt zero), "z"\ fifteen, "y"\ ten, "x" \  five,"g"\UInt,"z"\UInt,"x"\UInt,"y"\UInt,"out"\UInt}, l) ⋅m
    .
 Proof.
-    intros. eapply S_Seq. apply S_Assign. reflexivity. apply C_E_Int. 
+    intros. eapply S_Seq. apply S_Assign. reflexivity.  apply C_E_Int. 
     eapply S_Seq.
      - apply S_Assign. reflexivity. apply C_E_Int.
      - eapply S_Seq.
