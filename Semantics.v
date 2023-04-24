@@ -152,7 +152,7 @@ Inductive _gmp_stmt_sem (env:Ω) (mem:𝓜) : gmp_statement -> Ω -> 𝓜 -> Pro
     | S_get_int x (y:id) z v (ir:Int.inRange z) :
         env ⋅ mem |= C_Id y Mpz => VMpz v ->
         mem v = Some z -> 
-        env ⋅ mem |= <x = get_int(y)> => ((fst env){x\z ⁱⁿᵗ ir},(snd env)) ⋅ mem 
+        env ⋅ mem |= <x = get_int(y)> => ((fst env){x\z ⁱⁿᵗ ir : 𝕍},(snd env)) ⋅ mem 
 
     | S_set_s s x z a :
         (fst env) x = Some (VMpz a) ->

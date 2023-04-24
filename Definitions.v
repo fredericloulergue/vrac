@@ -282,8 +282,15 @@ Inductive 𝕍 :=
     | UMpz  . (* set of undefined values of type mpz *) 
 
 
-    Notation "z ̇" := (Int.to_z z) (at level 0) : definition_scope.
-    Notation "z 'ⁱⁿᵗ' ir" := (VInt (Int.mkMI z ir)) (at level 99) : definition_scope.
+Notation "z ̇" := (Int.to_z z) (at level 0) : definition_scope.
+Notation "z 'ⁱⁿᵗ' ir" := (Int.mkMI z ir) (at level 99) : definition_scope.
+
+
+Fact x_of_z_to_z_is_x : forall x irx, (x ̇ ⁱⁿᵗ irx) = x.
+Proof.
+    intros. destruct x. simpl. f_equal. unfold Int.inRange in *. 
+    simpl in *.  apply (Eqdep_dec.UIP_dec Bool.bool_dec).
+Qed.
     
 
 Coercion Zm : Z >-> _c_exp.
@@ -295,7 +302,6 @@ Coercion VMpz : location >-> 𝕍.
 Coercion gmp_s_ext (s:_gmp_statement) := S_Ext s (T:=_gmp_t).
 Coercion fsl_s_ext (s:mini_fsl) := S_Ext s (T:=_gmp_t).
 Coercion gmp_t_ext (t:_gmp_t) : _c_type := T_Ext t.
-
 
 
 (* Coercion VMpz : nat >-> Value. *)
@@ -314,6 +320,18 @@ Definition type_of_value : option 𝕍 -> option 𝔗 := fun v => match v with
 end.
 
 
+Fixpoint vars {T:Set} (exp : @_c_exp T) : list id := match exp with 
+| Zm z => nil
+| C_Id v _ => v::nil
+| BinOpInt le _ re | BinOpBool le _ re => (vars le) ++ (vars re)
+end.
+
+
+(* Inductive _c_exp {T : Set}  :=
+    | Zm (z : Z) (* machine integer *) (* can only be of type int *)
+    | C_Id (var : id) (ty : @_c_type T) (* variable access *) (* can be either int or mpz *)
+    | BinOpInt (le : _c_exp) (op:c_binop_int) (re : _c_exp) (* can only be of type int *)
+    | BinOpBool (le : _c_exp) (op:c_binop_bool) (re : _c_exp) (* can only be of type int *) *)
 Definition 𝓜 := location ⇀ ℤ. 
 
 From Coq Require Import Logic.FinFun.
@@ -456,22 +474,40 @@ Notation "( e , m ) ⊑ ( e' , m' )" :=  (
 ) : definition_scope.
 
 
+
 (* invariants for routine translation *)
 
 (* notations *)
 Inductive add_var (env : Ω) (mem_state : 𝓜) (τ:gmp_t) (v:id) (z:Z) : Ω * 𝓜 -> Prop :=
 | typeInt irz : 
     τ = C_Int ->
-    add_var env mem_state τ v z (((fst env){v\ z ⁱⁿᵗ irz }, snd env),mem_state)%utils
+    add_var env mem_state τ v z (((fst env){v\ z ⁱⁿᵗ irz :𝕍}, snd env),mem_state)%utils
 
 | typeMpz x (n:Int.MI) :
     τ  = Mpz ->
-    (~ exists v',  (fst env) v' = Some (VMpz x) )->
+    (forall v',  (fst env) v' <> Some (VMpz x) )->
     add_var env mem_state τ v z (((fst env){v\VMpz x}, snd env),mem_state{x\z_of_Int n})%utils
 .
 
 
+
 Definition 𝐴 := list (gmp_t * id * Z).
+
+(* Fixpoint add_var_𝐴 (env : Ω) (mem_state : 𝓜) (A : 𝐴) : Ω * 𝓜 -> Prop := match A with 
+    | nil => fun x => x
+    | cons (t,v,z) tl => fun x => add_var env mem_state t v z (fst x, snd x)
+end. *)
+
+
+(*fixme fixpoint or List.fold *)
+(*)
+Definition add_var_𝐴 (env : Ω) (mem_state : 𝓜) (A : 𝐴) : Prop :=
+    List.fold_left (
+        fun (acc:Prop) (args:gmp_t * id * Z)  => 
+            let '(t,id,z) := args in
+            add_var env mem_state t id z  (env,mem_state) /\ acc 
+    ) A (env,mem_state)
+ . *)
 
 Inductive add_var_𝐴 (env : Ω) (mem_state : 𝓜) : 𝐴 -> Ω * 𝓜 -> Prop := 
 | add_var_nil : add_var_𝐴  env mem_state nil (env,mem_state)
@@ -484,12 +520,29 @@ Inductive add_var_𝐴 (env : Ω) (mem_state : 𝓜) : 𝐴 -> Ω * 𝓜 -> Prop
 
 Open Scope utils_scope.
 
+
+Example add_var_int : forall (ir3 :Int.inRange 3), add_var (⊥,⊥) ⊥ C_Int "y" 3  ((⊥{"y"\VInt (Int.mkMI 3 ir3)},⊥), ⊥).
+Proof.
+   now constructor.
+Qed.
+
+Example add_var_mpz : add_var (⊥,⊥) ⊥ Mpz "y" 3  ((⊥{"y"\VMpz 1%nat},⊥), ⊥{1%nat\3}).
+Proof.
+    assert (ir3: Int.inRange 3). easy.
+    now apply (typeMpz (⊥,⊥) ⊥ Mpz "y" 3 1%nat (Int.mkMI 3 ir3)).
+Qed.
+
+
+
+Compute add_var_𝐴 (⊥,⊥) ⊥ nil.
+
 Example envaddnil : add_var_𝐴 (⊥,⊥) ⊥ nil ((⊥,⊥), ⊥).
 Proof.
  constructor.
 Qed.
 
 Open Scope list.
+
 Example envaddone : add_var_𝐴 (⊥,⊥) ⊥ ((T_Ext Mpz, "y", 3)::nil) ((⊥{"y"\VMpz (S O)},⊥), ⊥{(S O)\3}).
 Proof.
     assert (ir3: Int.inRange 3). easy.
@@ -497,7 +550,7 @@ Proof.
  - auto.
  - apply (typeMpz (⊥,⊥) ⊥ Mpz "y" 3 1%nat (Int.mkMI 3 ir3)).
     * reflexivity.
-    * intro contra. inversion contra. inversion H.
+    * intro v. intro contra. inversion contra.
 Qed.
 
 
