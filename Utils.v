@@ -37,6 +37,12 @@ Definition p_map_addall {X Y: Type} `{EqDec X} env (lx:list X) (ly : list Y) :=
     List.fold_left (fun f xy => f {(fst xy) \ (snd xy)}) (List.combine lx ly) env
 .
 
+Fact p_map_not_same {X T : Type } `{EqDec X}: forall f (x x' : X) (v : T), x <> x' -> f{x'\v} x = f x.
+Proof.
+    intros. unfold p_map. simpl. destruct eq_dec.
+    - now destruct H0. 
+    - easy.
+Qed.
 
 
 
@@ -77,15 +83,27 @@ Module Type Bounds.
     Parameter M_int : Z.
 End Bounds.
 
+
 (* simplified from compcert.lib.Integers *)
 Module MachineInteger(B:Bounds).
-    Definition inRange n :=B.m_int < n < B.M_int.
+    Definition inRange n : Prop := andb (B.m_int <? n) (n <? B.M_int) = (true).
 
     Record MI := mkMI {val : Z; in_range : inRange val}.
     
     Definition to_z (i:MI) : Z := i.(val).
-    Definition mi_eqb m1 m2 := val m1 =? val m2.
+
+
+    Lemma mi_eq : forall (x y : MI), x = y <-> x.(val) = y.(val).
+    Proof.
+        intros x y. split ; intros EQ.
+        - destruct x,y. simpl. now inversion EQ.
+        - destruct x,y. simpl in EQ. subst. f_equal. unfold inRange in *. now pose proof (Eqdep_dec.UIP_dec Bool.bool_dec).
+    Qed.
+
 End MachineInteger.
+
+
+
 
 
 Close Scope Z_scope.

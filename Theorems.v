@@ -188,6 +188,71 @@ Proof.
 Qed.
 
 
+Fact same_eval_env {T:Set} : forall Ω M x v (e : gmp_exp)  z, 
+    ~ List.In x (vars e) -> 
+    Ω ⋅ M  |= e => z -> 
+    ( ((fst Ω){x\v},snd Ω) ⋅ M  |= e => z ).
+Proof with try easy.
+    intros. generalize dependent Ω.  generalize dependent z. induction e ; intros.
+    - inversion H0... constructor.
+    - destruct ty ; inversion H0...
+        * constructor. simpl. subst. unfold p_map. simpl. apply Decidable.not_or_iff in H. destruct H as [H _]. 
+            destruct (string_dec x var)... now destruct H. 
+        * destruct t... inversion H1. subst. constructor. apply GMP_E_Var with z0... simpl.
+            unfold p_map. simpl in *. apply Decidable.not_or_iff in H. destruct H as [H3 _].
+            destruct string_dec... subst. easy.
+   
+    - simpl in H.  rewrite List.in_app_iff in H. apply Decidable.not_or_iff in H. destruct H as [He1 He2].
+        pose proof (IHe1 He1). pose proof (IHe2 He2). clear He1 He2 IHe1 IHe2. inversion H0... subst. 
+        apply C_E_BinOpInt with z_ir z'_ir. now apply H. now apply H1.
+
+    - simpl in H.  rewrite List.in_app_iff in H. apply Decidable.not_or_iff in H. destruct H as [He1 He2].
+        pose proof (IHe1 He1). pose proof (IHe2 He2). clear He1 He2 IHe1 IHe2. inversion H0 ; try easy ; subst.
+        * apply C_E_BinOpTrue with z0 z' z_ir z'_ir... now apply H. now apply H1.
+        * apply C_E_BinOpFalse with z0 z' z_ir z'_ir... now apply H. now apply H1.
+Qed.
+
+
+Fact same_eval_mem : forall Ω M v l (e : gmp_exp)  z z', 
+    ~ List.In v (vars e) ->
+    (fst Ω) v = Some (VMpz l) ->
+    Ω ⋅ M |= e => z ->
+    Ω ⋅ (M) {l \ z'} |= e => z.
+
+Proof with try easy.
+    intros. generalize dependent Ω.  generalize dependent z. induction e ; intros.
+    - inversion H1... now apply C_E_Int.
+    - destruct ty; inversion H1 ; subst...
+        * now constructor.
+        * destruct t... inversion H2. subst. constructor. apply GMP_E_Var with z0... 
+            unfold p_map. simpl in *. apply Decidable.not_or_iff in H. destruct H as [H _].
+            destruct Nat.eq_dec... subst. admit.
+
+    - simpl in H.  rewrite List.in_app_iff in H. apply Decidable.not_or_iff in H. destruct H as [He1 He2].
+        pose proof (IHe1 He1). pose proof (IHe2 He2). clear He1 He2 IHe1 IHe2. inversion H1... subst. 
+        apply C_E_BinOpInt with z_ir z'_ir. now apply H. now apply H2.
+
+    -  simpl in H.  rewrite List.in_app_iff in H. apply Decidable.not_or_iff in H. destruct H as [He1 He2].
+        pose proof (IHe1 He1). pose proof (IHe2 He2). clear He1 He2 IHe1 IHe2. inversion H1 ; try easy ; subst.
+        * apply C_E_BinOpTrue with z0 z'0 z_ir z'_ir... now apply H. now apply H2.
+        * apply C_E_BinOpFalse with z0 z'0 z_ir z'_ir... now apply H. now apply H2.
+Admitted.
+
+
+Corollary same_eval_macro :  forall Ω M v l e z z', 
+    ~ List.In v (vars e) ->
+    (fst Ω) v = Some (VMpz l) ->
+    Ω ⋅ M |= e ⇝ z ->
+    Ω ⋅ (M) {l \ z'} |= e ⇝ z.
+
+Proof.
+    intros. inversion H1.
+    * constructor. apply same_eval_mem with v ; assumption.
+    * apply M_Mpz with l0. subst.
+        + apply same_eval_mem with v ; assumption.
+        + subst. rewrite <- H3. apply p_map_not_same.
+Admitted.
+
 Lemma semantics_of_the_mpz_assgn_macro :
     forall e z Ω M v (y:location),
     Ω ⋅ M |= e ⇝ z ->
@@ -212,13 +277,13 @@ Lemma semantics_of_the_int_assgn_macro :
     forall e z (ir: Int.inRange z) Ω M v,
     Ω ⋅ M |= e ⇝ z ->
     type_of_value ((fst Ω) v) = Some C_Int ->
-    Ω ⋅ M |= (int_ASSGN v e) => ((fst Ω){v\z ⁱⁿᵗ ir}, snd Ω) ⋅ M
+    Ω ⋅ M |= (int_ASSGN v e) => ((fst Ω){v\z ⁱⁿᵗ ir : 𝕍}, snd Ω) ⋅ M
 .
 Proof with eauto with rac_hint.
     intros. 
     unfold int_ASSGN. destruct (ty e) eqn:TY.
     - inversion H. 
-        * constructor... subst. replace ((x) ̇ ⁱⁿᵗ ir) with (VInt x)... admit. (* proof of x ̇ in = x *)
+        * constructor... subst. rewrite (x_of_z_to_z_is_x x ir). now constructor.
         * inversion H1. inversion H4. now subst.
     - inversion H ; inversion H1;  inversion H3 ; inversion H4; now subst.
     - destruct t.
@@ -226,12 +291,12 @@ Proof with eauto with rac_hint.
         * destruct e; try easy. inversion H.
             ** inversion H1.  inversion H3. now subst. easy.
             ** inversion H1 ; inversion H4. subst. constructor. now apply S_get_int with l.
-Admitted.
+Qed.
 
 Lemma semantics_of_the_Z_assgn_macro_tint :
     forall z (ir: Int.inRange z) Ω M v,
     type_of_value ((fst Ω) v) = Some C_Int ->
-    Ω ⋅ M |= (Z_ASSGN C_Int v z) => ((fst Ω){v\z ⁱⁿᵗ ir}, snd Ω) ⋅ M
+    Ω ⋅ M |= (Z_ASSGN C_Int v z) => ((fst Ω){v\z ⁱⁿᵗ ir : 𝕍}, snd Ω) ⋅ M
 .
 Proof.
     intros.  constructor ; auto with rac_hint.
@@ -245,7 +310,7 @@ Lemma semantics_of_the_Z_assgn_macro_tmpz :
 Proof with auto using BinaryString.Z_of_of_Z.
     intros. simpl. constructor. apply S_set_s...
 Qed.
-    
+
 
 Lemma semantics_of_the_cmp_macro :
     forall (Ω:Ω) (M:𝓜) c e1 e2 v1 v2 z1 z2 l1 l2 a,
@@ -258,8 +323,10 @@ Lemma semantics_of_the_cmp_macro :
         (a = VInt one <-> Z.gt z1 z2)
     ) -> 
     (fst Ω) v1 = Some (VMpz l1) /\ ( (fst Ω) v2 = Some (VMpz l2)) ->
-    exists M', forall v n, (fst Ω) v = Some (VMpz n) ->
-    ~ ((fst Ω) v1 = (fst Ω) v) /\ ~ ((fst Ω) v2 = (fst Ω) v)  -> M n = M' n -> 
+    exists M', (forall v n, (fst Ω) v = Some (VMpz n) ->
+    ~ ((fst Ω) v1 = (fst Ω) v) /\ ~ ((fst Ω) v2 = (fst Ω) v)  -> M n = M' n) -> 
+    ~ List.In v1 (vars e2) ->  (* not in paper proof *)
+    l1 <> l2 ->  (* not in paper proof *)
     Ω ⋅ M |= (CMP c e1 e2 v1 v2) => ((fst Ω){c\a}, snd Ω) ⋅ M'
     .
 
@@ -267,33 +334,35 @@ Proof with try easy ; auto with rac_hint ; unshelve eauto using Z.ltb_irrefl,Z.g
     intros. destruct H2 as (inf & eq & sup), H3.
     
     assert (NotInt : 
-        exists M', forall (v : 𝓥) n,
+        exists M', (forall (v : 𝓥) n,
         fst Ω v = Some (VMpz n) ->
         fst Ω v1 <> fst Ω v /\ fst Ω v2 <> fst Ω v ->
-        M n = M' n ->
-        Ω ⋅ M |= <{(mpz_ASSGN v1 e1);
-        (mpz_ASSGN v2 e2);
-        <c = cmp (v1, v2)>}> => ((fst Ω) {c \ a}, snd Ω) ⋅ M'
+        M n = M' n) ->
+        ~ List.In v1 (vars e2) ->  (* not in paper proof *)
+        l1 <> l2 ->  (* not in paper proof *)
+        Ω ⋅ M |= <{(mpz_ASSGN v1 e1); (mpz_ASSGN v2 e2); <c = cmp (v1, v2)>}> => ((fst Ω) {c \ a}, snd Ω) ⋅ M'
     ). {
-        exists M{l2 \ z2, l1 \ z1}. intros v n VN [Hvneqv1 Hvneqv2] HM.
+        exists M{l2 \ z2, l1 \ z1}. intros VN Hv1NotIne2 Hl1Notl2.
         apply S_Seq with Ω M{l1\z1}.
-        + apply semantics_of_the_mpz_assgn_macro...
-        + apply S_Seq with Ω M{l2\z2,l1\z1}.  
-            ++ apply semantics_of_the_mpz_assgn_macro... admit. 
-            ++ constructor. apply S_cmp with (vx:=l1) (vy:=l2) (lx:=z1) (ly:=z2)...
+        - apply semantics_of_the_mpz_assgn_macro...
+        - apply S_Seq with Ω M{l2\z2,l1\z1}.  
+            + apply semantics_of_the_mpz_assgn_macro... inversion H1.
+                * subst. constructor. apply same_eval_mem with v1...
+                * subst. econstructor. apply same_eval_mem with v1... rewrite <- H5. apply p_map_not_same. admit.
+            + constructor. apply S_cmp with (vx:=l1) (vy:=l2) (lx:=z1) (ly:=z2)...
                 * constructor. apply GMP_E_Var with z1. assumption. unfold p_map. simpl. 
-                    destruct (Nat.eq_dec l2 l1) as [Neq | Nneq].
-                        ** subst. admit.
+                    destruct (Nat.eq_dec l2 l1) as [Neq | Nneq]. 
+                        ** now destruct Hl1Notl2.
                         ** now destruct (Nat.eq_dec l1 l1).
                 * constructor. apply GMP_E_Var with z2. assumption. unfold p_map. simpl.
                     now destruct (Nat.eq_dec l2 l2) as [Neq | Nneq].
                 *  unfold p_map. simpl. destruct (Nat.eq_dec l2 l1) as [Neq | Nneq].
-                    ** subst. admit.
+                    ** now destruct Hl1Notl2.
                     ** now destruct (Nat.eq_dec l1 l1).
                 * unfold p_map. simpl. destruct (Nat.eq_dec l2 l1) as [Neq | Nneq] ;  now destruct (Nat.eq_dec l2 l2).
     }
     
-     unfold CMP. destruct (ty e1) eqn:T1, (ty e2) eqn:T2 ; try apply NotInt.
+     unfold CMP. destruct (ty e1) eqn:T1, (ty e2) eqn:T2 ; try apply NotInt ; clear NotInt.
          
      (* both ty(e1) = int and ty(e2) = int *)
      - inversion H0 ; inversion H1 ; try 
@@ -303,26 +372,25 @@ Proof with try easy ; auto with rac_hint ; unshelve eauto using Z.ltb_irrefl,Z.g
                 | Contra : _gmp_exp_sem _ _ _ _ |- _ => inversion Contra ; now subst
                 end
             end.
-        exists M. intros v l Hv _ _. destruct (Z.lt_trichotomy z1 z2) as [inf' | [ eq' | sup']].
+        exists M. intros _ _ _. destruct (Z.lt_trichotomy z1 z2) as [inf' | [ eq' | sup']].
         
         (* z1 < z2 *)
         * assert (cmp := inf'). apply <- inf in inf'. clear eq inf sup. rewrite <- H5, <-H7 in cmp.
             destruct x,x0. subst. apply S_IfTrue with one.
-            + split... eapply C_E_BinOpTrue... now apply Z.ltb_lt.
+            + split... eapply C_E_BinOpTrue... apply Z.ltb_lt. apply cmp.
             + constructor... constructor... unshelve eapply (C_E_BinOpInt Ω M 0 1 0 1)...
 
         (* z1 = z2 *)
         * assert (cmp := eq'). rewrite <- eq in eq'. clear eq inf sup. rewrite <- H5, <-H7 in cmp.
-            destruct x,x0. subst. constructor. constructor... eapply C_E_BinOpFalse... admit.
-            constructor... constructor. eapply C_E_BinOpFalse... admit.
+            destruct x,x0. apply Int.mi_eq in cmp. injection cmp as cmp. inversion cmp.  constructor ; subst... constructor... 
 
         (* z1 > z2 *)
-        * apply Z.lt_gt in sup'. assert (cmp := sup'). apply <- sup in sup'.  clear inf eq sup.
-          destruct x, x0. constructor. 
-            + admit.
+        * assert (cmp := sup').  apply Z.lt_gt in sup'. apply <- sup in sup'.  clear inf eq sup. rewrite <- H5, <- H7 in cmp.
+          destruct x, x0. subst. constructor ; simpl in *.
+            + constructor. eapply C_E_BinOpFalse... apply Z.ltb_ge. unfold Z.le. now rewrite cmp.  
             + apply S_IfTrue with one.
-                ++  subst. split... constructor. eapply C_E_BinOpTrue... admit.
-                ++  constructor... subst...                   
+                ++  subst. split... constructor. eapply C_E_BinOpTrue... simpl.  now apply Z.gtb_lt.
+                ++  constructor...
 Admitted.
 
 
@@ -336,37 +404,44 @@ Lemma semantics_of_the_binop_macro_int :
     let zr := ⋄ (□ op) z1 z2 in
 
     (fst Ω) v1 = Some (VMpz l1) /\  (fst Ω) v2 = Some (VMpz l2) /\ ( (fst Ω) r = Some (VMpz lr) ) ->
-    exists M', forall v n, (fst Ω) v = Some (VMpz n) ->
-    ~ ((fst Ω) v1 = (fst Ω) v) /\ ~ ((fst Ω) v2 = (fst Ω) v)  -> M n = M' n -> 
-    Ω ⋅ M |= (binop_ASSGN op (C_Int,c) e1 e2 r v1 v2) => ((fst Ω){c\zr ⁱⁿᵗ ir}, snd Ω) ⋅ M'
+    exists M', (forall v n, (fst Ω) v = Some (VMpz n) ->
+    ~ ((fst Ω) v1 = (fst Ω) v) /\ ~ ((fst Ω) v2 = (fst Ω) v)  -> M n = M' n) -> 
+    ~ List.In v1 (vars e2) -> (* not in paper proof *)
+    l1 <> l2 -> (* not in paper proof *)
+    Ω ⋅ M |= (binop_ASSGN op (C_Int,c) e1 e2 r v1 v2) => ((fst Ω){c\zr ⁱⁿᵗ ir : 𝕍}, snd Ω) ⋅ M'
     .
 
 Proof with eauto with rac_hint.
     intros. destruct H2 as (v1l & v2l & rl).  
     assert (NotInt : 
         exists M',
-        forall (v : 𝓥) (n : location),
+        (forall (v : 𝓥) (n : location),
         fst Ω v = Some (VMpz n) ->
         fst Ω v1 <> fst Ω v /\ fst Ω v2 <> fst Ω v ->
-        M n = M' n ->
-        Ω ⋅ M
-        |= <{(mpz_ASSGN v1 e1);
-        (mpz_ASSGN v2 e2);
-        (Definitions.op op r v1 v2);
-        (int_ASSGN c (C_Id r Mpz))}> => ((fst Ω) {c \ zr ⁱⁿᵗ ir}, snd Ω) ⋅ M'
+        M n = M' n) ->
+        ~ List.In v1 (vars e2) -> (* not in paper proof *)
+        l1 <> l2 -> (* not in paper proof *)
+        Ω ⋅ M |= <{
+            (mpz_ASSGN v1 e1);
+            (mpz_ASSGN v2 e2);
+            (Definitions.op op r v1 v2);
+            (int_ASSGN c (C_Id r Mpz))
+        }> => ((fst Ω) {c \ zr ⁱⁿᵗ ir : 𝕍}, snd Ω) ⋅ M'
     ). {
         exists M{lr\zr,l2\z2,l1\z1}. intros. 
-    apply S_Seq with Ω M{l1\z1}. apply semantics_of_the_mpz_assgn_macro...
-    apply S_Seq with Ω M{l2\z2,l1\z1}. apply semantics_of_the_mpz_assgn_macro... admit.
-    apply S_Seq with Ω M{lr\zr,l2\z2,l1\z1}.
-    constructor. apply S_op with l1 l2...
-    * constructor. admit.
-    * unfold p_map. simpl. destruct Nat.eq_dec.
-        + admit.
-        + now destruct Nat.eq_dec.
-    * constructor. admit.
-    * unfold p_map. simpl. now destruct Nat.eq_dec.
-    * apply semantics_of_the_int_assgn_macro...  apply M_Mpz with lr ; try (constructor ; apply GMP_E_Var with zr ; try easy) ;
+    apply S_Seq with Ω M{l1\z1}. 
+    - apply semantics_of_the_mpz_assgn_macro...
+    - apply S_Seq with Ω M{l2\z2,l1\z1}.
+     + apply semantics_of_the_mpz_assgn_macro... apply same_eval_macro with v1...
+     + apply S_Seq with Ω M{lr\zr,l2\z2,l1\z1}.
+        * constructor. pose proof (p_map_not_same M{l1 \ z1}) l1 l2 z2 H4. apply S_op with l1 l2...
+            ** constructor. apply GMP_E_Var with z1...  rewrite H5.  unfold p_map. simpl. now destruct Nat.eq_dec.
+            ** unfold p_map. simpl. destruct Nat.eq_dec.
+                *** now destruct H4. 
+                *** now destruct Nat.eq_dec.
+            ** constructor. apply GMP_E_Var with z2... unfold p_map. simpl. now destruct Nat.eq_dec...
+            ** unfold p_map. simpl. now destruct Nat.eq_dec.
+        * apply semantics_of_the_int_assgn_macro...  apply M_Mpz with lr ; try (constructor ; apply GMP_E_Var with zr ; try easy) ;
         unfold p_map ; simpl ; now destruct Nat.eq_dec.
     }
     
@@ -379,7 +454,7 @@ Proof with eauto with rac_hint.
         end
     end.
     - destruct x,x0. constructor... constructor. subst. eapply C_E_BinOpInt...
-Admitted.
+Qed.
 
 
 
@@ -391,8 +466,10 @@ Lemma semantics_of_the_binop_macro_mpz :
    
     let zr := ⋄ (□ op) z1 z2 in
     (fst Ω) v1 = Some (VMpz l1) /\  (fst Ω) v2 = Some (VMpz l2) /\  (fst Ω) c = Some (VMpz y) ->
-    exists M', forall v n, (fst Ω) v = Some (VMpz n) ->
-    ~ ((fst Ω) v1 = (fst Ω) v) /\ ~ ((fst Ω) v2 = (fst Ω) v)  -> M n = M' n -> 
+    ~ List.In v1 (vars e2) -> (* not in paper proof *)
+    exists M', (forall v n, (fst Ω) v = Some (VMpz n) ->
+    ~ ((fst Ω) v1 = (fst Ω) v) /\ ~ ((fst Ω) v2 = (fst Ω) v)  -> M n = M' n) -> 
+    l1 <> l2 -> (* not in paper proof *)
     Ω ⋅ M |= (binop_ASSGN op (T_Ext Mpz,c) e1 e2 r v1 v2) => Ω ⋅ M'{y\zr}
     .
 Proof with eauto with rac_hint.
@@ -400,15 +477,14 @@ Proof with eauto with rac_hint.
     apply S_Seq with Ω M{l1\z1}.
     - apply semantics_of_the_mpz_assgn_macro...
     - apply S_Seq with Ω M{l2\z2,l1\z1}. 
-        * apply semantics_of_the_mpz_assgn_macro... admit.
-        * constructor. apply S_op with l1 l2...
-            + constructor. admit. 
-            + unfold p_map. simpl. destruct Nat.eq_dec.
-                ++ admit.
-                ++ now destruct Nat.eq_dec.
-            + constructor. admit.
-            + unfold p_map. simpl. now destruct Nat.eq_dec.
-Admitted.
+        * apply semantics_of_the_mpz_assgn_macro... apply same_eval_macro with v1...
+        * constructor. pose proof (p_map_not_same M{l1 \ z1}) l1 l2 z2 H5.  apply S_op with l1 l2...
+            + constructor. apply GMP_E_Var with z1...  rewrite H2. 
+             unfold p_map. simpl. now destruct Nat.eq_dec.
+            + rewrite H2.  unfold p_map. simpl. now destruct Nat.eq_dec.
+            + constructor. apply GMP_E_Var with z2... unfold p_map. simpl. now destruct Nat.eq_dec.
+            + unfold p_map. simpl. now destruct Nat.eq_dec...
+Qed.
 
 (* Preservation of the semantics *)
 
