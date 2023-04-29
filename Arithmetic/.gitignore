@@ -40,6 +40,10 @@ CoqMakefile.conf
 *.aux
 *.log
 *.out
+*.fls
+*.pdf
+*.synctex*
+*.fdb*
 
 # ignore _CoqProject since we autogenerate it
 _CoqProject
