@@ -8,18 +8,14 @@ Open Scope Z_scope.
 
 
 #[local] Declare Scope generic_sem_scope.
-(* #[local] Declare Scope _gmp_exp_sem_scope. *)
 #[local] Declare Scope _gmp_stmt_sem_scope.
 
 
 
-Declare Scope c_exp_sem_scope.
-Declare Scope c_stmt_sem_scope.
+Declare Scope c_sem_scope.
 Declare Scope mini_c_decl_scope.
-Declare Scope gmp_exp_sem_scope.
-Declare Scope gmp_stmt_sem_scope.
-Declare Scope fsl_exp_sem_scope.
-Declare Scope fsl_stmt_sem_scope.
+Declare Scope gmp_sem_scope.
+Declare Scope fsl_sem_scope.
 
 
 
@@ -56,7 +52,7 @@ where  "Ω ⋅ M '|=' e => z" := (generic_exp_sem Ω M e z) : generic_sem_scope.
 
 Definition c_exp_sem := @generic_exp_sem Empty_set Empty_exp_sem.
 
-Notation "Ω |= e => v"  := (c_exp_sem Ω ⊥ e v) : c_exp_sem_scope.
+Notation "Ω |= e => v"  := (c_exp_sem Ω ⊥ e v) : c_sem_scope.
 
 Open Scope mini_c_scope.
 
@@ -112,14 +108,14 @@ Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt
     
 
     Definition c_stmt_sem := @generic_stmt_sem Empty_set Empty_set Empty_exp_sem Empty_stmt_sem.
-    Notation "Ω ⋅ M |= s => Ω' ⋅ M'"  := (c_stmt_sem Ω M s Ω' M') : c_stmt_sem_scope.
+    Notation "Ω ⋅ M |= s => Ω' ⋅ M'"  := (c_stmt_sem Ω M s Ω' M') : c_sem_scope.
 
 
 Definition c_decl_sem (env env':Ω) (mem mem':𝓜) d : Prop := 
         forall x t u,
         (fst env) x  = None -> 
         (Uτ u) = Some t ->
-        d = C_Decl Empty_set t x -> env' = ((fst env){x\u},snd env) /\ mem = mem'.
+        d = C_Decl t x -> env' = ((fst env){x\u},snd env) /\ mem = mem'.
         
 Notation "Ω ⋅ M |= d => Ω' ⋅ M'"  := (c_decl_sem Ω Ω' M M' d) : mini_c_decl_scope.
 
@@ -132,10 +128,10 @@ Inductive _gmp_exp_sem (env : Ω) (mem:𝓜) : gmp_exp -> 𝕍 -> Prop :=
 .
 
 Definition gmp_exp_sem := @generic_exp_sem _gmp_t _gmp_exp_sem.
-Notation "Ω ⋅ M '|=' e => z" := (gmp_exp_sem Ω M e z) : gmp_exp_sem_scope.
+Notation "Ω ⋅ M '|=' e => z" := (gmp_exp_sem Ω M e z) : gmp_sem_scope.
 
 
-Open Scope gmp_exp_sem_scope.
+Open Scope gmp_sem_scope.
 Open Scope mini_gmp_scope.
 
 Inductive _gmp_stmt_sem (env:Ω) (mem:𝓜) : gmp_statement -> Ω -> 𝓜 -> Prop := 
@@ -183,7 +179,7 @@ where "Ω ⋅ M |= s => Ω' ⋅ M'"  := (_gmp_stmt_sem Ω M s Ω' M') : _gmp_stm
 
 
 Definition gmp_stmt_sem := @generic_stmt_sem _gmp_statement _gmp_t gmp_exp_sem _gmp_stmt_sem.
-Notation "Ω ⋅ M |= s => Ω' ⋅ M'"  := (gmp_stmt_sem Ω M s Ω' M') : gmp_stmt_sem_scope. 
+Notation "Ω ⋅ M |= s => Ω' ⋅ M'"  := (gmp_stmt_sem Ω M s Ω' M') : gmp_sem_scope. 
 
 
 
@@ -212,7 +208,7 @@ Inductive fsl_assert_sem : S -> Ω -> M -> Ω -> M -> Prop :=
     fsl_assert_sem (LAssert p) env mem env mem
 . *)
 
-Notation "Ω '|=' e => v" := True : fsl_exp_sem_scope.
+Notation "Ω '|=' t => v" := (fsl_term_sem Ω t v) : fsl_sem_scope.
 
 
 (* macro semantic *)

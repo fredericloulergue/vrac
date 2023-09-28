@@ -6,6 +6,8 @@ Require Import RAC.Translation.
 Require Import  Strings.String.
 From Coq Require Import ZArith.ZArith.
 
+Open Scope utils_scope.
+Open Scope definition_scope.
 
 (* Properties of the semantics *)
 
@@ -13,6 +15,16 @@ Fact eq_env_partial_order :  forall e e' v z, e ⊑ e' ->  z <> UInt /\ z <> UMp
 Proof.
     intros. destruct H with v ; try assumption ; try rewrite H2 in H1 ; try injection H1 as Eq ; subst ; now try assumption.
 Qed.
+
+Fact eq_mem_partial_order :  
+    forall mem mem' z l, mems_partial_order mem mem' l -> z <> None ->  
+    mem l = z ->  mem' l = z.
+Proof.
+    intros. destruct H as [some_z Hl | Hmem]. 
+    - subst.  now rewrite H,Hl.
+    - rewrite H1 in Hmem. now destruct H0.
+Qed.
+
 
 
 Fact env_same_ty : forall  (Ω Ω' : Ω) v t, Ω ⊑ Ω' -> t <> None -> type_of_value (fst Ω v) = t -> type_of_value (fst Ω' v) = t.
@@ -26,148 +38,237 @@ Proof.
     end.
 Qed.
 
-Open Scope c_exp_sem_scope.
+
+Open Scope c_sem_scope.
 Lemma weakening_of_expression_semantics : 
-forall env (e : c_exp) (x:𝕍),
-    env |= e => x <-> (forall env', env ⊑ env' ->  env' |= e => x)
+forall env (e : _c_exp) (x:𝕍),
+    env |= e => x <-> (forall env', env ⊑ env' ->  env'  |= e => x)
 .
-Proof with (eauto using refl_env_partial_order with rac_hint; try easy).
-    split... generalize dependent x. induction e ; intros ;  
+Proof with (eauto using refl_env_partial_order with rac_hint; try easy). intros env e x.
+    split... intro H. intros env' H0.  generalize dependent x.  induction e ; intros x H; 
     match goal with 
-        Sem : _ |= _ => _ |- _ =>  inversion Sem 
+        Sem :c_exp_sem  _ _ _ _ |- _ =>  inversion Sem 
     end...
+    (* machine integer *)
     - econstructor.
-    - constructor. eapply eq_env_partial_order in H0...
-    - econstructor. apply IHe1... apply IHe2...
+    (* variable of type machine integer *)
+    - econstructor. eapply eq_env_partial_order in H4...
+
+
+    (* binop *)
+    - econstructor... subst.  apply IHe1... apply IHe2...
     - econstructor... apply IHe1... apply IHe2...
     - econstructor... apply IHe1... apply IHe2...
 Qed.
+Close Scope c_sem_scope.
 
-Open Scope gmp_stmt_sem_scope.
 
-(*
+Open Scope generic_sem_scope.
+Lemma weakening_of_c_expression_semantics : 
+forall e env mem (x:𝕍),
+    @generic_exp_sem Empty_set Empty_exp_sem env mem e x <-> 
+    (forall env' mem',  (env,mem) ⊑ (env',mem') -> @generic_exp_sem Empty_set Empty_exp_sem env' mem' e x)
+.
+Proof with (eauto using refl_env_partial_order, refl_mem_partial_order with rac_hint; try easy).
+    split... 
+    - generalize dependent x. induction e ; intros ;  
+        match goal with 
+            Sem : _ ⋅ _ |= _ => _ |- _ =>  inversion Sem 
+        end ; subst ...
+        (* variable of type machine integer *)
+        + constructor. eapply eq_env_partial_order in H4...
+Qed.
+Close Scope generic_sem_scope.
+
+Open Scope gmp_sem_scope.
+Lemma weakening_of_gmp_expression_semantics : 
+forall env mem (e : _c_exp) (x:𝕍),
+    env ⋅ mem |= e => x <-> (forall env' mem', (env,mem) ⊑ (env',mem') ->  env' ⋅ mem' |= e => x)
+.
+Proof with (eauto using refl_env_partial_order, refl_mem_partial_order with rac_hint; try easy).
+    split... 
+    - generalize dependent x. induction e ; intros ;  
+        match goal with 
+            Sem : _ ⋅ _ |= _ => _ |- _ =>  inversion Sem 
+        end ; subst ...
+        (* machine integer *)
+        + econstructor.
+        (* variable of type machine integer *)
+        + constructor. eapply eq_env_partial_order in H4...
+
+        (* variable of type mpz *)
+        + destruct ty... destruct t... constructor. inversion H1; subst.  apply GMP_E_Var with z; destruct H0 as [relEnv memEnv].
+            ++  eapply eq_env_partial_order in relEnv...
+            ++ eapply eq_mem_partial_order in memEnv...
+            
+        (* binop *)
+        + econstructor. apply IHe1... apply IHe2...
+        + econstructor... apply IHe1... apply IHe2...
+        + econstructor... apply IHe1... apply IHe2...
+Qed.
+Close Scope gmp_sem_scope.
+
+
+Open Scope c_sem_scope.
+
 Lemma weakening_of_statement_semantics_1 :
     forall Ω₀ M₀ s Ω₁ M₁,
     Ω₀ ⋅ M₀ |= s => Ω₁ ⋅ M₁ <->
-   ( forall Ω₀' M₀', (Ω₀ , M₀) ⊑ (Ω₀', M₀') ->
-     exists Ω₁' M₁', (Ω₁ , M₁) ⊑ (Ω₁', M₁') ->
-     Ω₀' ⋅ M₀' |= s => Ω₁'⋅ M₁').
-Proof with auto with rac_hint.
-     split. 
-    - induction s ; intros ;
-        match goal with IncRel : (_,_) ⊑ (_,_) , Stmt :  _⋅_ |= _ =>  _ ⋅_ |- _ => inversion IncRel; inversion Stmt end.
-        (* for c_stmts *)
-        (* try match goal with CStmt : c_stmt_sem _ _ _ _ _ |- _ => inversion CStmt end.  *)
-
+    ( forall Ω₀' M₀', (Ω₀ , M₀) ⊑ (Ω₀', M₀') ->
+    exists Ω₁' M₁', (Ω₁ , M₁) ⊑ (Ω₁', M₁') ->
+    Ω₀' ⋅ M₀' |= s => Ω₁'⋅ M₁').
+Proof with auto using weakening_of_c_expression_semantics with rac_hint.
+    intros Ω₀ M₀ s Ω₁ M₁. split. 
+    - intros Hderiv. induction Hderiv ; intros Ω₀' M₀' Hrel.
         (* skip *)
         * exists Ω₀',M₀'. constructor. 
-        * exists Ω₀',M₀'. constructor. 
-
+        
         (* assign *) 
-        * pose ((fst Ω₀'){x\z}, snd Ω₀'). exists p ,M₀'.
-         intros. pose (weakening_of_expression_semantics Ω₀ e z). specialize i. rewrite i in H12. specialize H12 with Ω₀'. clear i.
-         subst. constructor. apply S_Assign... now apply env_same_ty with Ω₀.
+        * exists ((fst Ω₀') {x \ z}, (snd Ω₀')) , M₀'. intros _. apply S_Assign.
+            *** now apply env_same_ty with env. 
+            *** rewrite weakening_of_c_expression_semantics in H0. specialize (H0 Ω₀' M₀'). apply H0...
 
-         (* pcall *)
-        * subst. exists ((fst Ω₀') {var \ z}, snd Ω₀'), M₁.  
-            intros. constructor. eapply S_FCall ; try eassumption.
-            + intros. admit.
-            + admit.
-
-        (* fcall *)         
-        *  eexists. eexists. intro. constructor. eapply S_PCall ; try eassumption.
-            + admit.
-            + admit.
-
-        (* c seq *)
-        * exists Ω₁, M₁. intro. constructor. apply S_Seq with  env' mem'...  admit. admit.
 
         (* if true *)
-        * exists Ω₁, M₁. intro. constructor. apply S_IfTrue with z.
-            + admit.
-            + admit. 
-
+        * destruct H. destruct (IHHderiv Ω₀' M₀') as [env_s [mem_s Hs]]... exists env_s, mem_s. intros . apply S_IfTrue with z. split...
+            rewrite weakening_of_c_expression_semantics in H... apply Hs...
         (* if false *)
-        * exists Ω₁, M₁. intro. constructor. apply S_IfFalse.
-            +  pose (weakening_of_expression_semantics _gmp_t Ω₀ cond zero). specialize i. rewrite i in H12. specialize H12 with Ω₀'. clear i.
-                rewrite <- H7 in *. clear H3 H4. apply (H12 H1).
-            + admit.
-        
-        (* while *)
-        * exists Ω₁, M₁. intro. constructor. apply S_While. admit.
+        * destruct (IHHderiv Ω₀' M₀') as [env_s [mem_s Hs]]... exists env_s, mem_s. intro rel. apply S_IfFalse.
+            rewrite weakening_of_c_expression_semantics in H... apply Hs... 
 
-        (* assert *)
-        * exists Ω₀', M₀'. intro. constructor. apply S_PAssert with z... apply weakening_of_expression_semantics  with Ω₁... inversion H12...
+
+         (* while *)
+        * destruct (IHHderiv Ω₀' M₀') as [env_s [mem_s Hs]]... exists env_s, mem_s.
+            intros. apply S_While. apply Hs...
+
+
+        (* c seq *)
+        *   destruct IHHderiv1 with Ω₀' M₀' as [I1env [I1mem I1H]]...
+            destruct IHHderiv2 with I1env I1mem as [I2env [I2mem I2H]]. admit. 
+            exists I2env,I2mem. intro H.  
+            apply S_Seq with I1env I1mem.
+            ** apply I1H. admit.
+            ** apply I2H...
+
+        (* f call *)
+        * admit.
+
+
+        (* p call *)
+        * admit.
 
         (* return *)
-        * exists ((fst Ω₀') {resf \ z}, snd Ω₀'), M₀'. intro. subst. constructor. apply S_Return. admit.
+        * exists ((fst Ω₀') {resf \ z}, snd Ω₀'), M₀'. intro rel.  apply S_Return...
+            apply (weakening_of_c_expression_semantics e env mem z)...
 
-        (* set_i *)
-        * admit.
+        (* assert *)
+        * exists Ω₀', M₀'. intro rel.  apply S_PAssert with z...
+            apply (weakening_of_c_expression_semantics e env mem z)...
 
-        (* set_z *)
-        * admit.
-        
-        (* get_int *)
-        * admit.
-
-        (* set_s *)
-        * admit.
-
-        (* cmp *)
-        * admit.
-
-        (* op *)
-        * admit. 
+        (* no other case as there is no additional semantic *)
+        * contradiction.
     
-    - intros. induction s.
-     * destruct H with Ω₀ M₀. 
-        +  constructor.
-            ++ apply refl_env_partial_order.
-            ++ apply refl_mem_partial_order.
-        + destruct H0. admit.
-
-    * admit.
-    * admit.
-    * admit.
-    * admit.
-    * admit.
-    * admit.
-    * admit.
-    * admit.
-    * admit.
-    * admit.
+    - admit.
 Admitted.
 
-*)
+
 
 
 (* 2 *)
 
 Lemma weakening_of_statement_semantics_2 :
     forall Ω₀ Ω₀' M₀ M₀' s Ω₁ M₁,
-    Ω₀ ⋅ M₀|= s => Ω₁ ⋅ M₁ /\ Ω₀ ⋅ M₀ |= s => Ω₀' ⋅ M₀'  ->
-    forall Ω₁' M₁',
-    Ω₀' ⋅ M₀' |= s => Ω₁' ⋅ M₁' -> 
-    (forall (v:𝓥), ~(dom (fst Ω₀) v) -> fst Ω₀' v = fst Ω₁' v) /\ True.
-    (* (forall x, ~ exists (v:𝓥), (fst Ω₀ v) = Some x -> M₀' x = M₁' x). *)
+    Ω₀ ⋅ M₀|= s => Ω₁ ⋅ M₁ /\ (Ω₀, M₀) ⊑ (Ω₀', M₀')  ->
+    (
+        forall Ω₁' M₁',
+        Ω₀' ⋅ M₀' |= s => Ω₁' ⋅ M₁' ->
+        (forall (v:𝓥),v ∉ fst Ω₀ -> fst Ω₀' v = fst Ω₁' v) 
+        /\
+        (forall (x:location) (v:𝓥), (fst Ω₀ v) <> Some (VMpz x) -> M₀' x = M₁' x)
+    ).
+Proof with auto with rac_hint ; try contradiction.
+    intros Ω₀ Ω₀' M₀ M₀' s Ω₁ M₁ [Hderiv1 Hrel] Ω₁' M₁' Hderiv2. induction s; split ; intros ; inversion Hderiv2 ; subst...
+    (* assign env *)
+    - admit.
+    (* fcall env *)
+    - admit.
+    (* fcall mem *)
+    - admit.
+    (* pcall mem *)
+    - admit.
+    (* seq env *)
+    -admit.
+    (* seq mem *)
+    - admit.
+    (* if true env *)
+    - admit.
+    (* if false env *)
+    - admit.
+    (* if true mem *)
+    - admit.
+    (* if false mem *)
+    - admit.
+    (* while env *)
+    - admit.
+    (* while mem *)
+    - admit.
+    (* return env *)
+    - admit. 
 Admitted.
 
 
-(* Lemma weakening_of_statement_semantics_3 :
-    forall Ω₀ Ω₀' M₀ M₀' s Ω₁ M₁,
-    Ω₀ ⋅ M₀|= s => Ω₁ ⋅ M₁ ->
-    Ω₀' ⋅ M₀'|= s => Ω₀ ⋅ M₀ ->
-    forall v, (dom (fst Ω₀) - dom (fst Ω₀')) v -> 
-    ~ var_in_stmt s v -> 
-    forall x, (dom M₀ - dom M₀') x -> (fst Ω₀) v = Some (VMpz x) ->
-    exists Ω₁' M₁', Ω₀' ⋅ M₀' |= s => Ω₁' ⋅ M₁'.
+Lemma weakening_of_statement_semantics_3 :
+    forall Ω₀ M₀  s Ω₁ M₁,
+    Ω₀ ⋅ M₀|= s => Ω₁ ⋅ M₁ -> 
+    (
+        forall Ω₀' M₀', (Ω₀', M₀') ⊑ (Ω₀, M₀) ->
+        (
+            (forall v, (dom (fst Ω₀) - dom (fst Ω₀')) v /\ ~ List.In v (stmt_vars s))
+            /\
+            (forall x v, (dom M₀ - dom M₀') x -> (fst Ω₀) v = Some (VMpz x) /\ ~ List.In v (stmt_vars s))
+        ) ->
 
+        exists Ω₁' M₁', Ω₀' ⋅ M₀' |= s => Ω₁' ⋅ M₁'
+    ).
+Proof with auto with rac_hint.
+    intros Ω₀ M₀ s Ω₁ M₁ Hderiv Ω₀' M₀' Hrel [Henv Hmem].  induction Hderiv.
+    (* skip *)
+    - exists Ω₀', M₀'. constructor.
+    (* assign *)
+    - destruct Henv with x. destruct H1. admit.
+    (* if true *)
+    - admit.
+    (* if false *)
+    - admit.
+    (* while *)
+    - admit.
+    (* seq *)
+    - admit.
+    (* fcall *)
+    - admit.
+    (* pcall *)
+    - admit.
+    (* return *)
+    - admit.
+    (* assert *)
+    - admit.
+    (* no other case as there is no additional semantic *)
+    - contradiction.
 Admitted.
- *)
 
 
 (* Proofs of structural properties of the translation *)
+
+Lemma mpz_pointer_invariant : True. 
+Proof.
+auto.
+Qed.
+
+Lemma absence_of_aliasing : 
+    forall (* program...*) z, type_of_value (Some z) = Some (T_Ext Mpz) -> True.
+auto.
+Qed.
+
 
 (* Theorem absence_of_dangling_pointers :
     forall n (z:=VMpz n) (mem_state:𝓜) (var_env:Ωᵥ), 
@@ -187,10 +288,10 @@ Proof.
     exists var. intro H. unfold Definitions.ty in H. now rewrite H.
 Qed.
 
-
-Fact same_eval_env {T:Set} : forall Ω M x v (e : gmp_exp)  z, 
-    ~ List.In x (vars e) -> 
-    Ω ⋅ M  |= e => z -> 
+Open Scope gmp_sem_scope.
+Fact same_eval_env : forall Ω M x v (e : gmp_exp)  z, 
+    ~ List.In x (exp_vars e) -> 
+    Ω ⋅ M  |= e => z ->
     ( ((fst Ω){x\v},snd Ω) ⋅ M  |= e => z ).
 Proof with try easy.
     intros. generalize dependent Ω.  generalize dependent z. induction e ; intros.
@@ -201,7 +302,7 @@ Proof with try easy.
         * destruct t... inversion H1. subst. constructor. apply GMP_E_Var with z0... simpl.
             unfold p_map. simpl in *. apply Decidable.not_or_iff in H. destruct H as [H3 _].
             destruct string_dec... subst. easy.
-   
+
     - simpl in H.  rewrite List.in_app_iff in H. apply Decidable.not_or_iff in H. destruct H as [He1 He2].
         pose proof (IHe1 He1). pose proof (IHe2 He2). clear He1 He2 IHe1 IHe2. inversion H0... subst. 
         apply C_E_BinOpInt with z_ir z'_ir. now apply H. now apply H1.
@@ -214,7 +315,7 @@ Qed.
 
 
 Fact same_eval_mem : forall Ω M v l (e : gmp_exp)  z z', 
-    ~ List.In v (vars e) ->
+    ~ List.In v (exp_vars e) ->
     (fst Ω) v = Some (VMpz l) ->
     Ω ⋅ M |= e => z ->
     Ω ⋅ (M) {l \ z'} |= e => z.
@@ -238,9 +339,8 @@ Proof with try easy.
         * apply C_E_BinOpFalse with z0 z'0 z_ir z'_ir... now apply H. now apply H2.
 Admitted.
 
-
 Corollary same_eval_macro :  forall Ω M v l e z z', 
-    ~ List.In v (vars e) ->
+    ~ List.In v (exp_vars e) ->
     (fst Ω) v = Some (VMpz l) ->
     Ω ⋅ M |= e ⇝ z ->
     Ω ⋅ (M) {l \ z'} |= e ⇝ z.
@@ -325,7 +425,7 @@ Lemma semantics_of_the_cmp_macro :
     (fst Ω) v1 = Some (VMpz l1) /\ ( (fst Ω) v2 = Some (VMpz l2)) ->
     exists M', (forall v n, (fst Ω) v = Some (VMpz n) ->
     ~ ((fst Ω) v1 = (fst Ω) v) /\ ~ ((fst Ω) v2 = (fst Ω) v)  -> M n = M' n) -> 
-    ~ List.In v1 (vars e2) ->  (* not in paper proof *)
+    ~ List.In v1 (exp_vars e2) ->  (* not in paper proof *)
     l1 <> l2 ->  (* not in paper proof *)
     Ω ⋅ M |= (CMP c e1 e2 v1 v2) => ((fst Ω){c\a}, snd Ω) ⋅ M'
     .
@@ -338,7 +438,7 @@ Proof with try easy ; auto with rac_hint ; unshelve eauto using Z.ltb_irrefl,Z.g
         fst Ω v = Some (VMpz n) ->
         fst Ω v1 <> fst Ω v /\ fst Ω v2 <> fst Ω v ->
         M n = M' n) ->
-        ~ List.In v1 (vars e2) ->  (* not in paper proof *)
+        ~ List.In v1 (exp_vars e2) ->  (* not in paper proof *)
         l1 <> l2 ->  (* not in paper proof *)
         Ω ⋅ M |= <{(mpz_ASSGN v1 e1); (mpz_ASSGN v2 e2); <c = cmp (v1, v2)>}> => ((fst Ω) {c \ a}, snd Ω) ⋅ M'
     ). {
@@ -406,7 +506,7 @@ Lemma semantics_of_the_binop_macro_int :
     (fst Ω) v1 = Some (VMpz l1) /\  (fst Ω) v2 = Some (VMpz l2) /\ ( (fst Ω) r = Some (VMpz lr) ) ->
     exists M', (forall v n, (fst Ω) v = Some (VMpz n) ->
     ~ ((fst Ω) v1 = (fst Ω) v) /\ ~ ((fst Ω) v2 = (fst Ω) v)  -> M n = M' n) -> 
-    ~ List.In v1 (vars e2) -> (* not in paper proof *)
+    ~ List.In v1 (exp_vars e2) -> (* not in paper proof *)
     l1 <> l2 -> (* not in paper proof *)
     Ω ⋅ M |= (binop_ASSGN op (C_Int,c) e1 e2 r v1 v2) => ((fst Ω){c\zr ⁱⁿᵗ ir : 𝕍}, snd Ω) ⋅ M'
     .
@@ -419,7 +519,7 @@ Proof with eauto with rac_hint.
         fst Ω v = Some (VMpz n) ->
         fst Ω v1 <> fst Ω v /\ fst Ω v2 <> fst Ω v ->
         M n = M' n) ->
-        ~ List.In v1 (vars e2) -> (* not in paper proof *)
+        ~ List.In v1 (exp_vars e2) -> (* not in paper proof *)
         l1 <> l2 -> (* not in paper proof *)
         Ω ⋅ M |= <{
             (mpz_ASSGN v1 e1);
@@ -466,7 +566,7 @@ Lemma semantics_of_the_binop_macro_mpz :
    
     let zr := ⋄ (□ op) z1 z2 in
     (fst Ω) v1 = Some (VMpz l1) /\  (fst Ω) v2 = Some (VMpz l2) /\  (fst Ω) c = Some (VMpz y) ->
-    ~ List.In v1 (vars e2) -> (* not in paper proof *)
+    ~ List.In v1 (exp_vars e2) -> (* not in paper proof *)
     exists M', (forall v n, (fst Ω) v = Some (VMpz n) ->
     ~ ((fst Ω) v1 = (fst Ω) v) /\ ~ ((fst Ω) v2 = (fst Ω) v)  -> M n = M' n) -> 
     l1 <> l2 -> (* not in paper proof *)
@@ -488,13 +588,23 @@ Qed.
 
 (* Preservation of the semantics *)
 
-Open Scope fsl_exp_sem_scope.
+Open Scope fsl_sem_scope.
 
 Lemma semantics_of_term_translation : 
-    forall (t:fsl_term) Ω Γ Ψ, 
-    I1 Ω Γ ->
-    I2 Ψ ->
-    (exists (z:ℤ), Ω |= t => z)
-        <-> True.
+    forall (t:fsl_term) Ω Γ Ψ z, 
+    I1 Ω Γ -> I2 Ψ ->
+    (Ω |= t => z <-> True)
+    .
 Proof.
+    intros. split.
+    - induction t eqn:T ; intro Hi.
+        * admit.
+        * admit.
+        * admit.
+        * admit.
+    - induction t eqn:T; intro Hi.
+        * admit.
+        * admit.
+        * admit.
+        * admit.
 Admitted.

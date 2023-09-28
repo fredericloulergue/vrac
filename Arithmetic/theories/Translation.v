@@ -94,7 +94,7 @@ Definition DECLS (vars:var_list) : gmp_statement := (* generates declarations *)
     List.fold_right (
         fun (v:gmp_t ⨉ 𝓥) a => 
             let (t,s) := v in 
-            let decl := C_Decl _gmp_t t s in <{ decl ; a}>
+            let decl := C_Decl t s in <{ decl ; a}>
     ) Skip vars.
 
 Definition INITS (vars : var_list) : gmp_statement := (* generates initialization *)
@@ -253,7 +253,7 @@ with translate_term (bindings : Γᵥ) (t_inf : type_inf) (e: ψ) (t : fsl_term)
 .
  
 (* translation of statements *)
-Fixpoint translate_c_statement (bindings : Γᵥ) (t_inf : type_inf) (env: ψ) (s : mini_c_fsl) : state := match s with
+Fixpoint translate_statement (bindings : Γᵥ) (t_inf : type_inf) (env: ψ) (s : fsl_statement) : state := match s with
     | S_Ext (LAssert p)  => 
         p_tr <- translate_predicate bindings t_inf env p ;;;
         let d := DECLS p_tr.(decls) in
@@ -264,16 +264,16 @@ Fixpoint translate_c_statement (bindings : Γᵥ) (t_inf : type_inf) (env: ψ) (
          <{ d ; i ;c ; asrt ; clr }>
         
     | Seq s1 s2  => 
-        s1_tr <- translate_c_statement bindings t_inf env s1 ;;
-        s2_tr <- translate_c_statement bindings t_inf env s2 ;;;
+        s1_tr <- translate_statement bindings t_inf env s1 ;;
+        s2_tr <- translate_statement bindings t_inf env s2 ;;;
 
         <{ s1_tr ; s2_tr }>
     | If e s1 s2 => 
-        s1_tr <- translate_c_statement bindings t_inf env s1 ;;
-        s2_tr <- translate_c_statement bindings t_inf env s2 ;;;
+        s1_tr <- translate_statement bindings t_inf env s1 ;;
+        s2_tr <- translate_statement bindings t_inf env s2 ;;;
         If e s1_tr s2_tr
     | While e b =>  
-        tr <- translate_c_statement bindings t_inf env b ;;; 
+        tr <- translate_statement bindings t_inf env b ;;; 
         While e tr
 
     | Assign id e => ret (Assign id e)
@@ -287,11 +287,8 @@ Fixpoint translate_c_statement (bindings : Γᵥ) (t_inf : type_inf) (env: ψ) (
 end.
 
 (*
-Definition translate_declarations (p: c_program) : c_program := 
-    let fix f (x:Z) := x 
-    
-    in 
-    mkPgrm p.(decls) p.(routines).
+
+Definition translate_declarations (p: fsl_pgrm) : rac_pgrm := (* todo *) mkPgrm _gmp_statement _gmp_t nil nil.
 
 
 Notation "ψ ⟦ f ⟧ env" := (translate ψ f env) (at level 10). 
@@ -318,7 +315,7 @@ Reserved Notation "Γ / ψ ⟦ p '⟧.code'" (at level 99). (* generated code *)
 
 
 
-rightswiggarrow ⇝
+(* rightswiggarrow ⇝ *)
 
 
 *)
