@@ -6,6 +6,7 @@ Open Scope Z_scope.
 
 Declare Scope definition_scope.
 Open Scope definition_scope.
+Delimit Scope definition_scope with def.
 
 Inductive _c_type {T:Set} := C_Int | Void | T_Ext (t:T).  (* program types τc *)
 Inductive _gmp_t := String | Mpz. 
@@ -39,12 +40,11 @@ with fsl_term :=
 
 Inductive fsl_type := FSL_Int | Integer. (* logic types *)
 
-Inductive mini_fsl := LAssert (p:predicate). (* logic assertion *)
+Inductive _fsl_statement := LAssert (p:predicate). (* logic assertion *)
 
-   
 
 (* mini-C *)
-Inductive _c_decl (T:Set) :=  C_Decl (type: @_c_type T) (name:id). (* program declaration *)
+Inductive _c_decl {T:Set} :=  C_Decl (type: @_c_type T) (name:id). (* program declaration *)
 
 Inductive c_binop_bool :=  C_Lt | C_Le | C_Gt | C_Ge | C_Eq | C_NEq.
 Definition c_binop_bool_model (x:c_binop_bool) : Z -> Z -> bool := match x with
@@ -115,9 +115,6 @@ Inductive _c_routine {S T : Set} :=
 .
 
 Record _c_program {S T : Set}:= mkPgrm { decls: @_c_decl T ⃰ ; routines: @_c_routine T S ⃰ }. 
-
-
-     
 (*  mini-GMP *)
 
 Inductive _gmp_statement := 
@@ -144,16 +141,21 @@ end.
 
 
 
-
-
 Definition c_exp := @_c_exp Empty_set.
 Definition c_statement := @_c_statement Empty_set Empty_set.
 
 Definition gmp_decl := @_c_decl _gmp_t.
-
 Definition gmp_exp := @_c_exp _gmp_t.
-Definition mini_c_fsl := @_c_statement mini_fsl _gmp_t.
+
+Definition fsl_statement := @_c_statement _fsl_statement _gmp_t.
 Definition gmp_statement := @_c_statement _gmp_statement _gmp_t.
+
+Definition fsl_pgrm := @_c_program _fsl_statement _gmp_t.
+Definition rac_pgrm := @_c_program _gmp_statement _gmp_t.
+
+
+
+
 
 
 (* ty the function that gives the type of a mini-GMP expression *)
@@ -165,6 +167,7 @@ Definition ty (e: gmp_exp) : gmp_t := match e with
     end.
 
 Declare Scope mini_c_scope.
+Delimit Scope mini_c_scope with c.
 Declare Custom Entry c_decl.
 Declare Custom Entry c_stmt.
 Declare Custom Entry c_exp.
@@ -220,6 +223,7 @@ Notation "c '<-' f args" := (FCall c f args) (in custom c_stmt at level 80, f at
 
 
 Declare Scope mini_gmp_scope.   
+Delimit Scope mini_gmp_scope with gmp.
 Declare Custom Entry gmp_stmt. 
 Notation "e" := e (in custom gmp_stmt at level 0,  e constr at level 0) : mini_c_scope.
 Notation "< s >" := s (at level 0, s custom gmp_stmt at level 99, format "< s >") : mini_gmp_scope.
@@ -300,7 +304,7 @@ Coercion T_Z : Z >-> fsl_term.
 Coercion VInt : Int.MI >-> 𝕍. 
 Coercion VMpz : location >-> 𝕍.
 Coercion gmp_s_ext (s:_gmp_statement) := S_Ext s (T:=_gmp_t).
-Coercion fsl_s_ext (s:mini_fsl) := S_Ext s (T:=_gmp_t).
+Coercion fsl_s_ext (s:_fsl_statement) := S_Ext s (T:=_gmp_t).
 Coercion gmp_t_ext (t:_gmp_t) : _c_type := T_Ext t.
 
 
@@ -320,18 +324,27 @@ Definition type_of_value : option 𝕍 -> option 𝔗 := fun v => match v with
 end.
 
 
-Fixpoint vars {T:Set} (exp : @_c_exp T) : list id := match exp with 
+Fixpoint exp_vars {T:Set} (exp : @_c_exp T) : list id := match exp with 
 | Zm z => nil
 | C_Id v _ => v::nil
-| BinOpInt le _ re | BinOpBool le _ re => (vars le) ++ (vars re)
+| BinOpInt le _ re | BinOpBool le _ re => exp_vars le ++ exp_vars re
+end.
+
+Fixpoint stmt_vars {T S:Set} (stmt : @_c_statement T S) : list id := match stmt with 
+| Skip => nil 
+| Assign var e => var::exp_vars e
+| FCall var f args => var::List.flat_map exp_vars args
+| PCall f args => List.flat_map exp_vars args
+| Seq s1 s2 =>  stmt_vars s1 ++ stmt_vars s2
+| If cond then_ else_ =>  exp_vars cond ++ stmt_vars then_ ++ stmt_vars else_
+| While cond s => exp_vars cond ++ stmt_vars s 
+| PAssert e => exp_vars e
+| Return e => exp_vars e
+| Decl (C_Decl ty id) => id::nil
+| S_Ext s => nil
 end.
 
 
-(* Inductive _c_exp {T : Set}  :=
-    | Zm (z : Z) (* machine integer *) (* can only be of type int *)
-    | C_Id (var : id) (ty : @_c_type T) (* variable access *) (* can be either int or mpz *)
-    | BinOpInt (le : _c_exp) (op:c_binop_int) (re : _c_exp) (* can only be of type int *)
-    | BinOpBool (le : _c_exp) (op:c_binop_bool) (re : _c_exp) (* can only be of type int *) *)
 Definition 𝓜 := location ⇀ ℤ. 
 
 From Coq Require Import Logic.FinFun.
@@ -475,6 +488,12 @@ Notation "( e , m ) ⊑ ( e' , m' )" :=  (
 
 
 
+Fact refl_env_mem_partial_order : forall e m, ( e , m ) ⊑ ( e , m ).
+Proof.
+    auto using refl_env_partial_order,refl_mem_partial_order.
+Qed.
+
+
 (* invariants for routine translation *)
 
 (* notations *)
@@ -534,7 +553,7 @@ Qed.
 
 
 
-Compute add_var_𝐴 (⊥,⊥) ⊥ nil.
+(* Compute add_var_𝐴 (⊥,⊥) ⊥ nil. *)
 
 Example envaddnil : add_var_𝐴 (⊥,⊥) ⊥ nil ((⊥,⊥), ⊥).
 Proof.

@@ -29,7 +29,7 @@ Definition fifteen := VInt (Int.mkMI 15 ir15).
 
 Definition funs  := ⊥{"test"\(["a";"b"] , <{ return ("b") }> : c_statement)} .
 
-Open Scope mini_c_decl_scope.
+(* Open Scope mini_c_decl_scope. *)
 (*
 Example test_decl : (⊥,⊥) ⋅ ⊥ |= <[ int "x" ]> => (⊥{"x"\UInt},⊥)  ⋅ ⊥.
 Proof.
@@ -51,13 +51,8 @@ mfrakA : 𝔄
 mbfscrA : 𝓐
 *)
 
-Open Scope c_stmt_sem_scope.
-Close Scope mini_gmp_scope.
-Close Scope gmp_stmt_sem_scope.
-Close Scope gmp_exp_sem_scope.
-Close Scope c_exp_sem_scope.
-Close Scope mini_c_decl_scope.
-Close Scope mini_gmp_scope.
+Open Scope c_sem_scope.
+Open Scope mini_gmp_scope.
 
 Example stmt_test :
     forall v l m,     
@@ -156,13 +151,13 @@ Close Scope Z_scope.
 
 (* monad *)
 Export CounterMonad.
-Compute (exec (n <- fresh ;;; n)).
+(* Compute (exec (n <- fresh ;;; n)). *)
 
 Fixpoint test (x:  list bool) : state := match x with
   | i::t => c <- (if i then fresh else ret 9) ;; let v := (i,c) in x <- test t ;;; v::x
   | nil => ret nil 
 end.
-Compute (exec (test (true::true::false::false::true::false::nil))).
+(* Compute (exec (test (true::true::false::false::true::false::nil))). *)
 
 
 Open Scope Z_scope.
@@ -182,7 +177,7 @@ Definition dummy_bindings : Γᵥ := ⊥.
 
 Definition dummy_defs : ψ := ⊥.
 
-Compute ( 
+(* Compute ( 
     exec (
         translate_c_statement dummy_bindings dummy_tinf dummy_defs 
         <{
@@ -191,4 +186,4 @@ Compute (
              "x" = 2  
         }>
     ) 
-).
+). *)
