@@ -427,9 +427,9 @@ Inductive env_partial_order (env env':Ω) (var:𝓥) : Prop :=
 | Enone : (fst env) var = None -> env_partial_order env env' var 
 .
 
-Inductive mems_partial_order (mem mem':𝓜) (n:nat) : Prop := 
-| Msame i : mem n = Some i ->  mem' n = Some i -> mems_partial_order mem mem' n
-| Mnone : mem n = None -> mems_partial_order mem mem' n
+Inductive mems_partial_order (mem mem':𝓜) (l:location) : Prop := 
+| Msame i : mem l = Some i ->  mem' l = Some i -> mems_partial_order mem mem' l
+| Mnone : mem l = None -> mems_partial_order mem mem' l
 . 
 
 
