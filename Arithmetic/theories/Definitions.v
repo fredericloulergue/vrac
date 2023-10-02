@@ -583,10 +583,23 @@ Proof.
  Qed.
  
  Fact antisym_mem_partial_order : forall env env' v, 
-    mems_partial_order env env' v /\ mems_partial_order env' env v -> env = env'.
-Proof.
-Admitted.
+    mems_partial_order env env' v /\ mems_partial_order env' env v -> (env v) = (env' v).
+ Proof.
+intros env env' v.   
+intros.
+destruct H.
+destruct H.
+rewrite <- H1 in H.
+assumption.
+destruct H0.
+rewrite <- H0 in H1.
+assumption.
 
+rewrite <- H0 in H.
+assumption. 
+ Qed.
+
+ 
 
 Notation "e ⊑ e'" := (forall v, env_partial_order e e' v) (at level 99) : definition_scope.
 
