@@ -542,17 +542,47 @@ Admitted.
 
 Fact refl_mem_partial_order : forall env v, mems_partial_order env env v.
 Proof.
-Admitted.
+  * intros env v.
+    remember (env v) as o.
+    destruct o. 
+    now apply Msame with z.
+    now apply Mnone.
+Qed.    
+    
+  
+    
 
 
 Fact trans_mem_partial_order : forall env env' env'' v, 
     mems_partial_order env env' v  /\ mems_partial_order env' env'' v ->
     mems_partial_order env env'' v.
 Proof.
-Admitted.
-
-
-Fact antisym_mem_partial_order : forall env env' v, 
+  intros env env' env'' v.
+  intros.
+  destruct H.
+  remember (env v) as o.
+  destruct o.
+  apply Msame with z.
+  symmetry.
+  assumption.
+  destruct H0.
+  destruct H.
+  rewrite H in Heqo.
+  rewrite <- H2 in Heqo.
+  rewrite H0 in Heqo.
+  rewrite <- H1 in Heqo.
+  symmetry.
+  assumption.
+  now rewrite H in Heqo.
+ destruct H.  
+ now rewrite H1 in H0.
+ now rewrite H in Heqo.
+ apply Mnone.
+ symmetry.
+ assumption.
+ Qed.
+ 
+ Fact antisym_mem_partial_order : forall env env' v, 
     mems_partial_order env env' v /\ mems_partial_order env' env v -> env = env'.
 Proof.
 Admitted.
