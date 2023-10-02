@@ -448,8 +448,89 @@ Fact trans_env_partial_order : forall env env' env'' v,
     env_partial_order env env' v  /\ env_partial_order env' env'' v ->
     env_partial_order env env'' v.
 Proof.
-    intros [v l] [v' l'] [v'' l''] var [H1 H2]. 
-Admitted.
+  (* intros + destruct *)
+  intros [v l] [v' l'] [v'' l''] var [H1 H2].
+  induction H1;
+    inversion H2;
+    try (rewrite H0 in H1;
+     inversion H1).
+  * injection H1 as eq.
+    rewrite eq in *.
+    apply EsameInt with n0; assumption.
+  * rewrite H5 in *.
+    apply EsameMpz with n0;assumption.
+  * destruct H0.
+    + rewrite H0 in H1.
+      inversion H1.
+    +  destruct H0 as [n0].
+        rewrite H0 in H1.
+      injection H1 as eq.
+      rewrite eq in *.
+      apply EundefInt; try assumption.
+      right.
+      now exists n.
+                 * destruct H0 as [HUint | HMi].
+                 + now rewrite HUint in H1.
+                 + destruct HMi.
+                   now rewrite H0 in H1.
+   * destruct H0 as [HUint | HMi].
+      ** now apply EundefInt.
+      ** destruct HMi as [n0].
+            now rewrite H0 in H1.
+   * destruct H0 as [HUint | Hen].
+      **  now rewrite HUint in H1.
+      ** destruct Hen as [n0].
+         now rewrite H0 in H1.
+   * destruct H0.
+     try (now rewrite H0 in H1).
+     destruct H0 as [n0].
+     now rewrite H0 in H1.
+   * destruct H0 as [HUmpz | Hloc].
+     ** now rewrite HUmpz in H1.
+     ** destruct Hloc as [n0].
+        now rewrite H0 in H1.
+   * destruct H0 as [HUmpz | Hloc].
+     ** now rewrite HUmpz in H1.
+     ** destruct Hloc as [n0].
+        rewrite H0 in H1.
+        injection H1 as eq.
+        subst.
+        apply EundefMpz.
+        assumption.
+        right.
+        exists n.
+        assumption.
+   *  destruct H0 as [HUmpz | Hloc].
+     ** now rewrite HUmpz in H1.
+     ** destruct Hloc as [n0].
+        now rewrite H0 in H1.
+
+   *  destruct H0 as [HUmpz | Hloc].
+      ** rewrite HUmpz in H1.
+         destruct H3 as [HUmpz' | Hloc'].
+         apply EundefMpz.
+         assumption.
+         left.
+         assumption.
+         apply EundefMpz.
+         assumption.
+         right.
+         assumption.
+      ** apply EundefMpz.
+         assumption.
+         assumption.
+   * destruct H0 as [HUmpz | Hloc].
+     try(now rewrite H0 in H1).
+     now rewrite HUmpz in H1.
+     destruct Hloc as [n0].
+     now rewrite H0 in H1.
+
+    * apply Enone. assumption.
+    * apply Enone. assumption.
+    * apply Enone. assumption.
+    * apply Enone. assumption.
+    * apply Enone. assumption.
+     Qed.
 
 
 Fact antisym_env_partial_order : forall env env' v, 
