@@ -16,9 +16,16 @@ Proof.
     intros. destruct H with v ; try assumption ; try rewrite H2 in H1 ; try injection H1 as Eq ; subst ; now try assumption.
 Qed.
 
+Corollary eq_env_partial_order_add :  forall e e' v v' z z',  e ⊑ e' ->  z <> UInt /\ z <> UMpz -> v <> v'-> (fst e) v = Some z -> ((fst e'){v'\z'}) v = Some z.
+Proof.
+    intros [v l] [v' l'] var var' z z' Hrel Hnundef Hneq H. 
+    pose proof (eq_env_partial_order (v,l) (v',l') var z Hrel Hnundef H).
+    pose proof (p_map_not_same v' var var' z' Hneq). simpl in *. congruence.
+Qed.
+
 
 Fact eq_mem_partial_order :  
-    forall mem mem' z l, mems_partial_order mem mem' l -> z <> None ->  
+    forall mem mem' z l, mems_partial_order l mem mem' -> z <> None ->  
     mem l = z ->  mem' l = z.
 Proof.
     intros. destruct H as [some_z Hl | Hmem]. 
@@ -26,46 +33,58 @@ Proof.
     - rewrite H1 in Hmem. now destruct H0.
 Qed.
 
-
-Fact env_partial_order_add : forall Ω₀ Ω₀' v , env_partial_order Ω₀ Ω₀' v -> 
-    (forall v' z, (* v <> v' -> *) env_partial_order (((fst Ω₀) {v' \ z}, snd Ω₀)) (((fst (Ω₀')) {v' \ z}, snd Ω₀')) v).
+Fact env_partial_order_add : forall Ω₀ Ω₀', Ω₀ ⊑ Ω₀' -> 
+    (forall var' z, (((fst Ω₀) {var' \ z}, snd Ω₀)) ⊑  (((fst (Ω₀')) {var' \ z}, snd Ω₀'))).
 Proof.
-    intros env env' v H v' z. 
-    - inversion H; unfold p_map ; simpl.
-    + subst. apply EsameInt with n ; simpl. 
-        ++ destruct (string_dec v' v). admit. assumption.
-        ++ destruct (string_dec v' v). admit. assumption.
-    + subst. apply EsameMpz with n ; simpl.
-        ++ destruct (string_dec v' v). admit. assumption.
-        ++ destruct (string_dec v' v). admit. assumption.
-    + apply EundefInt ;subst ;simpl.
-        ++ destruct (string_dec v' v). admit. assumption.
-        ++ destruct H1 as [ | [x Hint]].
-            +++ simpl. left. destruct (string_dec v' v). admit. assumption.
-            +++ simpl. right. exists x. destruct (string_dec v' v). admit. assumption.
-    + apply EundefMpz ; subst ; simpl.
-        ++  destruct (string_dec v' v). admit. assumption.
-        ++ destruct H1 as [ | [x Hint]].
-            +++ simpl. left. destruct (string_dec v' v). admit. assumption.
-            +++ simpl. right. exists x. destruct (string_dec v' v). admit. assumption.
-    + apply Enone; subst. simpl. destruct (string_dec v' v). admit. assumption.
-Admitted.
+    intros [v l][v' l'] H x z var. destruct (string_dec x var) as [Heq|Hneq].
+    - subst. simpl. specialize H with var. induction z. 
+        + apply EsameInt with n; apply p_map_same.
+        + apply EsameMpz with n ; apply p_map_same.
+        + apply EundefInt; simpl.
+            ++ apply p_map_same.
+            ++ left. apply p_map_same.
+        + apply EundefMpz ; simpl.
+            ++ apply p_map_same.
+            ++ left. apply p_map_same.
+    - apply not_eq_sym in Hneq. epose proof (p_map_not_same v var x ?[z] Hneq) as H0. simpl. remember (v var) as res. destruct res as [z'|]. induction z'.
+        + apply EsameInt with n ; simpl.
+            ++ apply H0.
+            ++ pose proof (p_map_not_same_eq v var x z (Some (VInt n)) Hneq ). destruct H1 as [H1 _]. specialize (H1 H0).
+                epose proof (eq_env_partial_order_add  _ _ _ _ _ _ H).  assert (VInt n <> UInt /\ VInt n <> UMpz) as Neq. easy.
+                specialize (H2 Neq Hneq H1). apply H2.
+        + apply EsameMpz with n; simpl.
+            ++ apply H0.
+            ++ pose proof (p_map_not_same_eq v var x z (Some (VMpz n)) Hneq ). destruct H1 as [H1 _]. specialize (H1 H0).
+                epose proof (eq_env_partial_order_add  _ _ _ _ _ _ H).  assert (VMpz n <> UInt /\ VMpz n <> UMpz) as Neq. easy.
+                specialize (H2 Neq Hneq H1). apply H2.
 
-Fact mems_partial_order_add : forall n M₀ M₀', mems_partial_order M₀ M₀' n -> 
-    (forall l mi, mems_partial_order ((M₀) {l \ mi}) ((M₀') {l \ mi}) n).
+        + apply EundefInt ;subst ;simpl.
+            ++ apply H0.
+            ++ destruct H with var ; pose proof (p_map_not_same_eq v' var x z) as Hres; simpl in *; try congruence.
+                +++ destruct H2.
+                    ++++ specialize (Hres  (Some UInt) Hneq). left. now apply Hres.
+                    ++++ destruct H2 as [x0]. specialize (Hres  (Some (VInt x0)) Hneq). right. exists x0. now apply Hres.
+
+        + apply EundefMpz ; subst ; simpl.
+            ++ apply H0.
+            ++ destruct H with var ; pose proof (p_map_not_same_eq v' var x z) as Hres; simpl in * ; try congruence.
+                +++ destruct H2.
+                    ++++ specialize (Hres  (Some UMpz) Hneq). left. now apply Hres.
+                    ++++ destruct H2 as [x0]. specialize (Hres  (Some (VMpz x0)) Hneq). right. exists x0. now apply Hres.
+        + now apply Enone.
+Qed.
+
+Fact mems_partial_order_add : forall n M₀ M₀', mems_partial_order n M₀ M₀' -> 
+    (forall l mi, mems_partial_order n ((M₀) {l \ mi}) ((M₀') {l \ mi})).
 Proof.
     intros. destruct Nat.eq_dec with n l as [eq | neq].
-    - inversion H ; unfold p_map.
-        * subst. apply Msame with mi; now destruct (eq_dec (fst (l, mi)) l).
-        * apply Msame with mi ; destruct (eq_dec (fst (l, mi)) n) ; try easy ; now destruct n0.  
+    - inversion H.
+        * subst. apply Msame with mi ; now apply p_map_same.
+        * apply Msame with mi ; subst ; now apply p_map_same.
 
     - inversion H ; subst.
-        * apply Msame with i.
-            + unfold p_map. destruct (eq_dec (fst (l, mi)) n).
-                ++ subst. contradiction.
-                ++ assumption.
-            + unfold p_map. destruct (eq_dec (fst (l, mi)) n). now destruct neq. assumption.
-        * apply Mnone.  unfold p_map. destruct (eq_dec (fst (l, mi)) n). now destruct neq. assumption.
+        * apply Msame with i;  now apply p_map_not_same_eq.
+        * apply Mnone. now apply p_map_not_same_eq.
 Qed.
 
 Fact env_same_ty : forall  (Ω Ω' : Ω) v t, Ω ⊑ Ω' -> t <> None -> type_of_value (fst Ω v) = t -> type_of_value (fst Ω' v) = t.
@@ -95,7 +114,7 @@ Lemma weakening_of_expression_semantics {T : Set} :
 Proof with (eauto using refl_env_mem_partial_order with rac_hint).
     split...
     - intro Hderiv. induction Hderiv; intros...
-        + constructor. now eapply eq_env_partial_order...
+        + constructor. eapply eq_env_partial_order... easy. easy.
         + constructor. specialize (H e env mem v). apply H...
 Qed.
 
@@ -115,10 +134,11 @@ Lemma _weakening_of_gmp_expression_semantics :
     _weakening_of_expression_semantics _gmp_exp_sem
 .
 Proof with (eauto using refl_env_partial_order, refl_mem_partial_order with rac_hint; try easy).
-    split... 
+    split.
     - intro H. inversion H. subst. intros. apply GMP_E_Var with z; destruct H2 as [relEnv memEnv]. 
         + eapply eq_env_partial_order...
         + specialize (memEnv l). eapply eq_mem_partial_order...
+    - intros. specialize H with env mem. now apply H.
 Qed.
 
 Definition weakening_of_gmp_expression_semantics := 
@@ -407,11 +427,9 @@ Proof with try easy.
     intros. generalize dependent Ω.  generalize dependent z. induction e ; intros.
     - inversion H0... constructor.
     - destruct ty ; inversion H0...
-        * constructor. simpl. subst. unfold p_map. simpl. apply Decidable.not_or_iff in H. destruct H as [H _]. 
-            destruct (string_dec x var)... now destruct H. 
+        * constructor. simpl. subst. apply Decidable.not_or_iff in H as [H _]. apply p_map_not_same_eq... 
         * destruct t... inversion H1. subst. constructor. apply GMP_E_Var with z0... simpl.
-            unfold p_map. simpl in *. apply Decidable.not_or_iff in H. destruct H as [H3 _].
-            destruct string_dec... subst. easy.
+            apply Decidable.not_or_iff in H as [H3 _]. apply p_map_not_same_eq... 
 
     - simpl in H.  rewrite List.in_app_iff in H. apply Decidable.not_or_iff in H. destruct H as [He1 He2].
         pose proof (IHe1 He1). pose proof (IHe2 He2). clear He1 He2 IHe1 IHe2. inversion H0... subst. 
@@ -436,7 +454,7 @@ Proof with try easy.
     - destruct ty; inversion H1 ; subst...
         * now constructor.
         * destruct t... inversion H2. subst. constructor. apply GMP_E_Var with z0... 
-            unfold p_map. simpl in *. apply Decidable.not_or_iff in H. destruct H as [H _].
+            apply Decidable.not_or_iff in H as [H _]. unfold p_map. simpl in *. 
             destruct Nat.eq_dec... subst. admit.
 
     - simpl in H.  rewrite List.in_app_iff in H. apply Decidable.not_or_iff in H. destruct H as [He1 He2].
@@ -645,14 +663,13 @@ Proof with eauto with rac_hint.
      + apply semantics_of_the_mpz_assgn_macro... apply same_eval_macro with v1...
      + apply S_Seq with Ω M{lr\zr,l2\z2,l1\z1}.
         * constructor. pose proof (p_map_not_same M{l1 \ z1}) l1 l2 z2 H4. apply S_op with l1 l2...
-            ** constructor. apply GMP_E_Var with z1...  rewrite H5.  unfold p_map. simpl. now destruct Nat.eq_dec.
+            ** constructor. apply GMP_E_Var with z1...  rewrite H5. apply p_map_same.
             ** unfold p_map. simpl. destruct Nat.eq_dec.
                 *** now destruct H4. 
                 *** now destruct Nat.eq_dec.
             ** constructor. apply GMP_E_Var with z2... unfold p_map. simpl. now destruct Nat.eq_dec...
-            ** unfold p_map. simpl. now destruct Nat.eq_dec.
-        * apply semantics_of_the_int_assgn_macro...  apply M_Mpz with lr ; try (constructor ; apply GMP_E_Var with zr ; try easy) ;
-        unfold p_map ; simpl ; now destruct Nat.eq_dec.
+            ** apply p_map_same.
+        * apply semantics_of_the_int_assgn_macro...  apply M_Mpz with lr ; try (constructor ; apply GMP_E_Var with zr ; try easy) ; apply p_map_same.
     }
     
     unfold binop_ASSGN. destruct (ty e1) eqn:T1, (ty e2) eqn:T2 ; try apply NotInt. clear NotInt.
@@ -689,11 +706,10 @@ Proof with eauto with rac_hint.
     - apply S_Seq with Ω M{l2\z2,l1\z1}. 
         * apply semantics_of_the_mpz_assgn_macro... apply same_eval_macro with v1...
         * constructor. pose proof (p_map_not_same M{l1 \ z1}) l1 l2 z2 H5.  apply S_op with l1 l2...
-            + constructor. apply GMP_E_Var with z1...  rewrite H2. 
-                unfold p_map. simpl. now destruct Nat.eq_dec.
+            + constructor. apply GMP_E_Var with z1... rewrite H2.  apply p_map_same.
             + rewrite H2.  unfold p_map. simpl. now destruct Nat.eq_dec.
             + constructor. apply GMP_E_Var with z2... unfold p_map. simpl. now destruct Nat.eq_dec.
-            + unfold p_map. simpl. now destruct Nat.eq_dec...
+            + apply p_map_same.
 Qed.
 
 (* Preservation of the semantics *)
