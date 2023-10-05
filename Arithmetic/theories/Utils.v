@@ -44,6 +44,21 @@ Proof.
     - easy.
 Qed.
 
+Corollary p_map_not_same_eq {X T : Type } `{EqDec X}: forall f (x x' : X) (v : T) (res : option T), x <> x' -> f{x'\v} x = res <-> f x = res.
+Proof.
+    split. 
+    - intro H1. now rewrite p_map_not_same in H1.
+    - intro H1.  erewrite <- p_map_not_same in H1.
+        + apply H1.
+        + assumption.
+Qed.
+
+
+Fact p_map_same {X T : Type } `{EqDec X}: forall f (x : X) (v : T), f{x\v} x = Some v.
+Proof.
+    intros. unfold p_map. simpl. now destruct eq_dec.
+Qed.
+
 
 
 
