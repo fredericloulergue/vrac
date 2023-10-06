@@ -490,9 +490,41 @@ Proof.
     now rewrite <- H in H0.
     destruct H2.
     ** now rewrite <- H0 in H2.
-    ** pose v.
-  
-Admitted.
+    ** destruct H1 as [n].
+       destruct H2 as [n1].
+       now rewrite H1 in H0.
+    ** destruct H1 as [n].
+       now rewrite H1 in H0.
+  * destruct H1.
+    ** now rewrite <- H in H1.
+    ** destruct H0.
+       *** now rewrite <- H2 in H0.
+       ***  now rewrite <- H2 in H0.
+       *** destruct H2.
+           now rewrite <- H2 in H0.
+           destruct H1.
+           destruct H2.
+           now rewrite H1 in H0.
+       *** destruct H2.
+           now rewrite <- H0 in H2.
+           now rewrite <- H in H0.
+       *** destruct H1.
+           now rewrite H1 in H0.
+  * destruct H0.
+    **  now rewrite <- H1 in H0.
+    **  now rewrite <- H1 in H0.
+    **  destruct H1.
+        *** now rewrite <- H1 in H0.
+        *** destruct H1.
+            now rewrite H in H1.
+    ** destruct H1.
+       ***  now rewrite <- H1 in H0.
+       *** destruct H1.
+           now rewrite H in H1.
+
+    **  now rewrite <- H in H0.
+Qed.
+
 
 
 #[global] Add Parametric Relation (v : 𝓥) : Ω (env_partial_order v)
