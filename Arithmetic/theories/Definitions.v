@@ -471,9 +471,27 @@ Proof.
     * now apply Enone.
 Qed.
 
-Fact antisym_env_partial_order : forall v, antisymmetric Ω (env_partial_order v).
+Fact antisym_env_partial_order : forall v env env',
+    env_partial_order v env' env /\ env_partial_order v env env' -> (fst env) v = (fst env') v.
+
 Proof.
-    intros var [v l] [v' l'] H1 H2.
+  intros v env env'.
+  intros.
+  destruct H.
+  destruct H.
+  * now rewrite <- H in H1.
+  * now rewrite <- H in H1.
+  * destruct H1.  now rewrite <- H in H1.
+    destruct H0.
+    now rewrite <- H0 in H2.
+    now rewrite <- H0 in H2.
+    destruct H2.
+    now rewrite <- H0 in H2.
+    now rewrite <- H in H0.
+    destruct H2.
+    ** now rewrite <- H0 in H2.
+    ** pose v.
+  
 Admitted.
 
 
