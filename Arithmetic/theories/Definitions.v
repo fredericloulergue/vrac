@@ -411,160 +411,100 @@ End Todo. *)
 Close Scope utils_scope.
 
 
-Inductive env_partial_order (var: 𝓥) (env env':Ω) : Prop :=
+Inductive param_env_partial_order (var: 𝓥) (env env':Ω) : Prop :=
 | EsameInt n : 
     (fst env) var = Some (VInt n)
     -> (fst env') var = Some (VInt n)
-    -> env_partial_order var env env'
+    -> param_env_partial_order var env env'
 | EsameMpz n : 
     (fst env) var = Some (VMpz n)
     -> (fst env') var = Some (VMpz n)
-    -> env_partial_order var env env'
+    -> param_env_partial_order var env env'
 | EundefInt : (fst env) var = Some UInt
     -> (fst env') var = Some UInt \/  (exists n, (fst env') var = Some (VInt n))
-    -> env_partial_order var env env'
+    -> param_env_partial_order var env env'
 | EundefMpz : (fst env) var = Some UMpz
     -> (fst env') var = Some UMpz \/  (exists n, (fst env') var = Some (VMpz n))
-    -> env_partial_order var env env'
-| Enone : (fst env) var = None -> env_partial_order var env env'.
-
-
-
-Inductive mems_partial_order (l:location) (mem mem':𝓜)  : Prop := 
-| Msame i : mem l = Some i ->  mem' l = Some i -> mems_partial_order l mem mem'
-| Mnone : mem l = None -> mems_partial_order l mem mem'
+    -> param_env_partial_order var env env'
+| Enone : (fst env) var = None -> param_env_partial_order var env env'
 .
 
-Notation "e ⊑ e'" := (forall v, env_partial_order v e e') : definition_scope.
+Definition env_partial_order env env' := forall v, param_env_partial_order v env env'.
+
+Definition mems_partial_order (mem mem':𝓜) : Prop := forall l i, mem l = Some i ->  mem' l = Some i.
+
+Infix "⊑" := env_partial_order : definition_scope.
 
 Notation "( e , m ) ⊑ ( e' , m' )" :=  (
-    (forall v, env_partial_order v e e')
-    /\
-    (forall n, mems_partial_order n m m')
+    env_partial_order e e' /\ mems_partial_order m m'
 
 ) : definition_scope.
 
-
-Fact refl_env_partial_order : forall (v:𝓥), reflexive Ω (env_partial_order v).
+Fact refl_env_partial_order : reflexive Ω env_partial_order.
 Proof.
-    intros var [v l]. remember (v var) as res. destruct res as [val |]. induction val.
-    - apply EsameInt with n; now rewrite Heqres.
-    - apply EsameMpz with n; now rewrite Heqres.
-    - apply EundefInt. now rewrite Heqres. left ; now rewrite Heqres.
-    - apply EundefMpz. now rewrite Heqres. left ; now rewrite Heqres.
-    - apply Enone. now rewrite Heqres.
+    intros [v l] var. destruct (v var) as [val |] eqn:res. induction val.
+    - now apply EsameInt with n.
+    - now apply EsameMpz with n.
+    - apply EundefInt; auto.
+    - apply EundefMpz; auto.
+    - apply Enone ; auto.
 Qed.
 
 
- Fact trans_env_partial_order :  forall v, transitive Ω (env_partial_order v).
+Fact trans_env_partial_order : transitive Ω env_partial_order.
 Proof.
-    (* intros + destruct *)
-    intros var [v l] [v' l'] [v'' l'']  H1 H2. destruct H1.
-    * apply EsameInt with n. easy. inversion H2; congruence.
+    intros  [v l] [v' l'] [v'' l'']  H1 H2 var. destruct H1 with var ; specialize (H2 var).
+    * apply EsameInt with n. easy. inversion H2 ; congruence.
     * apply EsameMpz with n ; inversion H2; congruence.
-    * apply EundefInt. easy. inversion H2 ; destruct H0 ; try congruence ; right; try (destruct H0 ; now rewrite H0 in H1). now exists n.
-    * apply EundefMpz. easy. inversion H2; destruct H0; try congruence. 
-        + destruct H0. congruence. 
-        + right. destruct H0. now exists n.
-        + destruct H0. congruence.
-        + destruct H0. congruence.
+    * apply EundefInt. easy.  inversion H2 ; destruct H0; eauto ; right ;  now rewrite H0 in H3 || (destruct H0 as [x]; exists x; now rewrite H0 in H3).
+    * apply EundefMpz. easy. inversion H2; destruct H0; try congruence || (destruct H0 ; congruence). right. destruct H0. now exists n.
     * now apply Enone.
 Qed.
 
-Fact antisym_env_partial_order : forall v env env',
-    env_partial_order v env' env /\ env_partial_order v env env' -> (fst env) v = (fst env') v.
+Fact antisym_env_partial_order : forall env env',
+    env_partial_order env' env /\ env_partial_order env env' -> forall v, (fst env) v = (fst env') v.
 
 Proof.
-  intros v env env'.
-  intros.
-  destruct H.
-  destruct H.
-  * now rewrite <- H in H1.
-  * now rewrite <- H in H1.
-  * destruct H1.  now rewrite <- H in H1.
-    destruct H0.
-    now rewrite <- H0 in H2.
-    now rewrite <- H0 in H2.
-    destruct H2.
-    now rewrite <- H0 in H2.
-    now rewrite <- H in H0.
-    destruct H2.
-    ** now rewrite <- H0 in H2.
-    ** destruct H1 as [n].
-       destruct H2 as [n1].
-       now rewrite H1 in H0.
-    ** destruct H1 as [n].
-       now rewrite H1 in H0.
-  * destruct H1.
-    ** now rewrite <- H in H1.
-    ** destruct H0.
-       *** now rewrite <- H2 in H0.
-       ***  now rewrite <- H2 in H0.
-       *** destruct H2.
-           now rewrite <- H2 in H0.
-           destruct H1.
-           destruct H2.
-           now rewrite H1 in H0.
-       *** destruct H2.
-           now rewrite <- H0 in H2.
-           now rewrite <- H in H0.
-       *** destruct H1.
-           now rewrite H1 in H0.
-  * destruct H0.
-    **  now rewrite <- H1 in H0.
-    **  now rewrite <- H1 in H0.
-    **  destruct H1.
-        *** now rewrite <- H1 in H0.
-        *** destruct H1.
-            now rewrite H in H1.
-    ** destruct H1.
-       ***  now rewrite <- H1 in H0.
-       *** destruct H1.
-           now rewrite H in H1.
-
-    **  now rewrite <- H in H0.
+    intros env env' [H1 H2] v. specialize (H1 v). inversion H1 ; try congruence.
+    - destruct H0 ; destruct H0;  destruct H2 with v; congruence.
+    - destruct H0 ; destruct H0;  destruct H2 with v; congruence.
+    - destruct H2 with v; destruct H0 ; try congruence  || (destruct H3; destruct H0 ; congruence).
 Qed.
 
 
 
-#[global] Add Parametric Relation (v : 𝓥) : Ω (env_partial_order v)
-    reflexivity proved by (refl_env_partial_order v) 
-    transitivity proved by (trans_env_partial_order v) as env.
+#[global] Add Relation Ω env_partial_order
+    reflexivity proved by refl_env_partial_order
+    transitivity proved by trans_env_partial_order as env.
 
 
-Fact refl_mem_partial_order : forall (l:location), reflexive 𝓜 (mems_partial_order l).
+Fact refl_mem_partial_order : reflexive 𝓜 mems_partial_order.
 Proof.
-  * intros l mem.
-    remember (mem l) as o. destruct o. 
-    now apply Msame with z.
-    now apply Mnone.
+    intros mem l. trivial. 
 Qed.    
 
-Fact trans_mem_partial_order : forall (l:location), transitive 𝓜 (mems_partial_order l).
+Fact trans_mem_partial_order : transitive 𝓜 mems_partial_order.
 Proof.
-    intros l mem mem' mem'' H1 H2. remember (mem l) as result. destruct result.
-    - apply Msame with z.
+    intros mem mem' mem'' H1 H2 l. destruct (mem l) eqn:L.
+    - erewrite H2 ; eauto. 
+    - discriminate.
+Qed.
+
+
+Fact antisym_mem_partial_order : forall mem mem', 
+    mems_partial_order mem mem' /\ mems_partial_order mem' mem -> forall l, mem l = mem' l.
+Proof.
+    intros mem mem' [H1 H2] l. destruct (mem l) eqn:Heqn.
+    - now apply H1 in Heqn.
+    - destruct (mem' l) eqn:Heqn'. apply H2 in Heqn'.
+        + congruence.
         + easy.
-        + destruct H1,H2 ; congruence.
-    - now apply Mnone.
 Qed.
 
 
-Fact antisym_mem_partial_order : forall l mem mem', 
-    mems_partial_order l mem mem' /\ mems_partial_order l mem' mem -> mem l = mem' l.
-Proof.
-    intros env env' v [H1 H2]. destruct H1 as [x Hsame | Hnone].
-    - now rewrite <- Hsame in H.
-    - destruct H2 as [x' Hsame | Hnone2] ; congruence.
-Qed.
-
-
-#[global] Add Parametric Relation (l : location) : 𝓜 (mems_partial_order l)
-    reflexivity proved by (refl_mem_partial_order l) 
-    transitivity proved by (trans_mem_partial_order l) as mem.
-
-
-
+#[global] Add Relation 𝓜 mems_partial_order
+    reflexivity proved by refl_mem_partial_order 
+    transitivity proved by trans_mem_partial_order as mem.
 
     
 Fact refl_env_mem_partial_order : forall e m, ( e , m ) ⊑ ( e , m ).

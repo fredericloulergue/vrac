@@ -16,6 +16,8 @@ Proof.
     intros. destruct H with v ; try assumption ; try rewrite H2 in H1 ; try injection H1 as Eq ; subst ; now try assumption.
 Qed.
 
+
+
 Corollary eq_env_partial_order_add :  forall e e' v v' z z',  e ⊑ e' ->  z <> UInt /\ z <> UMpz -> v <> v'-> (fst e) v = Some z -> ((fst e'){v'\z'}) v = Some z.
 Proof.
     intros [v l] [v' l'] var var' z z' Hrel Hnundef Hneq H. 
@@ -25,19 +27,21 @@ Qed.
 
 
 Fact eq_mem_partial_order :  
-    forall mem mem' z l, mems_partial_order l mem mem' -> z <> None ->  
+    forall mem mem' z l, mems_partial_order mem mem' -> z <> None ->  
     mem l = z ->  mem' l = z.
 Proof.
-    intros. destruct H as [some_z Hl | Hmem]. 
-    - subst.  now rewrite H,Hl.
-    - rewrite H1 in Hmem. now destruct H0.
+    intros. destruct z.
+    - edestruct H; eauto.
+    - contradiction.
 Qed.
+
+
 
 Fact env_partial_order_add : forall Ω₀ Ω₀', Ω₀ ⊑ Ω₀' -> 
     (forall var' z, (((fst Ω₀) {var' \ z}, snd Ω₀)) ⊑  (((fst (Ω₀')) {var' \ z}, snd Ω₀'))).
 Proof.
     intros [v l][v' l'] H x z var. destruct (string_dec x var) as [Heq|Hneq].
-    - subst. simpl. specialize H with var. induction z. 
+    - subst. simpl. specialize (H var). induction z. 
         + apply EsameInt with n; apply p_map_same.
         + apply EsameMpz with n ; apply p_map_same.
         + apply EundefInt; simpl.
@@ -74,18 +78,14 @@ Proof.
         + now apply Enone.
 Qed.
 
-Fact mems_partial_order_add : forall n M₀ M₀', mems_partial_order n M₀ M₀' -> 
-    (forall l mi, mems_partial_order n ((M₀) {l \ mi}) ((M₀') {l \ mi})).
+Fact mems_partial_order_add : forall M₀ M₀', mems_partial_order M₀ M₀' -> 
+    (forall l mi, mems_partial_order ((M₀) {l \ mi}) ((M₀') {l \ mi})).
 Proof.
-    intros. destruct Nat.eq_dec with n l as [eq | neq].
-    - inversion H.
-        * subst. apply Msame with mi ; now apply p_map_same.
-        * apply Msame with mi ; subst ; now apply p_map_same.
-
-    - inversion H ; subst.
-        * apply Msame with i;  now apply p_map_not_same_eq.
-        * apply Mnone. now apply p_map_not_same_eq.
+    intros mem mem' H l mi. intros l' i H1. destruct (Nat.eq_dec l' l).
+    - subst. pose proof (p_map_same mem l mi). rewrite H0 in H1. injection H1 as eq. subst.  apply p_map_same.
+    - pose proof (p_map_not_same mem l' l mi n). rewrite H0 in H1. apply p_map_not_same_eq ; auto.
 Qed.
+
 
 Fact env_same_ty : forall  (Ω Ω' : Ω) v t, Ω ⊑ Ω' -> t <> None -> type_of_value (fst Ω v) = t -> type_of_value (fst Ω' v) = t.
 Proof.
@@ -133,11 +133,11 @@ Open Scope gmp_sem_scope.
 Lemma _weakening_of_gmp_expression_semantics : 
     _weakening_of_expression_semantics _gmp_exp_sem
 .
-Proof with (eauto using refl_env_partial_order, refl_mem_partial_order with rac_hint; try easy).
+Proof with (eauto with rac_hint; try easy).
     split.
     - intro H. inversion H. subst. intros. apply GMP_E_Var with z; destruct H2 as [relEnv memEnv]. 
         + eapply eq_env_partial_order...
-        + specialize (memEnv l). eapply eq_mem_partial_order...
+        + eapply eq_mem_partial_order... 
     - intros. specialize H with env mem. now apply H.
 Qed.
 
@@ -146,7 +146,7 @@ Definition weakening_of_gmp_expression_semantics :=
 Close Scope gmp_sem_scope.
 
 
-Open Scope c_sem_scope.
+Open Scope generic_sem_scope.
 
 Definition _weakening_of_statement_semantics_1  {T S : Set} (stmt_sem : @stmt_sem_sig T S) := 
     forall Ω₀ M₀ s Ω₁ M₁,
@@ -161,17 +161,17 @@ Lemma weakening_of_statement_semantics_1 {T S : Set} :
     -> _weakening_of_statement_semantics_1 stmt_sem 
     -> _weakening_of_statement_semantics_1 (@generic_stmt_sem T S exp_sem stmt_sem)
 .
-Proof with eauto using refl_env_mem_partial_order with rac_hint.
+Proof with eauto using refl_env_mem_partial_order,env_partial_order_add with rac_hint.
     intros exp_sem stmt_sem Hext_exp Hext_stmt  Ω₀ M₀ s Ω₁ M₁. 
-    pose (weakening_of_expression_semantics exp_sem Hext_exp) as exp_weak. specialize exp_weak.
-    split. 
-    - intros Hderiv. induction Hderiv ; intros Ω₀' M₀' [Henv Hmem].
+    pose proof (weakening_of_expression_semantics exp_sem Hext_exp) as exp_weak.
+    split.
+    - intro Hderiv. induction Hderiv ; intros Ω₀' M₀' [Henv Hmem].
         (* skip *)
         * exists Ω₀',M₀'... 
         
         (* assign *) 
         * exists ((fst Ω₀') {x \ z}, (snd Ω₀')) , M₀'. split.
-            + split... pose env_partial_order_add...
+            + split...
             + apply S_Assign.
                 *** now apply env_same_ty with env. 
                 *** rewrite (exp_weak e) in H0. specialize (H0 Ω₀' M₀'). apply H0...
@@ -197,25 +197,27 @@ Proof with eauto using refl_env_mem_partial_order with rac_hint.
             destruct IHHderiv2 with I1env I1mem as [I2env [I2mem [I2Hrel I2Hderiv]]]... 
 
         (* f call *)
-        * destruct (IHHderiv  Ω₀' M₀') as [env_s [mem_s [[Henv2 Hmem2] Hderiv2]]]...
-            +  admit.
-            + exists ((fst  Ω₀') {c \ z}, snd  Ω₀'), mem_s. split.
-                ++ split... pose env_partial_order_add...
-                ++ econstructor...
+         * specialize IHHderiv with (p_map_addall (H:=eqdec_v) ⊥ xargs zargs, ⊥)  M₀'. destruct IHHderiv as [env_s [mem_s [Hrel Hderiv2]]].
+            + now split.
+            + eexists ?[env],?[mem]. split.
+                ++ instantiate (env:=((fst Ω₀') {c \ z}, snd Ω₀')). instantiate (mem:=mem_s (* or mem' ? *) ). split... easy. 
+                ++ eapply S_FCall with (resf:=resf)... 
+                    +++ epose proof (List.Forall2_impl (R1:=generic_exp_sem env mem) (generic_exp_sem Ω₀' M₀')) as Hforall. destruct Hforall with eargs zargs... intros.
+                        apply exp_weak with env mem...
                     +++ admit.
-                    +++ admit.
-
 
         (* p call *)
-        * destruct (IHHderiv  Ω₀' M₀') as [env_s [mem_s [[Henv2 Hmem2] Hderiv2]]]...
-            + admit.
-            + exists Ω₀', mem_s. split... econstructor...
-                +++ admit.
-                +++ admit.
+        * specialize IHHderiv with (p_map_addall (H:=eqdec_v) ⊥ xargs zargs, ⊥)  M₀'. destruct IHHderiv as [env_s [mem_s [Hrel Hderiv2]]].
+            + now split... 
+            + repeat eexists... 
+                ++ destruct Hrel...
+                ++ eapply S_PCall ...
+                +++ epose proof (List.Forall2_impl (R1:=generic_exp_sem env mem) (generic_exp_sem Ω₀' M₀')) as Hforall. destruct Hforall with eargs zargs... intros.
+                    apply exp_weak with env mem...
 
         (* return *)
         * exists ((fst Ω₀') {resf \ z}, snd Ω₀'), M₀'. split.
-            + split... pose env_partial_order_add...
+            + split...
             + apply S_Return... apply (exp_weak e env mem z)...
 
         (* assert *)
@@ -228,7 +230,7 @@ Proof with eauto using refl_env_mem_partial_order with rac_hint.
             exists env'',mem''... split...
             
     
-    -  intro H. induction s ; admit.
+    - intros H. destruct H with Ω₀ M₀ as [Ω₁' [M₁' [Hrel Hderiv ]]]...
 Admitted.
 
 
@@ -245,17 +247,17 @@ Qed.
 Lemma _weakening_of_gmp_statements_semantics : 
     _weakening_of_statement_semantics_1 _gmp_stmt_sem
 .
-Proof with eauto using eq_env_partial_order, eq_mem_partial_order,refl_env_mem_partial_order,refl_mem_partial_order with rac_hint ; try easy.
+Proof with eauto using eq_env_partial_order, eq_mem_partial_order,refl_env_mem_partial_order with rac_hint ; try easy.
     split.
     - intro Hderiv. induction Hderiv; intros Ω₀' M₀' [Henv Hmem] ;
         pose (fun y => weakening_of_gmp_expression_semantics y Ω₀ M₀) as weak_exp ; specialize weak_exp.  
 
         * exists Ω₀',(M₀') {a \ (z) ̇}. split.
-            + split... intro n. apply (mems_partial_order_add n M₀ M₀' (Hmem n) a (Int.to_z z)). 
+            + split... intro n. apply (mems_partial_order_add M₀ M₀' Hmem a (Int.to_z z)). 
             + apply S_set_i. eapply eq_env_partial_order... apply weak_exp...
 
         * exists Ω₀', M₀' {a \ z}. split.
-            + split... intro n0.  apply (mems_partial_order_add n0 M₀ M₀' (Hmem n0) a). 
+            + split... intro n0.  apply (mems_partial_order_add M₀ M₀' Hmem a). 
             + apply S_set_z with n.
                 ++ eapply eq_env_partial_order...
                 ++ eapply eq_env_partial_order...
@@ -263,10 +265,10 @@ Proof with eauto using eq_env_partial_order, eq_mem_partial_order,refl_env_mem_p
 
         * inversion H. subst. eexists (((fst Ω₀') {x \ VInt (Int.mkMI z  ir)}, snd Ω₀')), M₀'... split.
             + split... pose env_partial_order_add...
-            + apply S_get_int with v... apply weak_exp... apply eq_mem_partial_order with M₀...
+            + apply S_get_int with v... apply weak_exp...
         
         * exists Ω₀',M₀' {a \ z}. split. 
-            + split... intro n0. apply (mems_partial_order_add n0 M₀ M₀' (Hmem n0) a z). 
+            + split... apply (mems_partial_order_add M₀ M₀' Hmem a z). 
             + constructor... eapply eq_env_partial_order...
 
         * inversion H. inversion H4. inversion H0. inversion H11. subst. 
@@ -279,8 +281,6 @@ Proof with eauto using eq_env_partial_order, eq_mem_partial_order,refl_env_mem_p
                 + constructor. apply GMP_E_Var with z0.
                     ++ eapply eq_env_partial_order...
                     ++ apply (eq_mem_partial_order M₀ M₀')...
-                + apply (eq_mem_partial_order M₀ M₀')...
-                + apply (eq_mem_partial_order M₀ M₀')...
         
         * eexists Ω₀', M₀' {lr \ ⋄ (□ bop) z1 z2}. split.
             ** split... intro n. apply mems_partial_order_add...
@@ -306,50 +306,35 @@ Definition weakening_of_gmp_statements_semantics :=
 
 (* 2 *)
 
-Lemma weakening_of_statement_semantics_2 :
+
+Definition _weakening_of_statement_semantics_2  {T S : Set} (stmt_sem : @stmt_sem_sig T S) := 
     forall Ω₀ Ω₀' M₀ M₀' s Ω₁ M₁,
-    Ω₀ ⋅ M₀|= s => Ω₁ ⋅ M₁ /\ (Ω₀, M₀) ⊑ (Ω₀', M₀')  ->
+    stmt_sem Ω₀ M₀ s Ω₁ M₁ /\ (Ω₀, M₀) ⊑ (Ω₀', M₀')  ->
     (
         forall Ω₁' M₁',
-        Ω₀' ⋅ M₀' |= s => Ω₁' ⋅ M₁' ->
+        stmt_sem Ω₀' M₀' s Ω₁' M₁'->
         (forall (v:𝓥),v ∉ fst Ω₀ -> fst Ω₀' v = fst Ω₁' v) 
         /\
         (forall (x:location) (v:𝓥), (fst Ω₀ v) <> Some (VMpz x) -> M₀' x = M₁' x)
     ).
+    
+
+Lemma weakening_of_statement_semantics_2 {T S : Set} : 
+    forall exp_sem stmt_sem, 
+    _weakening_of_expression_semantics exp_sem
+    -> _weakening_of_statement_semantics_2 stmt_sem 
+    -> _weakening_of_statement_semantics_2 (@generic_stmt_sem T S exp_sem stmt_sem)
+.
 Proof with auto with rac_hint ; try contradiction.
-    intros Ω₀ Ω₀' M₀ M₀' s Ω₁ M₁ [Hderiv1 Hrel] Ω₁' M₁' Hderiv2. induction s; split ; intros ; inversion Hderiv2 ; subst...
-    (* assign env *)
-    - admit.
-    (* fcall env *)
-    - admit.
-    (* fcall mem *)
-    - admit.
-    (* pcall mem *)
-    - admit.
-    (* seq env *)
-    -admit.
-    (* seq mem *)
-    - admit.
-    (* if true env *)
-    - admit.
-    (* if false env *)
-    - admit.
-    (* if true mem *)
-    - admit.
-    (* if false mem *)
-    - admit.
-    (* while env *)
-    - admit.
-    (* while mem *)
-    - admit.
-    (* return env *)
-    - admit. 
+    intros exp_sem stmt_sem ext_exp_weak ext_stmt_weak Ω₀ Ω₀' M₀ M₀' s Ω₁ M₁ [Hderiv1 Hrel]. generalize dependent Ω₀'. generalize dependent M₀'. 
+    induction Hderiv1 ; intros M₀' Ω₀' Hrel Ω₁ M₁ Hderiv2.
 Admitted.
 
 
-Lemma weakening_of_statement_semantics_3 :
+(* 3 *)
+Definition _weakening_of_statement_semantics_3  {T S : Set} (stmt_sem : @stmt_sem_sig T S) := 
     forall Ω₀ M₀  s Ω₁ M₁,
-    Ω₀ ⋅ M₀|= s => Ω₁ ⋅ M₁ -> 
+    stmt_sem Ω₀ M₀ s Ω₁ M₁ -> 
     (
         forall Ω₀' M₀', (Ω₀', M₀') ⊑ (Ω₀, M₀) ->
         (
@@ -358,10 +343,18 @@ Lemma weakening_of_statement_semantics_3 :
             (forall x v, (dom M₀ - dom M₀') x -> (fst Ω₀) v = Some (VMpz x) /\ ~ List.In v (stmt_vars s))
         ) ->
 
-        exists Ω₁' M₁', Ω₀' ⋅ M₀' |= s => Ω₁' ⋅ M₁'
+        exists Ω₁' M₁', stmt_sem Ω₀' M₀' s Ω₁' M₁'
     ).
+
+Lemma weakening_of_statement_semantics_3 {T S : Set} : 
+    forall exp_sem stmt_sem, 
+    _weakening_of_expression_semantics exp_sem
+    -> _weakening_of_statement_semantics_3 stmt_sem 
+    -> _weakening_of_statement_semantics_3 (@generic_stmt_sem T S exp_sem stmt_sem)
+.
+
 Proof with auto with rac_hint.
-    intros Ω₀ M₀ s Ω₁ M₁ Hderiv Ω₀' M₀' Hrel [Henv Hmem].  induction Hderiv.
+    intros exp_sem stmt_sem ext_exp_weak ext_stmt_weak Ω₀ M₀ s Ω₁ M₁ Hderiv Ω₀' M₀' Hrel [Henv Hmem].  induction Hderiv.
     (* skip *)
     - exists Ω₀', M₀'. constructor.
     (* assign *)
@@ -382,8 +375,8 @@ Proof with auto with rac_hint.
     - admit.
     (* assert *)
     - admit.
-    (* no other case as there is no additional semantic *)
-    - contradiction.
+    (* other cases *)
+    - admit.
 Admitted.
 
 
