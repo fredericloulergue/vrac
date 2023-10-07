@@ -82,7 +82,7 @@ Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt
     | S_FCall (funs:𝓕) f (b: @_c_statement S T) (env' : Ω) mem' c xargs eargs (zargs : 𝕍 ⃰ ) resf z n : 
         List.length xargs = n /\ List.length eargs = n /\ List.length zargs = n ->
         funs f = Some (xargs,b) ->
-        List.Forall2 (fun e z =>  @generic_exp_sem T ext_exp env mem e z) eargs zargs ->
+        List.Forall2 (@generic_exp_sem T ext_exp env mem) eargs zargs ->
         ((p_map_addall ⊥ xargs zargs),⊥) ⋅ mem |= b => env' ⋅ mem' -> 
         (fst env') resf = Some z ->
         env ⋅ mem |= (FCall c f eargs) => ((fst env){c\z},(snd env)) ⋅ mem' 
@@ -90,7 +90,7 @@ Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt
     | S_PCall (procs:𝓟) p b (env' : Ω) mem' xargs eargs zargs n : 
         List.length xargs = n /\ List.length eargs = n /\ List.length zargs = n ->
         procs p = Some (xargs,b) ->
-        List.Forall2 (fun e z =>   @generic_exp_sem T ext_exp env mem e z) eargs zargs  ->
+        List.Forall2 (@generic_exp_sem T ext_exp env mem) eargs zargs ->
         ((p_map_addall ⊥ xargs zargs),⊥) ⋅ mem |= b => env'⋅ mem' ->
         env ⋅ mem |= PCall p eargs => env ⋅ mem' 
 
@@ -236,7 +236,7 @@ where "Ω ⋅ M '|=' e ⇝ z" := (macro_sem Ω M e z).
 #[global] Hint Constructors _gmp_stmt_sem  : rac_hint.
 
 
-#[global] Hint Constructors env_partial_order : rac_hint.
+#[global] Hint Constructors param_env_partial_order : rac_hint.
 #[global] Hint Constructors macro_sem : rac_hint.
 
 
