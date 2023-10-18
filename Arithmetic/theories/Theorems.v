@@ -81,7 +81,7 @@ Qed.
 Fact mems_partial_order_add : forall M₀ M₀', mems_partial_order M₀ M₀' -> 
     (forall l mi, mems_partial_order ((M₀) {l \ mi}) ((M₀') {l \ mi})).
 Proof.
-    intros mem mem' H l mi. intros l' i H1. destruct (Nat.eq_dec l' l).
+    intros mem mem' H l mi. intros l' i H1. destruct (loc_eq_dec l' l).
     - subst. pose proof (p_map_same mem l mi). rewrite H0 in H1. injection H1 as eq. subst.  apply p_map_same.
     - pose proof (p_map_not_same mem l' l mi n). rewrite H0 in H1. apply p_map_not_same_eq ; auto.
 Qed.
@@ -448,7 +448,7 @@ Proof with try easy.
         * now constructor.
         * destruct t... inversion H2. subst. constructor. apply GMP_E_Var with z0... 
             apply Decidable.not_or_iff in H as [H _]. unfold p_map. simpl in *. 
-            destruct Nat.eq_dec... subst. admit.
+            destruct loc_eq_dec... subst. admit.
 
     - simpl in H.  rewrite List.in_app_iff in H. apply Decidable.not_or_iff in H. destruct H as [He1 He2].
         pose proof (IHe1 He1). pose proof (IHe2 He2). clear He1 He2 IHe1 IHe2. inversion H1... subst. 
@@ -572,15 +572,15 @@ Proof with try easy ; auto with rac_hint ; unshelve eauto using Z.ltb_irrefl,Z.g
                 * subst. econstructor. apply same_eval_mem with v1... rewrite <- H5. apply p_map_not_same. admit.
             + constructor. apply S_cmp with (vx:=l1) (vy:=l2) (lx:=z1) (ly:=z2)...
                 * constructor. apply GMP_E_Var with z1. assumption. unfold p_map. simpl. 
-                    destruct (Nat.eq_dec l2 l1) as [Neq | Nneq]. 
+                    destruct (loc_eq_dec l2 l1) as [Neq | Nneq]. 
                         ** now destruct Hl1Notl2.
-                        ** now destruct (Nat.eq_dec l1 l1).
+                        ** now destruct (loc_eq_dec l1 l1).
                 * constructor. apply GMP_E_Var with z2. assumption. unfold p_map. simpl.
-                    now destruct (Nat.eq_dec l2 l2) as [Neq | Nneq].
-                *  unfold p_map. simpl. destruct (Nat.eq_dec l2 l1) as [Neq | Nneq].
+                    now destruct (loc_eq_dec l2 l2) as [Neq | Nneq].
+                *  unfold p_map. simpl. destruct (loc_eq_dec l2 l1) as [Neq | Nneq].
                     ** now destruct Hl1Notl2.
-                    ** now destruct (Nat.eq_dec l1 l1).
-                * unfold p_map. simpl. destruct (Nat.eq_dec l2 l1) as [Neq | Nneq] ;  now destruct (Nat.eq_dec l2 l2).
+                    ** now destruct (loc_eq_dec l1 l1).
+                * unfold p_map. simpl. destruct (loc_eq_dec l2 l1) as [Neq | Nneq] ;  now destruct (loc_eq_dec l2 l2).
     }
     
      unfold CMP. destruct (ty e1) eqn:T1, (ty e2) eqn:T2 ; try apply NotInt ; clear NotInt.
@@ -657,10 +657,10 @@ Proof with eauto with rac_hint.
      + apply S_Seq with Ω M{lr\zr,l2\z2,l1\z1}.
         * constructor. pose proof (p_map_not_same M{l1 \ z1}) l1 l2 z2 H4. apply S_op with l1 l2...
             ** constructor. apply GMP_E_Var with z1...  rewrite H5. apply p_map_same.
-            ** unfold p_map. simpl. destruct Nat.eq_dec.
+            ** unfold p_map. simpl. destruct loc_eq_dec.
                 *** now destruct H4. 
-                *** now destruct Nat.eq_dec.
-            ** constructor. apply GMP_E_Var with z2... unfold p_map. simpl. now destruct Nat.eq_dec...
+                *** now destruct loc_eq_dec.
+            ** constructor. apply GMP_E_Var with z2... unfold p_map. simpl. now destruct loc_eq_dec...
             ** apply p_map_same.
         * apply semantics_of_the_int_assgn_macro...  apply M_Mpz with lr ; try (constructor ; apply GMP_E_Var with zr ; try easy) ; apply p_map_same.
     }
@@ -700,8 +700,8 @@ Proof with eauto with rac_hint.
         * apply semantics_of_the_mpz_assgn_macro... apply same_eval_macro with v1...
         * constructor. pose proof (p_map_not_same M{l1 \ z1}) l1 l2 z2 H5.  apply S_op with l1 l2...
             + constructor. apply GMP_E_Var with z1... rewrite H2.  apply p_map_same.
-            + rewrite H2.  unfold p_map. simpl. now destruct Nat.eq_dec.
-            + constructor. apply GMP_E_Var with z2... unfold p_map. simpl. now destruct Nat.eq_dec.
+            + rewrite H2.  unfold p_map. simpl. now destruct loc_eq_dec.
+            + constructor. apply GMP_E_Var with z2... unfold p_map. simpl. now destruct loc_eq_dec.
             + apply p_map_same.
 Qed.
 

@@ -264,11 +264,21 @@ Module Int16Bounds.
     Definition M_int := 32767.
 End Int16Bounds.
 
-Definition location := nat.
+Definition location := option nat. (* None means null pointer *)
 Module Int := MachineInteger Int16Bounds.
 
+Fact loc_eq_dec : forall (n m : option nat), {n = m} + {n <> m}.
+Proof.
+intros.  destruct n as [n|],m as [m|].
+- destruct (Nat.eq_dec n m). 
+    +left. now f_equal.
+    + right. intro. now injection H.
+- now right.
+- now right.
+- now left.
+Qed.
 
-#[global] Instance location_eq_dec : EqDec location := {eq_dec := Nat.eq_dec}.
+#[global] Instance location_eq_dec : EqDec location := {eq_dec := loc_eq_dec}.
 
 Fact zeroinRange : Int.inRange 0.  now split. Qed.
 Fact oneinRange : Int.inRange 1. now split. Qed.
@@ -299,6 +309,7 @@ Qed.
     
 
 Coercion Zm : Z >-> _c_exp.
+Coercion int_option_loc (l:nat) :=  Some l.
 Coercion Decl : _c_decl >-> _c_statement.
 Coercion T_Id : id >-> fsl_term.
 Coercion T_Z : Z >-> fsl_term.
@@ -566,7 +577,7 @@ Proof.
    now constructor.
 Qed.
 
-Example add_var_mpz : add_var (⊥,⊥) ⊥ Mpz "y" 3  ((⊥{"y"\VMpz 1%nat},⊥), ⊥{1%nat\3}).
+Example add_var_mpz : add_var (⊥,⊥) ⊥ Mpz "y" 3  ((⊥{"y"\VMpz (Some 1%nat)},⊥), ⊥{(Some 1%nat)\3}).
 Proof.
     assert (ir3: Int.inRange 3). easy.
     now apply (typeMpz (⊥,⊥) ⊥ Mpz "y" 3 1%nat (Int.mkMI 3 ir3)).
@@ -583,7 +594,7 @@ Qed.
 
 Open Scope list.
 
-Example envaddone : add_var_𝐴 (⊥,⊥) ⊥ ((T_Ext Mpz, "y", 3)::nil) ((⊥{"y"\VMpz (S O)},⊥), ⊥{(S O)\3}).
+Example envaddone : add_var_𝐴 (⊥,⊥) ⊥ ((T_Ext Mpz, "y", 3)::nil) ((⊥{"y"\VMpz (Some (S O))},⊥), ⊥{Some ((S O))\3}).
 Proof.
     assert (ir3: Int.inRange 3). easy.
     eapply add_var_cons with (t:=Mpz) (v:="y") (z:=3).
