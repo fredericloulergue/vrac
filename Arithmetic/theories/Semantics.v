@@ -46,7 +46,10 @@ Inductive generic_exp_sem {T:Set} {ext_exp : @exp_sem_sig T} (env : Ω) (mem:�
     env ⋅ mem |= e' => (Int.mkMI z' z'_ir) -> 
     ((◁ op) z z' = false ) ->
     env ⋅ mem |= BinOpBool e op e' => zero
-| C_Ext e v:  ext_exp env mem e v -> env ⋅ mem |= e => v
+| C_Ext e v: 
+    match e with 
+    | Zm _  | C_Id _ C_Int | BinOpInt _ _ _ | BinOpBool _ _ _  => False 
+    | _ => True -> ext_exp env mem e v end -> env ⋅ mem |= e => v
 
 where  "Ω ⋅ M '|=' e => z" := (generic_exp_sem Ω M e z) : generic_sem_scope.
 
@@ -102,7 +105,11 @@ Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt
         @generic_exp_sem T ext_exp env mem e z -> z <>  zero ->
        env ⋅ mem |= <{ assert e }> => env ⋅ mem 
 
-    | S_Ext s env' mem' : ext_stmt env mem s env' mem' ->   env ⋅ mem |= s => env' ⋅ mem'
+    | S_Ext s env' mem' : 
+    match s with 
+    | <{skip}> | <{_ = _}> | <{ if _ _ else _}> | <{ while _ _ }> | <{ _ ; _ }> | FCall _ _ _ | PCall _ _ | <{ return _ }> | <{ assert _ }> 
+     => False
+    | _ => True -> ext_stmt env mem s env' mem' end ->   env ⋅ mem |= s => env' ⋅ mem' 
     
     where "Ω ⋅ M |= s => Ω' ⋅ M'"  := (generic_stmt_sem Ω M s Ω' M') : generic_sem_scope.
     

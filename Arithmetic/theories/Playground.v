@@ -143,7 +143,7 @@ Proof.
 Qed.
 
 Example test_dom : 2 ∉ (fun x => if x>?2 then Some (x*2) else None).
-Proof. now intros [x contra]. Qed.
+Proof. easy. Qed.
 
 
 

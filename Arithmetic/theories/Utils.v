@@ -2,6 +2,7 @@ From RAC Require Import Notations.
 From Coq Require Import ZArith.ZArith.
 From Coq Require Import Setoids.Setoid.
 From Coq Require Import Eqdep_dec. 
+From Coq Require Import Logic.FinFun.
 From Coq Require Import Strings.String.
 Open Scope string_scope.
 Open Scope Z_scope.
@@ -24,6 +25,12 @@ Class EqDec X :=
   eq_dec : forall (x y : X), {x = y} + {x <> y}
 }.
 
+Fact dec_neq_out_neq_in {X T : Type } `{EqDec X}: forall (f : X -> T) (x x' : X)  , f x <> f x' -> x <> x'.
+Proof.
+    intros. destruct H as [eq_dec]; destruct (eq_dec x x') ; subst ; easy.
+Qed.
+
+
 #[global] Instance z_eq_dec : EqDec Z := {eq_dec := Z.eq_dec}.
 
 
@@ -44,6 +51,9 @@ Proof.
     - easy.
 Qed.
 
+#[global] Hint Resolve p_map_not_same : rac_hint.
+
+
 Corollary p_map_not_same_eq {X T : Type } `{EqDec X}: forall f (x x' : X) (v : T) (res : option T), x <> x' -> f{x'\v} x = res <-> f x = res.
 Proof.
     split. 
@@ -53,20 +63,24 @@ Proof.
         + assumption.
 Qed.
 
+#[global] Hint Resolve p_map_not_same_eq : rac_hint.
+
 
 Fact p_map_same {X T : Type } `{EqDec X}: forall f (x : X) (v : T), f{x\v} x = Some v.
 Proof.
     intros. unfold p_map. simpl. now destruct eq_dec.
 Qed.
 
-
+#[global] Hint Resolve p_map_same : rac_hint.
 
 
 Definition in_domain { X Y : Type} (f: X ⇀ Y) (x:X) := exists y, (f x) = Some y.
+Definition not_in_domain { X Y : Type} (f: X ⇀ Y) (x:X) := forall y, (f x) <> Some y.
+
 
 Notation "'dom' f" := (in_domain f) : utils_scope.
 Notation "x ∈ E" := (in_domain E x) (at level 99) : utils_scope.
-Notation "x ∉ E" := (~ in_domain E x) (at level 99) : utils_scope.
+Notation "x ∉ E" := (not_in_domain E x) (at level 99) : utils_scope.
 
 
 Definition domain_incl { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) := forall (x:X), (dom1 x -> dom2 x).
