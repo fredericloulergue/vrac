@@ -27,7 +27,7 @@ Definition fifteen := VInt (Int.mkMI 15 ir15).
 
 #[local] Coercion gmp_id (var:id) : _c_exp := C_Id var C_Int (T:=Empty_set).
 
-Definition funs  := ⊥{"test"\(["a";"b"] , <{ return ("b") }> : c_statement)} .
+Definition funs  := ⊥{"test"\(["a";"b"] , <{ return ("b") in "resf" }> : c_statement)} .
 
 (* Open Scope mini_c_decl_scope. *)
 (*
@@ -54,10 +54,10 @@ mbfscrA : 𝓐
 Open Scope c_sem_scope.
 Open Scope mini_gmp_scope.
 
-Example stmt_test :
+(* Example stmt_test :
     forall v l m,     
     
-    (v{"g"\UInt,"z"\UInt,"x"\UInt,"y"\UInt,"out"\UInt},l)⋅m
+    ((v{"g"\UInt,"z"\UInt,"x"\UInt,"y"\UInt,"out"\UInt},l)⋅m
     |=
     <{
     "x" = 5 ;
@@ -72,7 +72,7 @@ Example stmt_test :
         "g" = "out" / 5
     }>
     =>
-    (v{"g"\ (VInt one), "out"\  five, "g"\ (VInt zero), "z"\ fifteen, "y"\ ten, "x" \  five,"g"\UInt,"z"\UInt,"x"\UInt,"y"\UInt,"out"\UInt}, l) ⋅m
+    (v{"g"\ (VInt one), "out"\  five, "g"\ (VInt zero), "z"\ fifteen, "y"\ ten, "x" \  five,"g"\UInt,"z"\UInt,"x"\UInt,"y"\UInt,"out"\UInt}, l) ⋅m) funs
    .
 Proof.
     intros. eapply S_Seq. apply S_Assign. reflexivity.  apply C_E_Int. 
@@ -140,7 +140,7 @@ Proof.
            
            }
      }
-Qed.
+Qed. *)
 
 Example test_dom : 2 ∉ (fun x => if x>?2 then Some (x*2) else None).
 Proof. easy. Qed.

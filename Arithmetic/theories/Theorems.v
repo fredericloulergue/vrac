@@ -9,12 +9,50 @@ From Coq Require Import ZArith.ZArith.
 Open Scope utils_scope.
 Open Scope definition_scope.
 
+
 (* Properties of the semantics *)
+
+Definition _no_env_mpz_aliasing (env : Ω) : Prop := forall v v' l l',  (fst env) v = Some (VMpz l)  /\ (fst env) v' = Some (VMpz l') -> l <> l'.
+
+Definition _no_mem_aliasing {S T : Set} (stmt_sem : @stmt_sem_sig S T)  : Prop := forall (exp_sem:@exp_sem_sig T)  funs procs env mem s env' mem', 
+    stmt_sem funs procs env mem s env' mem' -> _no_env_mpz_aliasing env -> _no_env_mpz_aliasing env'.
+
+Fact no_mem_aliasing_gen { S T : Set} : 
+    forall exp_sem stmt_sem, 
+    @_no_mem_aliasing S T stmt_sem ->  @_no_mem_aliasing S T (@generic_stmt_sem S T exp_sem stmt_sem).
+Proof with auto with rac_hint.
+    intros exp_sem stmt_sem H e funs procs env mem s env' mem' Hderiv Hnoalias. 
+    induction Hderiv ; auto ; intros v v' l l'[Hns1 Hns2] ; 
+     unfold _no_env_mpz_aliasing in Hnoalias ;specialize Hnoalias with v v' l l' ; apply Hnoalias ; simpl in *.
+Admitted.
 
 Fact eq_env_partial_order :  forall e e' v z, e ⊑ e' ->  z <> UInt /\ z <> UMpz -> (fst e) v = Some z -> (fst e') v = Some z.
 Proof.
     intros. destruct H with v ; try assumption ; try rewrite H2 in H1 ; try injection H1 as Eq ; subst ; now try assumption.
 Qed.
+
+Fact sym_env_cond : forall env env', 
+(forall v, (dom (fst env) - dom (fst env')) v ) -> (env ⊑ env') -> (env' ⊑ env).
+
+Proof.
+    intros env env' H rel v ; destruct H with v as [Hin Hnotin] ; destruct Hnotin ; destruct rel with v.
+    - now exists n. 
+    - now exists n. 
+    - destruct H1.
+        + now exists UInt. 
+        + destruct H1. now exists x. 
+    - destruct H1.
+        + now exists UMpz.
+        + destruct H1. now exists x.
+    - destruct Hin. destruct env. simpl in *. congruence.
+Qed.
+
+Corollary sym_env_cond_mem : forall (env : Ω) env' mem mem', 
+(forall v, (dom (fst env) - dom (fst env')) v ) -> (env,mem) ⊑ (env',mem') ->  (env',mem) ⊑ (env,mem').
+Proof.
+    intros. split. apply sym_env_cond ; easy. now destruct H0.
+Qed.
+
 
 
 
@@ -135,40 +173,55 @@ Qed.
 Definition determinist_gmp_exp_eval := determinist_exp_eval _gmp_exp_sem _determinist_gmp_exp_eval.
 
 
-(* todo : also prove statements are deterministic *)
-
 Definition _determinist_stmt_eval {S T : Set} (exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) : Prop := 
     @_determinist_exp_eval T exp_sem  -> 
-    forall s env mem env' mem',  stmt_sem env mem s env' mem' ->  (forall env'' mem'', stmt_sem env mem s env'' mem'' -> env' = env'' /\ mem' = mem'').
+    forall funs procs s env mem env' mem',  stmt_sem funs procs env mem s env' mem' ->  (forall env'' mem'', stmt_sem funs procs env mem s env'' mem'' -> env' = env'' /\ mem' = mem'').
 
+
+Fact Forall2_same_zargs { T : Set} : forall env mem eargs zargs zargs0  exp_sem, 
+    _determinist_exp_eval exp_sem
+    -> List.Forall2 (@generic_exp_sem T exp_sem env mem) eargs zargs 
+    -> List.Forall2 (@generic_exp_sem T exp_sem env mem) eargs zargs0 -> zargs = zargs0.
+Proof.
+    intros env mem eargs zargs zargs0 exp H  Hderiv. generalize dependent zargs0. induction Hderiv ; intros zargs0 H1.
+    - now inversion H1.
+    - destruct zargs0. inversion H1. apply List.Forall2_cons_iff in H1 as [H1 Hderiv2].
+        apply determinist_exp_eval in H0 ; [|assumption]. apply H0 in H1. subst. f_equal. clear H0.
+        now apply IHHderiv in Hderiv2.
+Qed.
 
 Fact determinist_stmt_eval {S T : Set}: 
-    forall exp_sem stmt_sem , @_determinist_stmt_eval S T exp_sem stmt_sem -> 
+    forall  exp_sem stmt_sem, 
+    @_determinist_stmt_eval S T exp_sem stmt_sem -> 
     _determinist_stmt_eval exp_sem (@generic_stmt_sem S T exp_sem stmt_sem).
-Proof with auto.
-    intros exp_sem stmt_sem Hds. unfold _determinist_stmt_eval. intros Hde s. induction s ; intros  ; inversion H ; inversion H0 ;  subst ; try easy. 
-    -  apply determinist_exp_eval in H6... apply H6 in H12. now subst.
-    - admit. (* need same function maps *)
-    - admit. (* need same predicate maps *)
-    - apply IHs1 with (env':=env'0)  (mem':=mem'0) in H9...
-        apply IHs2 with (env':=env')  (mem':=mem') in H12... destruct H9. now  subst.
-    - now apply IHs1 with (env':=env'')  (mem':=mem'') in H7...
-    - destruct H6. apply determinist_exp_eval in H1... apply H1 in H13. now subst.
-    - destruct H13. apply determinist_exp_eval in H6... apply H6 in H1. now subst.
-    - apply IHs2 with (env':=env')  (mem':=mem') in H14...
-    - inversion H5; inversion H10 ; subst ; try easy.
-        + inversion H8 ;  inversion H16 ; subst ; try easy.
-            apply IHs with (env':=env'1)  (mem':=mem'1) in H3 as [He hm]... subst. admit. (* not sure what the problem is *)
-        + destruct H7. apply determinist_exp_eval in H1... apply H1 in H15. now subst.
-        + destruct H15. apply determinist_exp_eval in H1... apply H1 in H7. now subst.
-        + inversion H8 ; inversion H16 ; now subst.
-    - split... apply determinist_exp_eval in H2... apply H2 in H6. subst. f_equal. f_equal. f_equal.  admit. (* same functions must use same return variable*)
-    - apply Hds in H1...
-Admitted.
+Proof with auto. 
+    intros exp_sem stmt_sem Hds Hde funs procs s env mem env' mem' Hderiv. induction Hderiv ; intros.
+    - inversion H... easy.
+    - inversion H1 ; subst. split... repeat f_equal. apply determinist_exp_eval in H0... easy.
+    - inversion H1 ; subst...  apply determinist_exp_eval in H7... destruct H. apply H7 in H. now symmetry in H. easy.
+    - inversion H1 ; subst... apply determinist_exp_eval in H... destruct H7. apply H in H2. now symmetry in H2. easy.
+    - inversion H0... easy.
+    - inversion H1 ; subst... apply IHHderiv in H4 as [Eq1 Eq2]. subst. apply IHHderiv0 in H7. now subst. easy.
+    - inversion H5 ; subst. 
+        + (* same args, same body *) 
+            rewrite H11 in H0. injection H0 as H0. subst.
+            (* same args eval *) 
+            assert (zargs = zargs0) by auto using (@Forall2_same_zargs T env mem eargs zargs zargs0 exp_sem). 
+            subst. apply IHHderiv in H15 as [Eq1 Eq2]. subst. rewrite H4 in H17. injection H17 as H17. now subst.
+        + easy.
+    - inversion H3...
+        + subst. split... rewrite H7 in H0. injection H0 as Eq1. subst. 
+            assert (zargs = zargs0) by auto using (@Forall2_same_zargs T env'' mem eargs zargs zargs0 exp_sem). subst. 
+            now apply IHHderiv in H11.
+        + easy.
+    - inversion H0 ; subst... apply determinist_exp_eval in H... apply H in H5. subst. now subst. easy.
+    - inversion H1... easy.
+    - destruct s; try easy. inversion H0. subst. unfold _determinist_stmt_eval in Hds. eapply Hds... apply H. apply H1.
+Qed.
 
 Fact _determinist_gmp_stmt_eval :  _determinist_stmt_eval _gmp_exp_sem _gmp_stmt_sem.
 Proof with auto.
-    intros Hde s. induction s ; intros ; inversion H ; inversion H0; subst ; split ; try easy ; try now destruct bop.
+    intros Hde funs procs s. induction s ; intros ; inversion H ; inversion H0; subst ; split ; try easy ; try now destruct bop.
     -  injection H6 as H6. subst. rewrite H2 in H7. apply determinist_gmp_exp_eval in H3. apply H3 in H8. congruence.
     - injection H7 as H7. subst.  congruence.
     - injection H6 as H6. subst. apply determinist_gmp_exp_eval in H2. apply H2 in H7. injection H7 as Eq2. subst. rewrite H3 in H8. 
@@ -242,21 +295,23 @@ Close Scope gmp_sem_scope.
 
 Open Scope generic_sem_scope.
 
-Definition _weakening_of_statement_semantics_1  {T S : Set} (stmt_sem : @stmt_sem_sig T S) := 
-    forall Ω₀ M₀ s Ω₁ M₁,
-    stmt_sem Ω₀ M₀ s Ω₁ M₁ <->
+Definition _weakening_of_statement_semantics_1  {S T : Set} (exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) := 
+    _weakening_of_expression_semantics exp_sem ->
+    _determinist_stmt_eval exp_sem stmt_sem -> 
+    forall (funs : @𝓕 S T) (procs : @𝓟 S T) Ω₀ M₀ s Ω₁ M₁,
+    stmt_sem funs procs Ω₀ M₀ s Ω₁ M₁ <->
     ( forall Ω₀' M₀', (Ω₀ , M₀) ⊑ (Ω₀', M₀') ->
-    exists Ω₁' M₁', (Ω₁ , M₁) ⊑ (Ω₁', M₁') /\ stmt_sem Ω₀' M₀' s Ω₁' M₁').
+    exists Ω₁' M₁', (Ω₁ , M₁) ⊑ (Ω₁', M₁') /\ stmt_sem funs procs Ω₀' M₀' s Ω₁' M₁').
     
 
-Lemma weakening_of_statement_semantics_1 {T S : Set} : 
+Lemma weakening_of_statement_semantics_1 {S T : Set} : 
     forall exp_sem stmt_sem, 
-    _weakening_of_expression_semantics exp_sem
-    -> _weakening_of_statement_semantics_1 stmt_sem 
-    -> _weakening_of_statement_semantics_1 (@generic_stmt_sem T S exp_sem stmt_sem)
+    _weakening_of_statement_semantics_1 exp_sem stmt_sem 
+    -> _determinist_stmt_eval exp_sem stmt_sem
+    -> _weakening_of_statement_semantics_1 exp_sem (@generic_stmt_sem S T exp_sem stmt_sem)
 .
 Proof with eauto using refl_env_mem_partial_order,env_partial_order_add with rac_hint.
-    intros exp_sem stmt_sem Hext_exp Hext_stmt  Ω₀ M₀ s Ω₁ M₁. 
+    intros exp_sem stmt_sem Hext_stmt Hext_d Hext_exp Hd funs procs Ω₀ M₀ s Ω₁ M₁. 
     pose proof (weakening_of_expression_semantics exp_sem Hext_exp) as exp_weak.
     split.
     - intro Hderiv. induction Hderiv ; intros Ω₀' M₀' [Henv Hmem].
@@ -287,18 +342,18 @@ Proof with eauto using refl_env_mem_partial_order,env_partial_order_add with rac
 
 
         (* c seq *)
-        *   destruct IHHderiv1 with Ω₀' M₀' as [I1env [I1mem [I1Hrel I1Hderiv]]]...
-            destruct IHHderiv2 with I1env I1mem as [I2env [I2mem [I2Hrel I2Hderiv]]]... 
+        *   destruct IHHderiv with Ω₀' M₀' as [I1env [I1mem [I1Hrel I1Hderiv]]]...
+            destruct IHHderiv0 with I1env I1mem as [I2env [I2mem [I2Hrel I2Hderiv]]]... 
 
         (* f call *)
          * specialize IHHderiv with (p_map_addall (H:=eqdec_v) ⊥ xargs zargs, ⊥)  M₀'. destruct IHHderiv as [env_s [mem_s [Hrel Hderiv2]]].
             + now split.
             + eexists ?[env],?[mem]. split.
-                ++ instantiate (env:=((fst Ω₀') {c \ z}, snd Ω₀')). instantiate (mem:=mem_s (* or mem' ? *) ). split... easy. 
-                ++ eapply S_FCall with (resf:=resf)... 
+                ++ instantiate (env:=((fst Ω₀') {c \ z}, snd Ω₀')). instantiate (mem:=mem_s). split... easy. 
+                ++ eapply S_FCall... 
                     +++ epose proof (List.Forall2_impl (R1:=generic_exp_sem env mem) (generic_exp_sem Ω₀' M₀')) as Hforall. destruct Hforall with eargs zargs... intros.
                         apply exp_weak with env mem...
-                    +++ admit.
+                    +++ admit . (* return value must be untouched because it isn't in the variables visible by the user *)
 
         (* p call *)
         * specialize IHHderiv with (p_map_addall (H:=eqdec_v) ⊥ xargs zargs, ⊥)  M₀'. destruct IHHderiv as [env_s [mem_s [Hrel Hderiv2]]].
@@ -319,28 +374,30 @@ Proof with eauto using refl_env_mem_partial_order,env_partial_order_add with rac
             apply (exp_weak e env mem z)...
 
         (* other cases *)
-        * unfold _weakening_of_statement_semantics_1 in *. specialize (Hext_stmt env mem s env' mem') .
-            destruct Hext_stmt as [Hext_stmt _]. destruct s...
-            apply Hext_stmt with Ω₀' M₀' in H. destruct H as [env'' [mem'' [Hrel2 Hderiv]]]... easy.      
-    - intros H. destruct H with Ω₀ M₀ as [Ω₁' [M₁' [Hrel Hderiv ]]]...
+        * unfold _weakening_of_statement_semantics_1 in *. specialize (Hext_stmt Hext_exp Hext_d funs procs env mem s env' mem').
+            destruct s... 
+            apply Hext_stmt with Ω₀' M₀' in H. destruct H as [env'' [mem'' [Hrel2 Hderiv]]]... easy.
+                
+    - intros H. specialize (H Ω₀ M₀ (refl_env_mem_partial_order Ω₀ M₀))...
+        destruct H as [Ω₁' [M₁' [Hrel Hderiv ]]]... (* ??? *) 
 Admitted.
 
 
-Fact _weakening_of_c_statements_semantics_1 : _weakening_of_statement_semantics_1 Empty_stmt_sem. 
+Fact _weakening_of_c_statements_semantics_1 : _weakening_of_statement_semantics_1 Empty_exp_sem Empty_stmt_sem. 
 Proof.
     unfold _weakening_of_statement_semantics_1. intros. split; unfold Empty_stmt_sem.
     - intros [].
-    - intro H. destruct H with Ω₀ M₀.
+    - intro H2. destruct H2 with Ω₀ M₀.
         + apply refl_env_mem_partial_order.
-        + destruct H0 as [_ [_ []]]. 
+        + destruct H1 as [_ [_ []]]. 
 Qed.
 
 
 Lemma _weakening_of_gmp_statements_semantics : 
-    _weakening_of_statement_semantics_1 _gmp_stmt_sem
+    _weakening_of_statement_semantics_1 _gmp_exp_sem _gmp_stmt_sem
 .
 Proof with eauto using eq_env_partial_order, eq_mem_partial_order,refl_env_mem_partial_order with rac_hint ; try easy.
-    split.
+    intros Hweak Hdet funs procs Ω₀ M₀ s Ω₁ M₁. split.
     - intro Hderiv. induction Hderiv; intros Ω₀' M₀' [Henv Hmem] ;
         pose (fun y => weakening_of_gmp_expression_semantics y Ω₀ M₀) as weak_exp ; specialize weak_exp.  
 
@@ -355,7 +412,7 @@ Proof with eauto using eq_env_partial_order, eq_mem_partial_order,refl_env_mem_p
                 ++ eapply eq_env_partial_order...
                 ++ apply (eq_mem_partial_order M₀ M₀')...
 
-        * inversion H. subst. eexists (((fst Ω₀') {x \ VInt (Int.mkMI z  ir)}, snd Ω₀')), M₀'... split.
+        * inversion H0. subst. eexists (((fst Ω₀') {x \ VInt (Int.mkMI z  ir)}, snd Ω₀')), M₀'... split.
             + split... pose env_partial_order_add...
             + apply S_get_int with v... apply weak_exp...
         
@@ -383,80 +440,81 @@ Proof with eauto using eq_env_partial_order, eq_mem_partial_order,refl_env_mem_p
             + apply (eq_mem_partial_order M₀ M₀')...
             + eapply eq_env_partial_order...
     
-    - intro H. induction s ; specialize H with Ω₀ M₀ ; destruct H as [env [mem [Hrel Hderiv]]]... induction Hderiv...
-        * admit.
-        * admit.
-        * admit.
-        * admit.
-        * admit.
+    - intro H. specialize (H Ω₀ M₀ (refl_env_mem_partial_order Ω₀ M₀))...
+        destruct H as [Ω₁' [M₁' [Hrel Hderiv ]]]... induction Hderiv.
+        + (* non sense ... *)
 Admitted.
 
 Definition weakening_of_gmp_statements_semantics := 
-    weakening_of_statement_semantics_1 _gmp_exp_sem _gmp_stmt_sem _weakening_of_gmp_expression_semantics _weakening_of_gmp_statements_semantics
-.
-
-
+    weakening_of_statement_semantics_1 _gmp_exp_sem _gmp_stmt_sem _weakening_of_gmp_statements_semantics.
 (* 2 *)
 
 
-Definition _weakening_of_statement_semantics_2  {T S : Set} (stmt_sem : @stmt_sem_sig T S) := 
-    forall Ω₀ Ω₀' M₀ M₀' s Ω₁ M₁,
-    stmt_sem Ω₀ M₀ s Ω₁ M₁ /\ (Ω₀, M₀) ⊑ (Ω₀', M₀')  ->
+Definition _weakening_of_statement_semantics_2  {S T : Set} (exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) := 
+    
+    forall (funs : @𝓕 S T) (procs : @𝓟 S T) Ω₀ Ω₀' M₀ M₀' s Ω₁ M₁,
+    _determinist_exp_eval exp_sem ->
+    _weakening_of_expression_semantics exp_sem ->
+    stmt_sem funs procs Ω₀ M₀ s Ω₁ M₁ /\ (Ω₀, M₀) ⊑ (Ω₀', M₀')  ->
     (
         forall Ω₁' M₁',
-        stmt_sem Ω₀' M₀' s Ω₁' M₁'->
+        stmt_sem funs procs Ω₀' M₀' s Ω₁' M₁'->
         (forall (v:𝓥),v ∉ fst Ω₀ -> fst Ω₀' v = fst Ω₁' v) 
         /\
         (forall (x:location) (v:𝓥), (fst Ω₀ v) <> Some (VMpz x) -> M₀' x = M₁' x)
     ).
     
 
-Lemma weakening_of_statement_semantics_2 {T S : Set} : 
+Lemma weakening_of_statement_semantics_2 {S T : Set} : 
     forall exp_sem stmt_sem, 
-    _determinist_exp_eval exp_sem ->
-    _weakening_of_expression_semantics exp_sem
-    -> _weakening_of_statement_semantics_2 stmt_sem 
-    -> _weakening_of_statement_semantics_2 (@generic_stmt_sem T S exp_sem stmt_sem)
+    _weakening_of_statement_semantics_2 exp_sem stmt_sem 
+    -> _weakening_of_statement_semantics_2 exp_sem (@generic_stmt_sem S T exp_sem stmt_sem)
 .
 Proof with auto with rac_hint.
-    intros exp_sem stmt_sem ext_exp_deter ext_exp_weak ext_stmt_weak Ω₀ Ω₀' M₀ M₀' s Ω₁ M₁ [Hderiv1 Hrel]. generalize dependent Ω₀'. generalize dependent M₀'. 
+    intros exp_sem stmt_sem ext_stmt_weak funs procs Ω₀ Ω₀' M₀ M₀' s Ω₁ M₁ ext_exp_deter ext_exp_weak  [Hderiv1 Hrel] Ω₁' M₁' Hderiv2 .
     pose proof (weakening_of_expression_semantics exp_sem ext_exp_weak) as exp_weak.
+    unfold _weakening_of_expression_semantics in exp_weak.
     unfold _weakening_of_statement_semantics_2 in ext_stmt_weak.
-    induction Hderiv1 ; intros M₀' Ω₀' Hrel Ω₁ M₁ Hderiv2 ; inversion Hderiv2 ; subst ; try easy...
+    
+    induction Hderiv1 ; inversion Hderiv2 ; subst ; try easy...
     
     (* assign *)
-    - admit.
-    
-    (* specialize ext_stmt_weak with (Ω₀:=env) (M₀:=mem) (Ω₁:= Ω₁) (M₁:=M₁). apply ext_stmt_weak in H. easy. split...   admit. *)
+    - split... simpl. intros. destruct (string_dec x v).
+        + exfalso.  subst. unfold "∉" in H1. destruct (fst env v).
+            ++ edestruct H1...
+            ++ discriminate H.
+        + symmetry. apply p_map_not_same...
 
     (* if false *)
     - apply IHHderiv1... destruct H. specialize (exp_weak e env mem z). rewrite exp_weak in H. specialize (H Ω₀' M₀' Hrel). 
-            apply determinist_exp_eval in H5. apply H5 in H. now subst. assumption.
+            apply determinist_exp_eval in H. apply H in H6. now subst. assumption.
 
     (* if true *)
-    -  destruct H5. specialize (exp_weak e env mem zero). rewrite exp_weak in H. specialize (H Ω₀' M₀' Hrel).
-            apply determinist_exp_eval in H0. apply H0 in H. now subst. assumption.
+    -  destruct H6. specialize (exp_weak e env mem zero). rewrite exp_weak in H. specialize (H Ω₀' M₀' Hrel).
+            apply determinist_exp_eval in H. apply H in H1. now subst. assumption.
 
     (* seq *)
-    - admit. 
+    - apply IHHderiv1... admit.
     (* fcall *)
     - admit.
     (* pcall *)
-    - admit.
+    - split... rewrite H6 in H0. injection H0 as H0. subst. admit.
 
     (* return *)
-    - unfold _weakening_of_expression_semantics in exp_weak. apply exp_weak with (env':=Ω₀') (mem' := M₁) in H... 
-            apply determinist_exp_eval in H... apply H in H1. split. intros. simpl. assert (v <> resf0). admit. symmetry. apply p_map_not_same... easy.
-     
+    - split ; intros... simpl. unfold "∉" in H0.  destruct (string_dec resf v).
+        + apply exp_weak with (env':=Ω₀') (mem':=M₁') in H...
+            apply determinist_exp_eval in H... apply H in H4. subst. admit. (* can't happen *)
+        +  symmetry. apply p_map_not_same...
+            
     (* assert *)
     - destruct s ; try easy. inversion Hderiv2. subst. eapply ext_stmt_weak with ( Ω₀:=env) ( M₀:=mem) (Ω₁:=env') (M₁:=mem') in H0...
 Admitted.
 
 
 (* 3 *)
-Definition _weakening_of_statement_semantics_3  {T S : Set} (stmt_sem : @stmt_sem_sig T S) := 
-    forall Ω₀ M₀  s Ω₁ M₁,
-    stmt_sem Ω₀ M₀ s Ω₁ M₁ -> 
+Definition _weakening_of_statement_semantics_3  {S T : Set} (stmt_sem : @stmt_sem_sig S T) := 
+    forall funs procs Ω₀ M₀  s Ω₁ M₁,
+    stmt_sem funs procs Ω₀ M₀ s Ω₁ M₁ -> 
     (
         forall Ω₀' M₀', (Ω₀', M₀') ⊑ (Ω₀, M₀) ->
         (
@@ -465,22 +523,25 @@ Definition _weakening_of_statement_semantics_3  {T S : Set} (stmt_sem : @stmt_se
             (forall x v, (dom M₀ - dom M₀') x -> (fst Ω₀) v = Some (VMpz x) /\ ~ List.In v (stmt_vars s))
         ) ->
 
-        exists Ω₁' M₁', stmt_sem Ω₀' M₀' s Ω₁' M₁'
+        exists Ω₁' M₁', stmt_sem funs procs Ω₀' M₀' s Ω₁' M₁'
     ).
 
-Lemma weakening_of_statement_semantics_3 {T S : Set} : 
+Lemma weakening_of_statement_semantics_3 {S T : Set} : 
     forall exp_sem stmt_sem, 
     _weakening_of_expression_semantics exp_sem
     -> _weakening_of_statement_semantics_3 stmt_sem 
-    -> _weakening_of_statement_semantics_3 (@generic_stmt_sem T S exp_sem stmt_sem)
+    -> _weakening_of_statement_semantics_3 (@generic_stmt_sem S T exp_sem stmt_sem)
 .
 
 Proof with auto with rac_hint.
-    intros exp_sem stmt_sem ext_exp_weak ext_stmt_weak Ω₀ M₀ s Ω₁ M₁ Hderiv Ω₀' M₀' Hrel [Henv Hmem].  induction Hderiv.
+    intros exp_sem stmt_sem ext_exp_weak ext_stmt_weak funs procs Ω₀ M₀ s Ω₁ M₁ Hderiv Ω₀' M₀' Hrel [Henv Hmem].  induction Hderiv.
     (* skip *)
     - exists Ω₀', M₀'. constructor.
     (* assign *)
-    - destruct Henv with x. destruct H1. destruct H3. admit.
+    - destruct Henv with x. destruct H1. exists ((fst Ω₀'){x\z}, snd  Ω₀'). exists  M₀'. constructor.
+        + apply env_same_ty with (Ω':=Ω₀') in H ; [easy|idtac|easy]. destruct Hrel ;  apply sym_env_cond ; [|easy].
+            intros v. destruct Henv with v... admit.
+        + unfold not in H2. simpl in H2. destruct H2...
     (* if true *)
     - admit.
     (* if false *)
@@ -496,7 +557,7 @@ Proof with auto with rac_hint.
     (* return *)
     - admit.
     (* assert *)
-    - admit.
+    - exists Ω₀'. exists M₀'. apply S_PAssert with z... admit.
     (* other cases *)
     - admit.
 Admitted.
@@ -593,14 +654,15 @@ Proof.
     * constructor. apply same_eval_mem with v ; assumption.
     * apply M_Mpz with l0. subst.
         + apply same_eval_mem with v ; assumption.
-        + subst. rewrite <- H3. apply p_map_not_same. admit. (* need to show there is no aliasing *)
+        + subst. rewrite <- H3. apply p_map_not_same. inversion H2. destruct e ; try easy. destruct ty ; try easy.
+            subst. inversion H4. subst. admit. (* need to show there is no aliasing *)
 Admitted.
 
 Lemma semantics_of_the_mpz_assgn_macro :
-    forall e z Ω M v (y:location),
+    forall funs procs e z Ω M v (y:location),
     Ω ⋅ M |= e ⇝ z ->
     (fst Ω) v = Some (VMpz y) ->
-    Ω ⋅ M |= (mpz_ASSGN v e) => Ω ⋅ M{y\z}
+    gmp_stmt_sem funs procs Ω M (mpz_ASSGN v e) Ω M{y\z} 
 .
 Proof.
     intros. 
@@ -620,10 +682,10 @@ Proof.
 Qed.
 
 Lemma semantics_of_the_int_assgn_macro :
-    forall e z (ir: Int.inRange z) Ω M v,
+    forall funs procs e z (ir: Int.inRange z) Ω M v,
     Ω ⋅ M |= e ⇝ z ->
     type_of_value ((fst Ω) v) = Some C_Int ->
-    Ω ⋅ M |= (int_ASSGN v e) => ((fst Ω){v\z ⁱⁿᵗ ir : 𝕍}, snd Ω) ⋅ M
+    gmp_stmt_sem funs procs Ω M (int_ASSGN v e) ((fst Ω){v\z ⁱⁿᵗ ir : 𝕍}, snd Ω)  M
 .
 Proof with eauto with rac_hint.
     intros. 
@@ -652,18 +714,18 @@ Proof with eauto with rac_hint.
 Admitted.
 
 Lemma semantics_of_the_Z_assgn_macro_tint :
-    forall z (ir: Int.inRange z) Ω M v,
+    forall funs procs z (ir: Int.inRange z) Ω M v,
     type_of_value ((fst Ω) v) = Some C_Int ->
-    Ω ⋅ M |= (Z_ASSGN C_Int v z) => ((fst Ω){v\z ⁱⁿᵗ ir : 𝕍}, snd Ω) ⋅ M
+    gmp_stmt_sem funs procs Ω M (Z_ASSGN C_Int v z) ((fst Ω){v\z ⁱⁿᵗ ir : 𝕍}, snd Ω) M
 .
 Proof.
     intros.  constructor ; auto with rac_hint.
 Qed.
 
 Lemma semantics_of_the_Z_assgn_macro_tmpz :
-    forall y (z:ℤ) Ω M v,
+    forall funs procs y (z:ℤ) Ω M v,
     (fst Ω) v = Some (VMpz y) ->
-    Ω ⋅ M |= (Z_ASSGN Mpz v z) => Ω ⋅ M{y\z}
+    gmp_stmt_sem funs procs Ω M (Z_ASSGN Mpz v z) Ω M{y\z}
 .
 Proof with auto using BinaryString.Z_of_of_Z.
     intros. simpl. constructor. apply S_set_s...
@@ -671,7 +733,7 @@ Qed.
 
 
 Lemma semantics_of_the_cmp_macro :
-    forall (Ω:Ω) (M:𝓜) c e1 e2 v1 v2 z1 z2 l1 l2 a,
+    forall funs procs (Ω:Ω) (M:𝓜) c e1 e2 v1 v2 z1 z2 l1 l2 a,
     type_of_value ((fst Ω) c) = Some C_Int ->
     Ω ⋅ M |= e1 ⇝ z1 ->
     Ω ⋅ M |= e2 ⇝ z2 ->
@@ -685,7 +747,7 @@ Lemma semantics_of_the_cmp_macro :
     ~ ((fst Ω) v1 = (fst Ω) v) /\ ~ ((fst Ω) v2 = (fst Ω) v)  -> M n = M' n) -> 
     ~ List.In v1 (exp_vars e2) ->  (* not in paper proof *)
     l1 <> l2 ->  (* not in paper proof *)
-    Ω ⋅ M |= (CMP c e1 e2 v1 v2) => ((fst Ω){c\a}, snd Ω) ⋅ M'
+    gmp_stmt_sem funs procs Ω M (CMP c e1 e2 v1 v2) ((fst Ω){c\a}, snd Ω) M'
     .
 
 Proof with try easy ; auto with rac_hint ; unshelve eauto using Z.ltb_irrefl,Z.gtb_ltb,Z.ltb_lt with rac_hint; auto with rac_hint.
@@ -698,7 +760,7 @@ Proof with try easy ; auto with rac_hint ; unshelve eauto using Z.ltb_irrefl,Z.g
         M n = M' n) ->
         ~ List.In v1 (exp_vars e2) ->  (* not in paper proof *)
         l1 <> l2 ->  (* not in paper proof *)
-        Ω ⋅ M |= <{(mpz_ASSGN v1 e1); (mpz_ASSGN v2 e2); <c = cmp (v1, v2)>}> => ((fst Ω) {c \ a}, snd Ω) ⋅ M'
+        gmp_stmt_sem funs procs Ω M <{(mpz_ASSGN v1 e1); (mpz_ASSGN v2 e2); <c = cmp (v1, v2)>}> ((fst Ω) {c \ a}, snd Ω)  M'
     ). {
         exists M{l2 \ z2, l1 \ z1}. intros VN Hv1NotIne2 Hl1Notl2.
         apply S_Seq with Ω M{l1\z1}.
@@ -750,7 +812,7 @@ Admitted.
 
 
 Lemma semantics_of_the_binop_macro_int :
-    forall (Ω:Ω) (M:𝓜) (op:fsl_binop_int) c r e1 e2 v1 v2 z1 z2 (ir: Int.inRange (⋄ (□ op) z1 z2) ) l1 l2 lr,
+    forall funs procs (Ω:Ω) (M:𝓜) (op:fsl_binop_int) c r e1 e2 v1 v2 z1 z2 (ir: Int.inRange (⋄ (□ op) z1 z2) ) l1 l2 lr,
     type_of_value ((fst Ω) c) = Some C_Int ->
     Ω ⋅ M |= e1 ⇝ z1 ->
     Ω ⋅ M |= e2 ⇝ z2 ->
@@ -761,7 +823,7 @@ Lemma semantics_of_the_binop_macro_int :
     ~ ((fst Ω) v1 = (fst Ω) v) /\ ~ ((fst Ω) v2 = (fst Ω) v)  -> M n = M' n) -> 
     ~ List.In v1 (exp_vars e2) -> (* not in paper proof *)
     l1 <> l2 -> (* not in paper proof *)
-    Ω ⋅ M |= (binop_ASSGN op (C_Int,c) e1 e2 r v1 v2) => ((fst Ω){c\zr ⁱⁿᵗ ir : 𝕍}, snd Ω) ⋅ M'
+    gmp_stmt_sem funs procs Ω M (binop_ASSGN op (C_Int,c) e1 e2 r v1 v2) ((fst Ω){c\zr ⁱⁿᵗ ir : 𝕍}, snd Ω) M'
     .
 
 Proof with eauto with rac_hint.
@@ -774,12 +836,12 @@ Proof with eauto with rac_hint.
         M n = M' n) ->
         ~ List.In v1 (exp_vars e2) -> (* not in paper proof *)
         l1 <> l2 -> (* not in paper proof *)
-        Ω ⋅ M |= <{
+        gmp_stmt_sem funs procs Ω M <{
             (mpz_ASSGN v1 e1);
             (mpz_ASSGN v2 e2);
             (Definitions.op op r v1 v2);
             (int_ASSGN c (C_Id r Mpz))
-        }> => ((fst Ω) {c \ zr ⁱⁿᵗ ir : 𝕍}, snd Ω) ⋅ M'
+        }> ((fst Ω) {c \ zr ⁱⁿᵗ ir : 𝕍}, snd Ω)  M'
     ). {
         exists M{lr\zr,l2\z2,l1\z1}. intros. 
     apply S_Seq with Ω M{l1\z1}. 
@@ -810,7 +872,7 @@ Admitted.
 
 
 Lemma semantics_of_the_binop_macro_mpz :
-    forall (Ω:Ω) (M:𝓜) (op:fsl_binop_int) c y r e1 e2 v1 v2 z1 z2 l1 l2,
+    forall funs procs (Ω:Ω) (M:𝓜) (op:fsl_binop_int) c y r e1 e2 v1 v2 z1 z2 l1 l2,
     type_of_value ((fst Ω) c) = Some C_Int ->
     Ω ⋅ M |= e1 ⇝ z1 ->
     Ω ⋅ M |= e2 ⇝ z2 ->
@@ -821,7 +883,7 @@ Lemma semantics_of_the_binop_macro_mpz :
     exists M', (forall v n, (fst Ω) v = Some (VMpz n) ->
     ~ ((fst Ω) v1 = (fst Ω) v) /\ ~ ((fst Ω) v2 = (fst Ω) v)  -> M n = M' n) -> 
     l1 <> l2 -> (* not in paper proof *)
-    Ω ⋅ M |= (binop_ASSGN op (T_Ext Mpz,c) e1 e2 r v1 v2) => Ω ⋅ M'{y\zr}
+    gmp_stmt_sem funs procs Ω M (binop_ASSGN op (T_Ext Mpz,c) e1 e2 r v1 v2) Ω  M'{y\zr}
     .
 Proof with eauto using p_map_same with rac_hint.
     intros. exists M{l2\z2,l1\z1}. intros. destruct H2 as (v1l & v2l & rl). unfold binop_ASSGN.
