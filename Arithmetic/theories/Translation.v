@@ -277,10 +277,10 @@ Fixpoint translate_statement (bindings : Γᵥ) (t_inf : type_inf) (env: ψ) (s 
         While e tr
 
     | Assign id e => ret (Assign id e)
-    | FCall x x1 x2 => ret (FCall x x1 x2)
+    | FCall x resf f args => ret (FCall x resf f args)
 
     | PAssert e => ret (PAssert e)
-    | Return e => ret (Return e)
+    | Return e resf => ret (Return e resf)
     | Decl d => ret (Decl d)
     | PCall id args => ret (PCall id args)
     | Skip => ret Skip

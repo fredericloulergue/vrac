@@ -98,13 +98,13 @@ Inductive _c_exp {T : Set}  :=
 Inductive _c_statement {S T : Set} :=
 | Skip (* empty statement *)
 | Assign (var:id) (e: @_c_exp T) (* assignment *)
-| FCall (var:string) (fname:string) (args: @_c_exp T ⃰) (* function call *)
+| FCall (var:id) (resf:id) (fname:string) (args: @_c_exp T ⃰) (* function call *)
 | PCall  (fname:string) (args: @_c_exp T ⃰) (* procedure call *)
 | Seq (s1 : _c_statement) (s2 : _c_statement) (* sequence *)
 | If (cond:@_c_exp T) (_then:_c_statement) (_else:_c_statement) (* conditional *)
 | While (cond:@_c_exp T) (body:_c_statement) (* loop *)
 | PAssert (e:@_c_exp T) (* program assertion *)
-| Return (e:@_c_exp T)
+| Return (e:@_c_exp T) (resf:id) 
 | Decl (d: @_c_decl T)
 | S_Ext (stmt:S)
 .
@@ -217,7 +217,7 @@ Notation "s1 ';' s2" := (Seq s1 s2) (in custom c_stmt at level 90, right associa
 Notation "x = y" := (Assign x y) (in custom c_stmt at level 0, x constr at level 0, y custom c_exp at level 85, no associativity) : mini_c_scope.
 Notation "'assert' e" := (PAssert e) (in custom c_stmt at level 0, e custom c_exp at level 99) : mini_c_scope.
 Notation "'while' e s" := (While e s) (in custom c_stmt at level 89, e custom c_exp at level 99, s at level 99) : mini_c_scope.
-Notation "'return' e" := (Return e) (in custom c_stmt at level 0, e custom c_exp at level 99) : mini_c_scope.
+Notation "'return' e 'in' v" := (Return e v) (in custom c_stmt at level 0, e custom c_exp at level 99, v constr at level 0) : mini_c_scope.
 
 Notation "f args" := (PCall f args) (in custom c_stmt at level 99, args custom c_args) : mini_c_scope.
 Notation "c '<-' f args" := (FCall c f args) (in custom c_stmt at level 80, f at next level, args custom c_args) : mini_c_scope.
@@ -345,16 +345,17 @@ end.
 Fixpoint stmt_vars {T S:Set} (stmt : @_c_statement T S) : list id := match stmt with 
 | Skip => nil 
 | Assign var e => var::exp_vars e
-| FCall var f args => var::List.flat_map exp_vars args
+| FCall var _resf f args => var::List.flat_map exp_vars args
 | PCall f args => List.flat_map exp_vars args
 | Seq s1 s2 =>  stmt_vars s1 ++ stmt_vars s2
 | If cond then_ else_ =>  exp_vars cond ++ stmt_vars then_ ++ stmt_vars else_
 | While cond s => exp_vars cond ++ stmt_vars s 
 | PAssert e => exp_vars e
-| Return e => exp_vars e
+| Return e _resf => exp_vars e (* resf is invisible to the user  *)
 | Decl (C_Decl ty id) => id::nil
 | S_Ext s => nil
 end.
+
 
 
 Definition 𝓜 := location ⇀ ℤ. 

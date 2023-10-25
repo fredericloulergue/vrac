@@ -20,9 +20,9 @@ Declare Scope fsl_sem_scope.
 
 
 Definition exp_sem_sig {T : Set} : Type := Ω -> 𝓜 -> @_c_exp T -> 𝕍 -> Prop.
-Definition stmt_sem_sig {S T: Set} : Type  :=  Ω -> 𝓜 -> @_c_statement S T ->  Ω -> 𝓜 -> Prop.
+Definition stmt_sem_sig {S T: Set} : Type  :=  @𝓕 S T -> @𝓟 S T-> Ω -> 𝓜 -> @_c_statement S T ->  Ω -> 𝓜 -> Prop.
 Definition Empty_exp_sem : @exp_sem_sig Empty_set := fun _ _ _  _ => False.
-Definition Empty_stmt_sem : @stmt_sem_sig Empty_set Empty_set := fun _ _ _  _ _ => False.
+Definition Empty_stmt_sem : @stmt_sem_sig Empty_set Empty_set := fun _ _ _  _ _ _ _ => False.
 
 
 (* extensible expression semantic *)
@@ -61,55 +61,56 @@ Notation "Ω |= e => v"  := (c_exp_sem Ω ⊥ e v) : c_sem_scope.
 Open Scope mini_c_scope.
 
 (* extensible statement semantic *)
-Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt_sem_sig S T} (env:Ω) (mem:𝓜) : @_c_statement S T -> Ω -> 𝓜 -> Prop := 
-    | S_skip  :  env ⋅ mem |= <{ skip }> => env ⋅ mem
+Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt_sem_sig S T} (funs:@𝓕 S T) (procs: @𝓟 S T) (env:Ω) (mem:𝓜) : @_c_statement S T -> Ω -> 𝓜 -> Prop := 
+    | S_skip  :  (env ⋅ mem |= <{ skip }> => env ⋅ mem) funs procs
     | S_Assign x z (e : @_c_exp T) : 
         type_of_value ((fst env) x) = Some C_Int ->
         @generic_exp_sem T ext_exp env mem e z -> 
-        env ⋅ mem |= <{x = e}> => ((fst env){x\z},snd env) ⋅ mem
+        (env ⋅ mem |= <{x = e}> => ((fst env){x\z},snd env) ⋅ mem) funs procs
     | S_IfTrue env' mem' z e s s' :
-       @generic_exp_sem T ext_exp env mem e z /\ ~ (z = zero) ->
-        env ⋅ mem  |= s => env' ⋅ mem' ->
-        env ⋅ mem  |= <{ if e s else s'}> => env' ⋅ mem'
+        @generic_exp_sem T ext_exp env mem e z /\ ~ (z = zero) ->
+        (env ⋅ mem  |= s => env' ⋅ mem') funs procs ->
+        (env ⋅ mem  |= <{ if e s else s'}> => env' ⋅ mem') funs procs
     | S_IfFalse env' mem' e s s' :
         @generic_exp_sem T ext_exp env mem e zero ->
-        env ⋅ mem |= s' => env' ⋅ mem' ->
-        env ⋅ mem |= <{ if e s else s'}> => env' ⋅ mem'
+        (env ⋅ mem |= s' => env' ⋅ mem') funs procs ->
+        (env ⋅ mem |= <{ if e s else s'}> => env' ⋅ mem') funs procs
     | S_While e s   env' mem' :
-         env ⋅ mem |= <{ if e s ; while e s else skip }> =>  env' ⋅ mem' ->
-         env ⋅ mem |= <{ while e s }> =>  env' ⋅ mem' 
+        (env ⋅ mem |= <{ if e s ; while e s else skip }> =>  env' ⋅ mem') funs procs ->
+        (env ⋅ mem |= <{ while e s }> =>  env' ⋅ mem') funs procs
     | S_Seq  env' mem' env'' mem'' s s' :
-        env ⋅ mem |= s => env' ⋅ mem' ->
-        env' ⋅ mem' |= s' => env'' ⋅ mem''->
-        env ⋅ mem |= <{ s ; s' }> =>  env'' ⋅ mem'' 
+        (env ⋅ mem |= s => env' ⋅ mem') funs procs ->
+        (env' ⋅ mem' |= s' => env'' ⋅ mem'') funs procs ->
+        (env ⋅ mem |= <{ s ; s' }> =>  env'' ⋅ mem'') funs procs
 
-    | S_FCall (funs:𝓕) f (b: @_c_statement S T) (env' : Ω) mem' c xargs eargs (zargs : 𝕍 ⃰ ) resf z n : 
-        List.length xargs = n /\ List.length eargs = n /\ List.length zargs = n ->
+    | S_FCall f (b: @_c_statement S T) (env' : Ω) mem' c xargs eargs (zargs : 𝕍 ⃰ ) resf z : 
+        List.length xargs = List.length eargs ->
         funs f = Some (xargs,b) ->
         List.Forall2 (@generic_exp_sem T ext_exp env mem) eargs zargs ->
-        ((p_map_addall ⊥ xargs zargs),⊥) ⋅ mem |= b => env' ⋅ mem' -> 
+        (((p_map_addall ⊥ xargs zargs),⊥) ⋅ mem |= b => env' ⋅ mem') funs procs -> 
+        ~ List.In resf (stmt_vars b) -> (**)
         (fst env') resf = Some z ->
-        env ⋅ mem |= (FCall c f eargs) => ((fst env){c\z},(snd env)) ⋅ mem' 
+        (env ⋅ mem |= (FCall c resf f eargs) => ((fst env){c\z},(snd env)) ⋅ mem') funs procs
 
-    | S_PCall (procs:𝓟) p b (env' : Ω) mem' xargs eargs zargs n : 
-        List.length xargs = n /\ List.length eargs = n /\ List.length zargs = n ->
+    | S_PCall p b (env' : Ω) mem' xargs eargs zargs : 
+        List.length xargs = List.length eargs ->
         procs p = Some (xargs,b) ->
         List.Forall2 (@generic_exp_sem T ext_exp env mem) eargs zargs ->
-        ((p_map_addall ⊥ xargs zargs),⊥) ⋅ mem |= b => env'⋅ mem' ->
-        env ⋅ mem |= PCall p eargs => env ⋅ mem' 
+        (((p_map_addall ⊥ xargs zargs),⊥) ⋅ mem |= b => env'⋅ mem') funs procs ->
+        (env ⋅ mem |= PCall p eargs => env ⋅ mem') funs procs
 
     | S_Return e z resf : 
-        @generic_exp_sem  T ext_exp env mem e z ->
-        env ⋅ mem |= <{ return e }> =>  ((fst env){resf\z},snd env)⋅ mem
+        @generic_exp_sem T ext_exp env mem e z ->
+        (env ⋅ mem |= <{ return e in resf }> =>  ((fst env){resf\z},snd env)⋅ mem) funs procs
 
     | S_PAssert  e z :
         @generic_exp_sem T ext_exp env mem e z -> z <>  zero ->
-       env ⋅ mem |= <{ assert e }> => env ⋅ mem 
+        (env ⋅ mem |= <{ assert e }> => env ⋅ mem) funs procs
 
     | S_Ext s env' mem' : 
-    match s with | S_Ext _ => ext_stmt env mem s env' mem' | _ => False end -> env ⋅ mem |= s => env' ⋅ mem' 
+    match s with | S_Ext _ => ext_stmt funs procs env mem s env' mem' | _ => False end -> (env ⋅ mem |= s => env' ⋅ mem') funs procs
     
-    where "Ω ⋅ M |= s => Ω' ⋅ M'"  := (generic_stmt_sem Ω M s Ω' M') : generic_sem_scope.
+    where "Ω ⋅ M |= s => Ω' ⋅ M'"  := (fun funs procs => generic_stmt_sem funs procs Ω M s Ω' M') : generic_sem_scope.
     
 
     Definition c_stmt_sem := @generic_stmt_sem Empty_set Empty_set Empty_exp_sem Empty_stmt_sem.
@@ -139,26 +140,26 @@ Notation "Ω ⋅ M '|=' e => z" := (gmp_exp_sem Ω M e z) : gmp_sem_scope.
 Open Scope gmp_sem_scope.
 Open Scope mini_gmp_scope.
 
-Inductive _gmp_stmt_sem (env:Ω) (mem:𝓜) : gmp_statement -> Ω -> 𝓜 -> Prop := 
+Inductive _gmp_stmt_sem { S T : Set }(funs : @𝓕 S T) (procs : @𝓟 S T) (env:Ω) (mem:𝓜) : gmp_statement -> Ω -> 𝓜 -> Prop := 
     | S_set_i x y z a :  
         (fst env) x = Some (VMpz a) ->
         env ⋅ mem |= y => VInt z ->
-        env ⋅ mem |= <set_i(x,y)> => env ⋅ mem{a\z ̇} 
+        (env ⋅ mem |= <set_i(x,y)> => env ⋅ mem{a\z ̇}) funs procs
 
     | S_set_z x y z (a n : location) :  
         (fst env) x = Some (VMpz a) ->
         (fst env) y = Some (VMpz n) ->
         mem n = Some z ->
-        env ⋅ mem |= <set_z(x,y)> => env ⋅ mem{a\z} 
+        (env ⋅ mem |= <set_z(x,y)> => env ⋅ mem{a\z}) funs procs 
     | S_get_int x (y:id) z v (ir:Int.inRange z) :
         env ⋅ mem |= C_Id y Mpz => VMpz v ->
         mem v = Some z -> 
-        env ⋅ mem |= <x = get_int(y)> => ((fst env){x\z ⁱⁿᵗ ir : 𝕍},(snd env)) ⋅ mem 
+        (env ⋅ mem |= <x = get_int(y)> => ((fst env){x\z ⁱⁿᵗ ir : 𝕍},(snd env)) ⋅ mem) funs procs
 
     | S_set_s s x z a :
         (fst env) x = Some (VMpz a) ->
         BinaryString.to_Z s = z ->
-        env ⋅ mem |= <set_s(x,s)> => env ⋅ mem{a\z} 
+        (env ⋅ mem |= <set_s(x,s)> => env ⋅ mem{a\z}) funs procs
 
     | S_cmp c x (vx vy :location) lx y ly (b:𝕍):
         env ⋅ mem |= C_Id x Mpz => vx ->
@@ -170,7 +171,7 @@ Inductive _gmp_stmt_sem (env:Ω) (mem:𝓜) : gmp_statement -> Ω -> 𝓜 -> Pro
             (Z.lt lx ly <-> b = sub_one) /\
             (Z.eq lx ly <-> b = zero)
         ) ->
-        env ⋅ mem |= <c = cmp(x,y)> => ((fst env){c\b}, snd env) ⋅ mem
+        (env ⋅ mem |= <c = cmp(x,y)> => ((fst env){c\b}, snd env) ⋅ mem) funs procs
     
     | S_op bop r lr x y (vx vy : location) z1 z2 :
         env ⋅ mem |= C_Id x Mpz => vx ->
@@ -178,9 +179,9 @@ Inductive _gmp_stmt_sem (env:Ω) (mem:𝓜) : gmp_statement -> Ω -> 𝓜 -> Pro
         env ⋅ mem |= C_Id y Mpz =>  vy ->
         mem vy = Some z2 -> 
         (fst env) r = Some (VMpz lr) ->
-        env ⋅ mem |= op bop r x y => env ⋅ mem{lr\(⋄ (□ bop) z1 z2) }
+        (env ⋅ mem |= op bop r x y => env ⋅ mem{lr\(⋄ (□ bop) z1 z2) }) funs procs
 
-where "Ω ⋅ M |= s => Ω' ⋅ M'"  := (_gmp_stmt_sem Ω M s Ω' M') : _gmp_stmt_sem_scope.
+where "Ω ⋅ M |= s => Ω' ⋅ M'"  := (fun funs procs => _gmp_stmt_sem funs procs Ω M s Ω' M') : _gmp_stmt_sem_scope.
 
 
 Definition gmp_stmt_sem := @generic_stmt_sem _gmp_statement _gmp_t gmp_exp_sem _gmp_stmt_sem.

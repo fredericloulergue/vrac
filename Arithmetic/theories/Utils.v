@@ -79,22 +79,31 @@ Definition not_in_domain { X Y : Type} (f: X ⇀ Y) (x:X) := forall y, (f x) <> 
 
 
 Notation "'dom' f" := (in_domain f) : utils_scope.
+
+#[global] Hint Unfold in_domain : rac_hint.
+
+
 Notation "x ∈ E" := (in_domain E x) (at level 99) : utils_scope.
 Notation "x ∉ E" := (not_in_domain E x) (at level 99) : utils_scope.
 
 
 Definition domain_incl { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) := forall (x:X), (dom1 x -> dom2 x).
 Infix "⊂" := domain_incl (at level 99) : utils_scope.
+#[global] Hint Unfold domain_incl : rac_hint.
 
 Definition eq_domain { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) := (dom1 ⊂ dom2) /\ (dom2 ⊂ dom1).
 Infix "=" := eq_domain : utils_scope.
+#[global] Hint Unfold eq_domain : rac_hint.
 
 
 Definition sub_domain { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) (x:X) := dom1 x /\ ~ dom2 x.
 Infix "-" := sub_domain : utils_scope.
+#[global] Hint Unfold sub_domain : rac_hint.
+
 
 Definition add_domain { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) (x:X) := dom1 x \/ dom2 x.
 Infix "+" := add_domain : utils_scope.
+#[global] Hint Unfold add_domain : rac_hint.
 
 
 
