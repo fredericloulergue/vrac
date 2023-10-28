@@ -12,18 +12,70 @@ Open Scope definition_scope.
 
 (* Properties of the semantics *)
 
-Definition _no_env_mpz_aliasing (env : Ω) : Prop := forall v v' l l',  (fst env) v = Some (VMpz l)  /\ (fst env) v' = Some (VMpz l') -> l <> l'.
 
-Definition _no_mem_aliasing {S T : Set} (stmt_sem : @stmt_sem_sig S T)  : Prop := forall (exp_sem:@exp_sem_sig T)  funs procs env mem s env' mem', 
-    stmt_sem funs procs env mem s env' mem' -> _no_env_mpz_aliasing env -> _no_env_mpz_aliasing env'.
 
-Fact no_mem_aliasing_gen { S T : Set} : 
+Definition _no_env_mpz_aliasing (env : Ω) : Prop := 
+    forall v v'  l l', (fst env) v = Some (VMpz l)  /\ (fst env) v' = Some (VMpz l') -> l <> l'.
+
+Definition _no_mem_aliasing {S T : Set} (stmt_sem : @stmt_sem_sig S T)  : Prop := 
+    forall (exp_sem:@exp_sem_sig T) funs procs env mem s env' mem', 
+    _no_env_mpz_aliasing env 
+    -> stmt_sem funs procs env mem s env' mem' 
+    -> _no_env_mpz_aliasing env'.
+
+
+Fact _no_mem_aliasing_gmp : _no_mem_aliasing _gmp_stmt_sem.
+Proof with auto with rac_hint.
+     intros exp_sem funs procs env mem s env' mem' Hnoalias H. induction H
+    ; auto ;  try (rename v into l1) ;
+    intros v v' l l' [Hl Hl'] leq ; subst ; simpl in *.
+    - destruct (string_dec x v').
+        ++ subst. rewrite p_map_same in Hl'. discriminate.
+        ++ rewrite p_map_not_same in Hl'... destruct (string_dec x v).
+            +++ subst. rewrite p_map_same in Hl... discriminate.
+            +++ rewrite p_map_not_same in Hl... destruct Hnoalias with v v' l' l'...
+    - assert (type_of_value (Some b) = Some C_Int). {
+        destruct H3 as [sup [inf eq]]. destruct (Z.lt_trichotomy lx ly) as [Hinf | [Heq | Hsup]].
+        + apply inf in Hinf. now subst.
+        + apply eq in Heq. now subst.
+        + apply Z.lt_gt in Hsup.  apply sup in Hsup. now subst. 
+        } 
+        destruct (string_dec c v').
+        ++ subst. rewrite p_map_same in Hl'. injection Hl' as Hl'. now subst. 
+        ++ rewrite p_map_not_same in Hl'... destruct (string_dec c v).
+            +++ subst. rewrite p_map_same in Hl. injection Hl as Hl. now subst.
+            +++ rewrite p_map_not_same in Hl... destruct Hnoalias with v v' l' l'...
+Qed.
+    
+
+Fact no_mem_aliasing { S T : Set} : 
     forall exp_sem stmt_sem, 
     @_no_mem_aliasing S T stmt_sem ->  @_no_mem_aliasing S T (@generic_stmt_sem S T exp_sem stmt_sem).
 Proof with auto with rac_hint.
-    intros exp_sem stmt_sem H e funs procs env mem s env' mem' Hderiv Hnoalias. 
-    induction Hderiv ; auto ; intros v v' l l'[Hns1 Hns2] ; 
-     unfold _no_env_mpz_aliasing in Hnoalias ;specialize Hnoalias with v v' l l' ; apply Hnoalias ; simpl in *.
+    intros exp_sem stmt_sem H e funs procs env mem s env' mem' Hnoalias Hderiv. induction Hderiv ; auto ;
+        intros v v' l l' [Hl Hl'] leq ; subst ; simpl in *.
+    - destruct (string_dec x v') .
+        + subst. rewrite p_map_same in Hl'. induction z ; try easy. injection Hl' as Hl'. subst.
+            destruct (string_dec v' v).
+            ++ subst. admit.
+            ++ rewrite p_map_not_same in Hl... admit.
+        (* 1-5 : destruct (string_dec x v') ;
+            [
+                subst ; now rewrite p_map_same in Hl' 
+                |
+                rewrite p_map_not_same in Hl' ; auto ;  destruct (string_dec x v) ;
+                [
+                    subst ; now rewrite p_map_same in Hl
+                    |
+                    rewrite p_map_not_same in Hl ; auto ; destruct Hnoalias with v v' l' l' ; auto
+                ]
+            ]. *)
+        + rewrite p_map_not_same in Hl'... destruct (string_dec x v).
+            ++ subst. rewrite p_map_same in Hl. admit.
+            ++ rewrite p_map_not_same in Hl... destruct Hnoalias with v v' l' l'...
+    - admit.
+    - admit.
+    - destruct s... apply H in H0... destruct H0 with v v' l' l'...
 Admitted.
 
 Fact eq_env_partial_order :  forall e e' v z, e ⊑ e' ->  z <> UInt /\ z <> UMpz -> (fst e) v = Some z -> (fst e') v = Some z.
@@ -619,44 +671,51 @@ Qed.
 
 
 Fact same_eval_mem : forall Ω M v l (e : gmp_exp)  z z', 
+    _no_env_mpz_aliasing Ω ->
     ~ List.In v (exp_vars e) ->
     (fst Ω) v = Some (VMpz l) ->
     Ω ⋅ M |= e => z ->
     Ω ⋅ (M) {l \ z'} |= e => z.
 
 Proof with try easy.
-    intros. generalize dependent Ω.  generalize dependent z. induction e ; intros.
-    - inversion H1... now apply C_E_Int.
-    - destruct ty; inversion H1 ; subst...
+    intros env mem v l e z z' Hnoalias Hvnotin Hmpz Hderiv. generalize dependent env.  generalize dependent z. induction e ; intros.
+    - inversion Hderiv... now apply C_E_Int.
+    - destruct ty; inversion Hderiv ; subst...
         * now constructor.
-        * destruct t... inversion H2. subst. constructor. apply GMP_E_Var with z0... 
-            apply Decidable.not_or_iff in H as [H _]. unfold p_map. simpl in *. 
-            destruct loc_eq_dec... subst. admit. (* need to show there is no aliasing *)
+        * destruct t... inversion H. subst. constructor. apply GMP_E_Var with z0... 
+            apply Decidable.not_or_iff in Hvnotin as [Hdiff _].  unfold p_map. simpl in *. 
+            destruct loc_eq_dec... subst. destruct Hnoalias with v var l0 l0... 
+            
+    - simpl in Hvnotin. rewrite List.in_app_iff in Hvnotin. apply Decidable.not_or_iff in Hvnotin. destruct Hvnotin as [He1 He2].
+        pose proof (IHe1 He1). pose proof (IHe2 He2). clear He1 He2 IHe1 IHe2. inversion Hderiv... subst. 
+        apply C_E_BinOpInt with z_ir z'_ir. now apply H. now apply H0.
 
-    - simpl in H.  rewrite List.in_app_iff in H. apply Decidable.not_or_iff in H. destruct H as [He1 He2].
-        pose proof (IHe1 He1). pose proof (IHe2 He2). clear He1 He2 IHe1 IHe2. inversion H1... subst. 
-        apply C_E_BinOpInt with z_ir z'_ir. now apply H. now apply H2.
-
-    -  simpl in H.  rewrite List.in_app_iff in H. apply Decidable.not_or_iff in H. destruct H as [He1 He2].
-        pose proof (IHe1 He1). pose proof (IHe2 He2). clear He1 He2 IHe1 IHe2. inversion H1 ; try easy ; subst.
-        * apply C_E_BinOpTrue with z0 z'0 z_ir z'_ir... now apply H. now apply H2.
-        * apply C_E_BinOpFalse with z0 z'0 z_ir z'_ir... now apply H. now apply H2.
-Admitted.
+    - simpl in Hvnotin.  rewrite List.in_app_iff in Hvnotin. apply Decidable.not_or_iff in Hvnotin. destruct Hvnotin as [He1 He2].
+        pose proof (IHe1 He1). pose proof (IHe2 He2). clear He1 He2 IHe1 IHe2. inversion Hderiv ; try easy ; subst.
+        * apply C_E_BinOpTrue with z0 z'0 z_ir z'_ir... now apply H. now apply H0.
+        * apply C_E_BinOpFalse with z0 z'0 z_ir z'_ir... now apply H. now apply H0.
+Qed.
 
 Corollary same_eval_macro :  forall Ω M v l e z z', 
+    _no_env_mpz_aliasing Ω ->
     ~ List.In v (exp_vars e) ->
     (fst Ω) v = Some (VMpz l) ->
     Ω ⋅ M |= e ⇝ z ->
     Ω ⋅ (M) {l \ z'} |= e ⇝ z.
 
 Proof.
-    intros. inversion H1.
+    intros. inversion H2.
     * constructor. apply same_eval_mem with v ; assumption.
     * apply M_Mpz with l0. subst.
         + apply same_eval_mem with v ; assumption.
-        + subst. rewrite <- H3. apply p_map_not_same. inversion H2. destruct e ; try easy. destruct ty ; try easy.
-            subst. inversion H4. subst. admit. (* need to show there is no aliasing *)
-Admitted.
+        + inversion H3. destruct e ; try easy. destruct ty ; try easy.
+            subst. inversion H6. subst. simpl in H0. apply Decidable.not_or_iff in H0 as [Hdiff _].
+            destruct (eq_dec l l0).
+            ++ subst. destruct H with v var l0 l0 ; easy.
+            ++ apply p_map_not_same_eq.
+                +++ easy.
+                +++ assumption. 
+Qed.
 
 Lemma semantics_of_the_mpz_assgn_macro :
     forall funs procs e z Ω M v (y:location),
@@ -734,6 +793,7 @@ Qed.
 
 Lemma semantics_of_the_cmp_macro :
     forall funs procs (Ω:Ω) (M:𝓜) c e1 e2 v1 v2 z1 z2 l1 l2 a,
+    _no_env_mpz_aliasing Ω ->
     type_of_value ((fst Ω) c) = Some C_Int ->
     Ω ⋅ M |= e1 ⇝ z1 ->
     Ω ⋅ M |= e2 ⇝ z2 ->
@@ -746,12 +806,11 @@ Lemma semantics_of_the_cmp_macro :
     exists M', (forall v n, (fst Ω) v = Some (VMpz n) ->
     ~ ((fst Ω) v1 = (fst Ω) v) /\ ~ ((fst Ω) v2 = (fst Ω) v)  -> M n = M' n) -> 
     ~ List.In v1 (exp_vars e2) ->  (* not in paper proof *)
-    l1 <> l2 ->  (* not in paper proof *)
     gmp_stmt_sem funs procs Ω M (CMP c e1 e2 v1 v2) ((fst Ω){c\a}, snd Ω) M'
     .
 
 Proof with try easy ; auto with rac_hint ; unshelve eauto using Z.ltb_irrefl,Z.gtb_ltb,Z.ltb_lt with rac_hint; auto with rac_hint.
-    intros. destruct H2 as (inf & eq & sup), H3.
+    intros funs procs Ω M c e1 e2 v1 v2 z1 z2 l1 l2 a Hnoalias H H0 H1 H2 H3. destruct H2 as (inf & eq & sup), H3.
     
     assert (NotInt : 
         exists M', (forall (v : 𝓥) n,
@@ -759,20 +818,28 @@ Proof with try easy ; auto with rac_hint ; unshelve eauto using Z.ltb_irrefl,Z.g
         fst Ω v1 <> fst Ω v /\ fst Ω v2 <> fst Ω v ->
         M n = M' n) ->
         ~ List.In v1 (exp_vars e2) ->  (* not in paper proof *)
-        l1 <> l2 ->  (* not in paper proof *)
         gmp_stmt_sem funs procs Ω M <{(mpz_ASSGN v1 e1); (mpz_ASSGN v2 e2); <c = cmp (v1, v2)>}> ((fst Ω) {c \ a}, snd Ω)  M'
     ). {
-        exists M{l2 \ z2, l1 \ z1}. intros VN Hv1NotIne2 Hl1Notl2.
+        exists M{l2 \ z2, l1 \ z1}. intros VN Hv1NotIne2.
         apply S_Seq with Ω M{l1\z1}.
         - apply semantics_of_the_mpz_assgn_macro...
         - apply S_Seq with Ω M{l2\z2,l1\z1}.  
             + apply semantics_of_the_mpz_assgn_macro... inversion H1.
                 * subst. constructor. apply same_eval_mem with v1...
-                * subst. econstructor. apply same_eval_mem with v1... rewrite <- H5. apply p_map_not_same. admit. (* need to show there is no aliasing *)
+                * subst. econstructor. apply same_eval_mem with v1...
+                    inversion H4. destruct e2 ; try easy. destruct ty ; try easy. subst. inversion H6. subst.
+                    destruct (eq_dec z1 z2).
+                    ** subst. destruct (eq_dec l1 l).
+                        *** subst...
+                        ***  apply p_map_not_same_eq...
+                    ** destruct (eq_dec l1 l).
+                        *** subst. simpl in Hv1NotIne2. apply Decidable.not_or_iff in Hv1NotIne2 as [Hv1NotIne2 _].
+                            destruct Hnoalias with var v1 l l...
+                        *** apply p_map_not_same_eq...
             + constructor. apply S_cmp with (vx:=l1) (vy:=l2) (lx:=z1) (ly:=z2)...
-                * constructor. apply GMP_E_Var with z1. assumption. apply p_map_not_same_eq ; [easy|apply p_map_same] .
-                * constructor. simpl. apply GMP_E_Var with z2. assumption. apply p_map_same.
-                * apply p_map_not_same_eq;[ easy|apply p_map_same].
+                * constructor. apply GMP_E_Var with z1... apply p_map_not_same_eq...
+                * constructor. simpl. apply GMP_E_Var with z2...
+                * apply p_map_not_same_eq... 
     }
     
      unfold CMP. destruct (ty e1) eqn:T1, (ty e2) eqn:T2 ; try apply NotInt ; clear NotInt.
@@ -785,7 +852,7 @@ Proof with try easy ; auto with rac_hint ; unshelve eauto using Z.ltb_irrefl,Z.g
                 | Contra : _gmp_exp_sem _ _ _ _ |- _ => inversion Contra ; now subst
                 end
             end.
-        exists M. intros _ _ _. destruct (Z.lt_trichotomy z1 z2) as [inf' | [ eq' | sup']].
+        exists M. intros _ _. destruct (Z.lt_trichotomy z1 z2) as [inf' | [ eq' | sup']].
         
         (* z1 < z2 *)
         * assert (cmp := inf'). apply <- inf in inf'. clear eq inf sup. rewrite <- H5, <-H7 in cmp.
@@ -813,6 +880,7 @@ Admitted.
 
 Lemma semantics_of_the_binop_macro_int :
     forall funs procs (Ω:Ω) (M:𝓜) (op:fsl_binop_int) c r e1 e2 v1 v2 z1 z2 (ir: Int.inRange (⋄ (□ op) z1 z2) ) l1 l2 lr,
+    _no_env_mpz_aliasing Ω ->
     type_of_value ((fst Ω) c) = Some C_Int ->
     Ω ⋅ M |= e1 ⇝ z1 ->
     Ω ⋅ M |= e2 ⇝ z2 ->
@@ -827,7 +895,7 @@ Lemma semantics_of_the_binop_macro_int :
     .
 
 Proof with eauto with rac_hint.
-    intros. destruct H2 as (v1l & v2l & rl).  
+    intros funs procs Ω M op c r e1 e2 v1 v2 z1 z2 ir l1 l2 lr Hnoalias H H0 H1 zr H2. destruct H2 as (v1l & v2l & rl).  
     assert (NotInt : 
         exists M',
         (forall (v : 𝓥) (n : location),
@@ -873,6 +941,7 @@ Admitted.
 
 Lemma semantics_of_the_binop_macro_mpz :
     forall funs procs (Ω:Ω) (M:𝓜) (op:fsl_binop_int) c y r e1 e2 v1 v2 z1 z2 l1 l2,
+    _no_env_mpz_aliasing Ω ->
     type_of_value ((fst Ω) c) = Some C_Int ->
     Ω ⋅ M |= e1 ⇝ z1 ->
     Ω ⋅ M |= e2 ⇝ z2 ->
@@ -886,7 +955,7 @@ Lemma semantics_of_the_binop_macro_mpz :
     gmp_stmt_sem funs procs Ω M (binop_ASSGN op (T_Ext Mpz,c) e1 e2 r v1 v2) Ω  M'{y\zr}
     .
 Proof with eauto using p_map_same with rac_hint.
-    intros. exists M{l2\z2,l1\z1}. intros. destruct H2 as (v1l & v2l & rl). unfold binop_ASSGN.
+    intros funs procs Ω M op c y r e1 e2 v1 v2 z1 z2 l1 l2 Hnoalias H H0 H1 zr H2 H3. exists M{l2\z2,l1\z1}. intros. destruct H2 as (v1l & v2l & rl). unfold binop_ASSGN.
     apply S_Seq with Ω M{l1\z1}.
     - apply semantics_of_the_mpz_assgn_macro...
     - apply S_Seq with Ω M{l2\z2,l1\z1}. 
