@@ -74,6 +74,13 @@ Qed.
 #[global] Hint Resolve p_map_same : rac_hint.
 
 
+
+Fact p_map_apply {X T T' : Type } `{EqDec X} : forall env (x :X)  (v : T) (f : option T -> T'),  f (env{x\v} x)  = f (Some v).
+Proof.
+    intros env x v f. f_equal. apply p_map_same.
+Qed. 
+
+
 Definition in_domain { X Y : Type} (f: X ⇀ Y) (x:X) := exists y, (f x) = Some y.
 Definition not_in_domain { X Y : Type} (f: X ⇀ Y) (x:X) := forall y, (f x) <> Some y.
 

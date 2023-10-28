@@ -185,7 +185,7 @@ where "Ω ⋅ M |= s => Ω' ⋅ M'"  := (fun funs procs => _gmp_stmt_sem funs pr
 
 
 Definition gmp_stmt_sem := @generic_stmt_sem _gmp_statement _gmp_t gmp_exp_sem _gmp_stmt_sem.
-Notation "Ω ⋅ M |= s => Ω' ⋅ M'"  := (gmp_stmt_sem Ω M s Ω' M') : gmp_sem_scope. 
+Notation "Ω ⋅ M |= s => Ω' ⋅ M'"  := (fun funs procs => gmp_stmt_sem funs procs Ω M s Ω' M') : gmp_sem_scope. 
 
 
 
