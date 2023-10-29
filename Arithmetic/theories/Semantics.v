@@ -46,11 +46,11 @@ Inductive generic_exp_sem {T:Set} {ext_exp : @exp_sem_sig T} (env : Ω) (mem:�
     env ⋅ mem |= e' => (Int.mkMI z' z'_ir) -> 
     ((◁ op) z z' = false ) ->
     env ⋅ mem |= BinOpBool e op e' => zero
-| C_Ext e v: 
-    match e with 
-    | C_Id _ t =>  match t with C_Int => False | _ => ext_exp env mem e v  end
-    | _ => False end 
-    -> env ⋅ mem |= e => v
+| C_Ext x v t: 
+    (* external semantic only allowed for variables not holding a value of type int *)
+    t <> C_Int ->
+    ext_exp env mem (C_Id x t) v  ->
+    env ⋅ mem |= (C_Id x t) => v
 
 where  "Ω ⋅ M '|=' e => z" := (generic_exp_sem Ω M e z) : generic_sem_scope.
 
@@ -107,8 +107,10 @@ Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt
         @generic_exp_sem T ext_exp env mem e z -> z <>  zero ->
         (env ⋅ mem |= <{ assert e }> => env ⋅ mem) funs procs
 
-    | S_Ext s env' mem' : 
-    match s with | S_Ext _ => ext_stmt funs procs env mem s env' mem' | _ => False end -> (env ⋅ mem |= s => env' ⋅ mem') funs procs
+    | S_ExtSem s env' mem' : 
+        (* only S_Ext constructor allowed to use external semantic*)
+        ext_stmt funs procs env mem (S_Ext s) env' mem' 
+        -> (env ⋅ mem |= (S_Ext s) => env' ⋅ mem') funs procs
     
     where "Ω ⋅ M |= s => Ω' ⋅ M'"  := (fun funs procs => generic_stmt_sem funs procs Ω M s Ω' M') : generic_sem_scope.
     
@@ -127,7 +129,7 @@ Notation "Ω ⋅ M |= d => Ω' ⋅ M'"  := (c_decl_sem Ω Ω' M M' d) : mini_c_d
 
 
 Inductive _gmp_exp_sem (env : Ω) (mem:𝓜) : gmp_exp -> 𝕍 -> Prop :=
-| GMP_E_Var (x:𝓥) l (z:Z) : 
+| GMP_E_Var (x:𝓥) (l:location) (z:mpz_val) : 
     (fst env) x = Some (VMpz l) -> 
     mem l = Some z ->
     _gmp_exp_sem env mem (C_Id x Mpz) (VMpz l)
@@ -141,31 +143,45 @@ Open Scope gmp_sem_scope.
 Open Scope mini_gmp_scope.
 
 Inductive _gmp_stmt_sem { S T : Set }(funs : @𝓕 S T) (procs : @𝓟 S T) (env:Ω) (mem:𝓜) : gmp_statement -> Ω -> 𝓜 -> Prop := 
+    | S_init x (l:location):
+        fresh_location mem l ->
+        (forall v, (fst env) v <> Some (VMpz (Some l))) ->
+        (exists n, (fst env) x = Some (UMpz n))%type ->
+        (env ⋅ mem |= <init(x)> => ((fst env){x\VMpz (Some l)}, snd env) ⋅ mem{l\Defined 0}) funs procs
+    
+    | S_clear x a z :   
+        (fst env) x = Some (VMpz (Some a)) ->   
+        (* added *)
+        mem a = Some (Defined z) ->   
+        (* cl is not deterministic unless the umpz value used is always the same *)
+        (env ⋅ mem |= <cl(x)> => ((fst env){x\(VMpz None)}, snd env) ⋅ mem{a\Undefined z}) funs procs
+
     | S_set_i x y z a :  
-        (fst env) x = Some (VMpz a) ->
+        (fst env) x = Some (VMpz (Some a)) ->
         env ⋅ mem |= y => VInt z ->
-        (env ⋅ mem |= <set_i(x,y)> => env ⋅ mem{a\z ̇}) funs procs
+        (env ⋅ mem |= <set_i(x,y)> => env ⋅ mem{a\Defined (z ̇)}) funs procs
 
     | S_set_z x y z (a n : location) :  
         (fst env) x = Some (VMpz a) ->
         (fst env) y = Some (VMpz n) ->
         mem n = Some z ->
         (env ⋅ mem |= <set_z(x,y)> => env ⋅ mem{a\z}) funs procs 
+
     | S_get_int x (y:id) z v (ir:Int.inRange z) :
-        env ⋅ mem |= C_Id y Mpz => VMpz v ->
-        mem v = Some z -> 
+        env ⋅ mem |= C_Id y Mpz => VMpz (Some v) ->
+        mem v = Some (Defined z) -> 
         (env ⋅ mem |= <x = get_int(y)> => ((fst env){x\z ⁱⁿᵗ ir : 𝕍},(snd env)) ⋅ mem) funs procs
 
     | S_set_s s x z a :
-        (fst env) x = Some (VMpz a) ->
+        (fst env) x = Some (VMpz (Some a)) ->
         BinaryString.to_Z s = z ->
-        (env ⋅ mem |= <set_s(x,s)> => env ⋅ mem{a\z}) funs procs
+        (env ⋅ mem |= <set_s(x,s)> => env ⋅ mem{a\Defined z}) funs procs
 
     | S_cmp c x (vx vy :location) lx y ly (b:𝕍):
         env ⋅ mem |= C_Id x Mpz => vx ->
-        env ⋅ mem |= C_Id y Mpz =>  vy ->
-        mem vx = Some lx ->
-        mem vy = Some ly ->
+        env ⋅ mem |= C_Id y Mpz => vy ->
+        mem vx = Some (Defined lx) ->
+        mem vy = Some (Defined ly) ->
         (
             (Z.gt lx ly <-> b = one) /\
             (Z.lt lx ly <-> b = sub_one) /\
@@ -175,46 +191,89 @@ Inductive _gmp_stmt_sem { S T : Set }(funs : @𝓕 S T) (procs : @𝓟 S T) (env
     
     | S_op bop r lr x y (vx vy : location) z1 z2 :
         env ⋅ mem |= C_Id x Mpz => vx ->
-        mem vx = Some z1 -> 
+        mem vx = Some (Defined z1) -> 
         env ⋅ mem |= C_Id y Mpz =>  vy ->
-        mem vy = Some z2 -> 
-        (fst env) r = Some (VMpz lr) ->
-        (env ⋅ mem |= op bop r x y => env ⋅ mem{lr\(⋄ (□ bop) z1 z2) }) funs procs
+        mem vy = Some (Defined z2) -> 
+        (fst env) r = Some (VMpz (Some lr)) ->
+        (env ⋅ mem |= op bop r x y => env ⋅ mem{lr\Defined (⋄ (□ bop) z1 z2) }) funs procs
 
 where "Ω ⋅ M |= s => Ω' ⋅ M'"  := (fun funs procs => _gmp_stmt_sem funs procs Ω M s Ω' M') : _gmp_stmt_sem_scope.
 
 
-Definition gmp_stmt_sem := @generic_stmt_sem _gmp_statement _gmp_t gmp_exp_sem _gmp_stmt_sem.
+Definition gmp_stmt_sem := @generic_stmt_sem _gmp_statement _gmp_t _gmp_exp_sem _gmp_stmt_sem.
 Notation "Ω ⋅ M |= s => Ω' ⋅ M'"  := (fun funs procs => gmp_stmt_sem funs procs Ω M s Ω' M') : gmp_sem_scope. 
 
 
+Inductive fsl_term_sem (env:Ω) : ℨ -> Z -> Prop :=
+| FSL_E_Int z : fsl_term_sem env (T_Z z) z 
+| FSL_E_LVar x z : (snd env) x = Some z -> fsl_term_sem env (T_Id x) z
+| FSL_E_Var x v : 
+    (fst env) v = Some (VInt x) ->  
+    fsl_term_sem env (T_Id v) x ̇
 
-(* TODO: finish mini-fsl semantic *)
-
-Inductive fsl_term_sem (env:Ω) : ℨ -> 𝕍 -> Prop :=
-| FSL_E_Int z : fsl_term_sem env z UMpz
-| FSL_E_LVar x z : (snd env) x = Some z -> fsl_term_sem env x UMpz
-| FSL_E_Var x v : (fst env) v = Some x ->  fsl_term_sem env v x
-(* | FSL_E_BinOpInt t t' z zint z' z'int op :  
-    values_int z = Some (Int zint) ->
-    values_int z' = Some (Int z'int) ->
+| FSL_E_BinOpInt t t' z zint z' z'int op :  
     fsl_term_sem env t z ->
     fsl_term_sem env t' z' ->
-    , (op = FSL_Div /\ zint = (Int (mkMI 0 zeroinRange))) ->
-    fsl_term_sem env (T_BinOp t op t') ((fsl_binop_int_model op) zint z'int) *)
+    ~ (op = FSL_Div /\ z = 0)%type ->
+    fsl_term_sem env (T_BinOp t op t') ((fsl_binop_int_model op) zint z'int)
+
+| FSL_E_CondTrue p t z t':
+    fsl_pred_sem env p BTrue ->
+    fsl_term_sem env t z ->
+    fsl_term_sem env (T_Cond p t t') z
+
+| FSL_E_CondFalse p t t' z':
+    fsl_pred_sem env p BFalse ->
+    fsl_term_sem env t' z' ->
+    fsl_term_sem env (T_Cond p t t') z'
+
+    with 
+
+fsl_pred_sem (env:Ω) :  𝔅 -> 𝔹 -> Prop :=
+| FP_True : fsl_pred_sem env P_True BTrue
+| FP_False : fsl_pred_sem env P_False BFalse
+
+| FP_BinOpTrue t t' z z' (op:fsl_binop_bool): 
+    fsl_term_sem env t z ->
+    fsl_term_sem env t' z' ->
+    (fsl_binop_bool_model op) z z' ->
+    fsl_pred_sem env (P_BinOp t op t) BTrue
+
+| FP_BinOpFalse t t' z z' (op:fsl_binop_bool): 
+    fsl_term_sem env t z ->
+    fsl_term_sem env t' z' ->
+    ~ (fsl_binop_bool_model op) z z' ->
+    fsl_pred_sem env (P_BinOp t op t) BFalse
+
+| FP_NotTrue p : 
+    fsl_pred_sem env p BTrue ->
+    fsl_pred_sem env (Not p) BFalse
+
+| FP_NotFalse p : 
+    fsl_pred_sem env p BFalse ->
+    fsl_pred_sem env (Not p) BTrue 
+
+| FP_DisjLeftTrue p p' : 
+    fsl_pred_sem env p BTrue ->
+    fsl_pred_sem env (Disj p p') BTrue 
+
+| FP_DisjLeftFalse p p' z : 
+    fsl_pred_sem env p BFalse ->
+    fsl_pred_sem env p' z ->
+    fsl_pred_sem env (Disj p p') z
 .
 
-(* Inductive fsl_pred_sem : B -> Ω -> M -> Ω -> M -> Prop :=
-| none
-. *)
-
-(* 
-Inductive fsl_assert_sem : S -> Ω -> M -> Ω -> M -> Prop := 
-| P_Assert env mem p :  env |= p => mkMI 1 oneinRange -> 
-    fsl_assert_sem (LAssert p) env mem env mem
-. *)
-
 Notation "Ω '|=' t => v" := (fsl_term_sem Ω t v) : fsl_sem_scope.
+
+Inductive _fsl_assert_sem { S T : Set } (funs : @𝓕 S T) (procs : @𝓟 S T) (env : Ω) (mem:𝓜) : fsl_statement -> Ω -> 𝓜 -> Prop :=
+| FSL_Assert (p:𝔅) : 
+    fsl_pred_sem env p BTrue ->
+    _fsl_assert_sem funs procs env mem (LAssert p) env mem
+.
+
+Definition fsl_stmt_sem := @generic_stmt_sem _fsl_statement _gmp_t gmp_exp_sem _fsl_assert_sem.
+Notation "Ω ⋅ M |= s => Ω' ⋅ M'"  := (fun funs procs => fsl_stmt_sem funs procs Ω M s Ω' M') : fsl_sem_scope. 
+
 
 
 (* macro semantic *)
@@ -222,11 +281,11 @@ Notation "Ω '|=' t => v" := (fsl_term_sem Ω t v) : fsl_sem_scope.
 Reserved Notation "Ω ⋅ M '|=' e ⇝ z" (M at next level, at level 70).
 Inductive macro_sem (env : Ω) (mem:𝓜) (e:gmp_exp): Z -> Prop :=
 | M_Int x :  
-    env ⋅ mem |= e => VInt x ->
+    gmp_exp_sem env mem e (VInt x) ->
     env ⋅ mem |= e ⇝ x ̇
 | M_Mpz l z : 
-    env ⋅ mem |= e => VMpz l ->
-    mem l = Some z ->
+    gmp_exp_sem env mem e (VMpz (Some l)) ->
+    mem l = Some (Defined z) ->
     env ⋅ mem |= e ⇝ z
 where "Ω ⋅ M '|=' e ⇝ z" := (macro_sem Ω M e z).
 

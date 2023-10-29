@@ -17,6 +17,15 @@ Definition gmp_t := @_c_type _gmp_t.  (* type extension τ *)
 
 Inductive fsl_decl :=  FSL_Decl (τ:gmp_t) (name:id). (* logic declaration δ *)
 Inductive fsl_binop_bool :=  FSL_Lt | FSL_Le | FSL_Gt | FSL_Ge | FSL_Eq | FSL_NEq.
+Definition fsl_binop_bool_model (x:fsl_binop_bool) : Z -> Z -> Prop := match x with
+    | FSL_Lt => Z.lt
+    | FSL_Le => Z.le
+    | FSL_Gt => Z.gt
+    | FSL_Ge => Z.ge
+    | FSL_Eq => Z.eq
+    | FSL_NEq => fun x y => ~(Z.eq x y)
+end.
+
 Inductive fsl_binop_int := FSL_Add | FSL_Sub  | FSL_Mul  | FSL_Div.
 Definition fsl_binop_int_model (x:fsl_binop_int) : Z -> Z -> Z := match x with
     | FSL_Add => Z.add
@@ -35,7 +44,7 @@ with fsl_term :=
     | T_Z (z:Z) (* integer in Z *)
     | T_Id (name:id) (* variable access *)
     | T_BinOp (lt : fsl_term) (op:fsl_binop_int) (rt : fsl_term)
-    | Conditional (cond:predicate) (_then:fsl_term) (_else:fsl_term) (* conditional term *)
+    | T_Cond (cond:predicate) (_then:fsl_term) (_else:fsl_term) (* conditional term *)
 .
 
 
@@ -264,21 +273,10 @@ Module Int16Bounds.
     Definition M_int := 32767.
 End Int16Bounds.
 
-Definition location := option nat. (* None means null pointer *)
+Definition location := nat. 
 Module Int := MachineInteger Int16Bounds.
 
-Fact loc_eq_dec : forall (n m : option nat), {n = m} + {n <> m}.
-Proof.
-intros.  destruct n as [n|],m as [m|].
-- destruct (Nat.eq_dec n m). 
-    +left. now f_equal.
-    + right. intro. now injection H.
-- now right.
-- now right.
-- now left.
-Qed.
-
-#[global] Instance location_eq_dec : EqDec location := {eq_dec := loc_eq_dec}.
+#[global] Instance location_eq_dec : EqDec location := {eq_dec := Nat.eq_dec}.
 
 Fact zeroinRange : Int.inRange 0.  now split. Qed.
 Fact oneinRange : Int.inRange 1. now split. Qed.
@@ -289,13 +287,15 @@ Fact suboneinRange : Int.inRange (-1). now split. Qed.
 #[global] Hint Resolve suboneinRange: rac_hint.
 
 
-
+(* to distinguish *)
 Inductive 𝕍 := 
     | VInt (n:Int.MI) (* set of type int, a machine integer (may overflow) *)
-    | VMpz (n:location)  (* memory location for values of type mpz *) 
-    | UInt   (* set of undefined values of type int *) 
-    | UMpz  . (* set of undefined values of type mpz *) 
+    | VMpz (l:option location)  (* memory location for values of type mpz, none is a null pointer *) 
+    | UInt (n:Int.MI)  (* set of undefined values of type int *) 
+    | UMpz (z:Z) . (* set of undefined values of type mpz *) 
 
+
+Inductive 𝔹 := BTrue | BFalse.
 
 Notation "z ̇" := (Int.to_z z) (at level 0) : definition_scope.
 Notation "z 'ⁱⁿᵗ' ir" := (Int.mkMI z ir) (at level 99) : definition_scope.
@@ -308,13 +308,17 @@ Proof.
 Qed.
     
 
+Inductive mpz_val := Defined (z:Z) | Undefined (z:Z).
+
+
 Coercion Zm : Z >-> _c_exp.
 Coercion int_option_loc (l:nat) :=  Some l.
 Coercion Decl : _c_decl >-> _c_statement.
 Coercion T_Id : id >-> fsl_term.
 Coercion T_Z : Z >-> fsl_term.
 Coercion VInt : Int.MI >-> 𝕍. 
-Coercion VMpz : location >-> 𝕍.
+Coercion Defined : Z >-> mpz_val. 
+Coercion mpz_loc (l:location) : 𝕍 := VMpz (Some l).
 Coercion gmp_s_ext (s:_gmp_statement) := S_Ext s (T:=_gmp_t).
 Coercion fsl_s_ext (s:_fsl_statement) := S_Ext s (T:=_gmp_t).
 Coercion gmp_t_ext (t:_gmp_t) : _c_type := T_Ext t.
@@ -330,8 +334,8 @@ end
 . *)
 
 Definition type_of_value : option 𝕍 -> option 𝔗 := fun v => match v with
-| Some (VInt _) | Some UInt => Some C_Int
-| Some (VMpz _) | Some UMpz => Some (T_Ext Mpz)
+| Some (VInt _) | Some (UInt _)  => Some C_Int
+| Some (VMpz _) | Some (UMpz _) => Some (T_Ext Mpz)
 | None => None
 end.
 
@@ -357,14 +361,52 @@ Fixpoint stmt_vars {T S:Set} (stmt : @_c_statement T S) : list id := match stmt 
 end.
 
 
+Definition 𝓜 := location ⇀ mpz_val. 
+Definition Ωᵥ : Type := 𝓥 ⇀ 𝕍.
+Definition Ωₗ : Type := 𝔏 ⇀ ℤ.
+Definition Ω :Type := Ωᵥ ⨉ Ωₗ.
 
-Definition 𝓜 := location ⇀ ℤ. 
 
-From Coq Require Import Logic.FinFun.
+(* the first mpz location is 0 and is then incremented by one *)
+Inductive fresh_location (mem : 𝓜)  : location -> Prop :=  
+    | First : 
+        (forall l, mem l = None) -> 
+        fresh_location mem O
+
+    | New (max:location) : 
+        max ∈ mem ->
+        (forall l, mem l <> None -> max >= l)%nat ->
+        fresh_location mem (max+1)%nat
+. 
+
+Fact fresh_location_deterministic : forall mem l l', 
+    fresh_location mem l /\ fresh_location mem l' ->
+    l = l'.
+Proof.
+    intros mem l l' [Hfl Hfl']. inversion Hfl ; inversion Hfl'. 
+    - easy.
+    - subst. destruct H1.  specialize H with max. congruence. 
+    - subst. destruct H.  specialize H0 with max. congruence. 
+    - clear Hfl Hfl'. subst. f_equal. inversion H. inversion H2. 
+        specialize H3 with max. specialize H0 with max0.
+        assert (mem max0 <> None) by congruence. assert (mem max <> None) by congruence.
+        apply H0 in H5. apply H3 in H6. now apply Nat.le_antisymm. 
+Qed.
+
+Fact fresh_location_no_alias : forall mem l , 
+    fresh_location mem l -> mem l = None.
+Proof.
+intros. destruct mem eqn:X.
+    - inversion H.
+        + specialize H0 with O. congruence.
+        + exfalso. destruct H0. specialize H1 with (max + 1)%nat.
+            assert (Hsome: mem (max + 1)%nat <> None) by congruence. apply H1 in Hsome. auto with zarith. 
+    - easy.
+Qed.
 
 
 Definition Uτ (v:𝕍) : option (@_c_type Empty_set) := match v with 
-    | UInt => Some C_Int 
+    | UInt _ => Some C_Int 
     | _ => None
 end
 .
@@ -377,19 +419,10 @@ Definition one := Int.mkMI 1 oneinRange.
 Definition sub_one := Int.mkMI (-1) suboneinRange.
 
 
-Definition values_int (v:𝕍) : option 𝕍 := match v with
-| VInt n => Some (VInt n)
-| _ => None
-end.
-
-
 (* integer from value *)
 Definition z_of_Int : Int.MI -> Z := Int.to_z.
 
 
-Definition Ωᵥ := 𝓥 ⇀ 𝕍.
-Definition Ωₗ := 𝔏 ⇀ ℤ.
-Definition Ω := Ωᵥ ⨉ Ωₗ.
 
 
 Record 𝐼 := mkInterval {min : Z; max : Z}. (* interval *)
@@ -432,11 +465,11 @@ Inductive param_env_partial_order (var: 𝓥) (env env':Ω) : Prop :=
     (fst env) var = Some (VMpz n)
     -> (fst env') var = Some (VMpz n)
     -> param_env_partial_order var env env'
-| EundefInt : (fst env) var = Some UInt
-    -> (fst env') var = Some UInt \/  (exists n, (fst env') var = Some (VInt n))
+| EundefInt n: (fst env) var = Some (UInt n)
+    -> (fst env') var = Some (UInt n) \/  (exists n, (fst env') var = Some (VInt n))
     -> param_env_partial_order var env env'
-| EundefMpz : (fst env) var = Some UMpz
-    -> (fst env') var = Some UMpz \/  (exists n, (fst env') var = Some (VMpz n))
+| EundefMpz n : (fst env) var = Some (UMpz n)
+    -> (fst env') var = Some (UMpz n) \/  (exists n, (fst env') var = Some (VMpz n))
     -> param_env_partial_order var env env'
 | Enone : (fst env) var = None -> param_env_partial_order var env env'
 .
@@ -456,9 +489,9 @@ Fact refl_env_partial_order : reflexive Ω env_partial_order.
 Proof.
     intros [v l] var. destruct (v var) as [val |] eqn:res. induction val.
     - now apply EsameInt with n.
-    - now apply EsameMpz with n.
-    - apply EundefInt; auto.
-    - apply EundefMpz; auto.
+    - now apply EsameMpz with l0.
+    - apply EundefInt with n; auto.
+    - apply EundefMpz with z; auto.
     - apply Enone ; auto.
 Qed.
 
@@ -468,8 +501,10 @@ Proof.
     intros  [v l] [v' l'] [v'' l'']  H1 H2 var. destruct H1 with var ; specialize (H2 var).
     * apply EsameInt with n. easy. inversion H2 ; congruence.
     * apply EsameMpz with n ; inversion H2; congruence.
-    * apply EundefInt. easy.  inversion H2 ; destruct H0; eauto ; right ;  now rewrite H0 in H3 || (destruct H0 as [x]; exists x; now rewrite H0 in H3).
-    * apply EundefMpz. easy. inversion H2; destruct H0; try congruence || (destruct H0 ; congruence). right. destruct H0. now exists n.
+    * apply EundefInt with n.
+        + assumption.
+        + inversion H2 ; destruct H0 ; eauto ; try congruence ; try (destruct H0 ; congruence).
+    * apply EundefMpz with n. easy. inversion H2; destruct H0; try congruence || (destruct H0 ; congruence). right. now exists n0.
     * now apply Enone.
 Qed.
 
@@ -537,8 +572,8 @@ Inductive add_var (env : Ω) (mem_state : 𝓜) (τ:gmp_t) (v:id) (z:Z) : Ω * �
 
 | typeMpz x (n:Int.MI) :
     τ  = Mpz ->
-    (forall v',  (fst env) v' <> Some (VMpz x) )->
-    add_var env mem_state τ v z (((fst env){v\VMpz x}, snd env),mem_state{x\z_of_Int n})%utils
+    (forall v',  (fst env) v' <> Some (VMpz (Some x)) )->
+    add_var env mem_state τ v z (((fst env){v\VMpz (Some x)}, snd env),mem_state{x\Defined (z_of_Int n)})%utils
 .
 
 
@@ -578,7 +613,7 @@ Proof.
    now constructor.
 Qed.
 
-Example add_var_mpz : add_var (⊥,⊥) ⊥ Mpz "y" 3  ((⊥{"y"\VMpz (Some 1%nat)},⊥), ⊥{(Some 1%nat)\3}).
+Example add_var_mpz : add_var (⊥,⊥) ⊥ Mpz "y" 3  ((⊥{"y"\VMpz 1%nat},⊥), ⊥{(1%nat)\(Defined 3)}).
 Proof.
     assert (ir3: Int.inRange 3). easy.
     now apply (typeMpz (⊥,⊥) ⊥ Mpz "y" 3 1%nat (Int.mkMI 3 ir3)).
@@ -595,7 +630,7 @@ Qed.
 
 Open Scope list.
 
-Example envaddone : add_var_𝐴 (⊥,⊥) ⊥ ((T_Ext Mpz, "y", 3)::nil) ((⊥{"y"\VMpz (Some (S O))},⊥), ⊥{Some ((S O))\3}).
+Example envaddone : add_var_𝐴 (⊥,⊥) ⊥ ((T_Ext Mpz, "y", 3)::nil) ((⊥{"y"\VMpz 1%nat},⊥), ⊥{1%nat\(Defined 3)}).
 Proof.
     assert (ir3: Int.inRange 3). easy.
     eapply add_var_cons with (t:=Mpz) (v:="y") (z:=3).
@@ -622,6 +657,8 @@ Inductive pgrm_var_representation (iop:ϴ) (env:Ω) (mem : 𝓜) (ienv:Γ) : (Ω
     pgrm_var_representation iop env mem ienv (ΩΓ,𝓜Γ)
 .
 
-
-
-
+(* Definition well_formed_program :=
+    - all variables declared before usage
+    - all functions defined before called
+    - well typed
+*)
