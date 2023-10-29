@@ -219,9 +219,9 @@ with translate_term (bindings : Γᵥ) (t_inf : type_inf) (e: ψ) (t : fsl_term)
         let code := <{ t1_code ; t2_code ; assgn }> in
         ret (mkSTR gmp_statement (mkTR gmp_statement code t2_tr.(tr).(env gmp_statement) nil) decl (C_Id c C_Int))
 
-    | Conditional p t1 t2 => 
+    | T_Cond p t1 t2 => 
         c <- fresh_variable ;;
-        let τ := 𝚪 t_inf.(oracle) t_inf.(i_op) (Conditional p t1 t2) t_inf.(t_env) in
+        let τ := 𝚪 t_inf.(oracle) t_inf.(i_op) (T_Cond p t1 t2) t_inf.(t_env) in
         p_tr <- translate_predicate bindings t_inf e p ;;
         t1_tr <- translate_term bindings t_inf p_tr.(tr).(env gmp_statement) t1 ;; 
         let t1_code := t1_tr.(tr).(chunk gmp_statement) in
