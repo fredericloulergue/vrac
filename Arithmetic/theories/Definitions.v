@@ -286,14 +286,17 @@ Fact suboneinRange : Int.inRange (-1). now split. Qed.
 #[global] Hint Resolve oneinRange: rac_hint.
 #[global] Hint Resolve suboneinRange: rac_hint.
 
-
-(* to distinguish *)
-Inductive 𝕍 := 
+Inductive value := 
     | VInt (n:Int.MI) (* set of type int, a machine integer (may overflow) *)
     | VMpz (l:option location)  (* memory location for values of type mpz, none is a null pointer *) 
-    | UInt (n:Int.MI)  (* set of undefined values of type int *) 
-    | UMpz (z:Z) . (* set of undefined values of type mpz *) 
+.
 
+Inductive undef := 
+    | UInt (n:Int.MI) (* set of undefined values of type int *) 
+    | UMpz (l:option location) (* set of undefined values of type mpz *) 
+.
+
+Inductive 𝕍 :=  Def (v : value)  | Undef (uv : undef).
 
 Inductive 𝔹 := BTrue | BFalse.
 
@@ -312,11 +315,14 @@ Inductive mpz_val := Defined (z:Z) | Undefined (z:Z).
 
 
 Coercion Zm : Z >-> _c_exp.
-Coercion int_option_loc (l:nat) :=  Some l.
 Coercion Decl : _c_decl >-> _c_statement.
+Coercion int_option_loc (l:nat) :=  Some l.
 Coercion T_Id : id >-> fsl_term.
 Coercion T_Z : Z >-> fsl_term.
-Coercion VInt : Int.MI >-> 𝕍. 
+Coercion Def : value >-> 𝕍. 
+Coercion Undef : undef >-> 𝕍. 
+Coercion v_int (mi:Int.MI) : 𝕍 := Def (VInt mi). 
+Coercion def_v_mpz (l:nat) : 𝕍 := Def (VMpz (Some l)). 
 Coercion Defined : Z >-> mpz_val. 
 Coercion mpz_loc (l:location) : 𝕍 := VMpz (Some l).
 Coercion gmp_s_ext (s:_gmp_statement) := S_Ext s (T:=_gmp_t).
@@ -365,6 +371,12 @@ Definition 𝓜 := location ⇀ mpz_val.
 Definition Ωᵥ : Type := 𝓥 ⇀ 𝕍.
 Definition Ωₗ : Type := 𝔏 ⇀ ℤ.
 Definition Ω :Type := Ωᵥ ⨉ Ωₗ.
+
+Fact type_of_value_env : forall (env:Ω) var, type_of_value ((fst env) var) <> None -> (fst env) var <> None.
+Proof.
+    intros env var Hty. now destruct (fst  env var) as [v|].
+Qed.
+
 
 
 (* the first mpz location is 0 and is then incremented by one *)
@@ -458,18 +470,18 @@ Close Scope utils_scope.
 
 Inductive param_env_partial_order (var: 𝓥) (env env':Ω) : Prop :=
 | EsameInt n : 
-    (fst env) var = Some (VInt n)
-    -> (fst env') var = Some (VInt n)
+    (fst env) var = Some (Def (VInt n))
+    -> (fst env') var = Some (Def (VInt n))
     -> param_env_partial_order var env env'
-| EsameMpz n : 
-    (fst env) var = Some (VMpz n)
-    -> (fst env') var = Some (VMpz n)
+| EsameMpz l : 
+    (fst env) var = Some (Def (VMpz l))
+    -> (fst env') var = Some (Def (VMpz l))
     -> param_env_partial_order var env env'
-| EundefInt n: (fst env) var = Some (UInt n)
-    -> (fst env') var = Some (UInt n) \/  (exists n, (fst env') var = Some (VInt n))
+| EundefInt n: (fst env) var = Some (Undef (UInt n))
+    -> (fst env') var = Some (Undef (UInt n)) \/  (exists n, (fst env') var = Some (Def (VInt n)))
     -> param_env_partial_order var env env'
-| EundefMpz n : (fst env) var = Some (UMpz n)
-    -> (fst env') var = Some (UMpz n) \/  (exists n, (fst env') var = Some (VMpz n))
+| EundefMpz n : (fst env) var = Some (Undef (UMpz n))
+    -> (fst env') var = Some (Undef (UMpz n)) \/  (exists n, (fst env') var = Some (Def (VMpz n)))
     -> param_env_partial_order var env env'
 | Enone : (fst env) var = None -> param_env_partial_order var env env'
 .
@@ -488,10 +500,12 @@ Notation "( e , m ) ⊑ ( e' , m' )" :=  (
 Fact refl_env_partial_order : reflexive Ω env_partial_order.
 Proof.
     intros [v l] var. destruct (v var) as [val |] eqn:res. induction val.
-    - now apply EsameInt with n.
-    - now apply EsameMpz with l0.
-    - apply EundefInt with n; auto.
-    - apply EundefMpz with z; auto.
+    - destruct v0.
+        * now apply EsameInt with n.
+        * now apply EsameMpz with l0. 
+    - destruct uv.
+        * apply EundefInt with n; auto.
+        * apply EundefMpz with l0; auto.
     - apply Enone ; auto.
 Qed.
 
@@ -500,11 +514,11 @@ Fact trans_env_partial_order : transitive Ω env_partial_order.
 Proof.
     intros  [v l] [v' l'] [v'' l'']  H1 H2 var. destruct H1 with var ; specialize (H2 var).
     * apply EsameInt with n. easy. inversion H2 ; congruence.
-    * apply EsameMpz with n ; inversion H2; congruence.
+    * apply EsameMpz with l0 ; inversion H2; congruence.
     * apply EundefInt with n.
         + assumption.
         + inversion H2 ; destruct H0 ; eauto ; try congruence ; try (destruct H0 ; congruence).
-    * apply EundefMpz with n. easy. inversion H2; destruct H0; try congruence || (destruct H0 ; congruence). right. now exists n0.
+    * apply EundefMpz with n. easy. inversion H2; destruct H0; try congruence || (destruct H0 ; congruence). right. now exists l0.
     * now apply Enone.
 Qed.
 
@@ -572,8 +586,8 @@ Inductive add_var (env : Ω) (mem_state : 𝓜) (τ:gmp_t) (v:id) (z:Z) : Ω * �
 
 | typeMpz x (n:Int.MI) :
     τ  = Mpz ->
-    (forall v',  (fst env) v' <> Some (VMpz (Some x)) )->
-    add_var env mem_state τ v z (((fst env){v\VMpz (Some x)}, snd env),mem_state{x\Defined (z_of_Int n)})%utils
+    (forall v',  (fst env) v' <> Some (Def (VMpz (Some x))) )->
+    add_var env mem_state τ v z (((fst env){v\Def (VMpz (Some x))}, snd env),mem_state{x\Defined (z_of_Int n)})%utils
 .
 
 
@@ -608,12 +622,12 @@ Inductive add_var_𝐴 (env : Ω) (mem_state : 𝓜) : 𝐴 -> Ω * 𝓜 -> Prop
 Open Scope utils_scope.
 
 
-Example add_var_int : forall (ir3 :Int.inRange 3), add_var (⊥,⊥) ⊥ C_Int "y" 3  ((⊥{"y"\VInt (Int.mkMI 3 ir3)},⊥), ⊥).
+Example add_var_int : forall (ir3 :Int.inRange 3), add_var (⊥,⊥) ⊥ C_Int "y" 3  ((⊥{"y"\Def (VInt (Int.mkMI 3 ir3))},⊥), ⊥).
 Proof.
    now constructor.
 Qed.
 
-Example add_var_mpz : add_var (⊥,⊥) ⊥ Mpz "y" 3  ((⊥{"y"\VMpz 1%nat},⊥), ⊥{(1%nat)\(Defined 3)}).
+Example add_var_mpz : add_var (⊥,⊥) ⊥ Mpz "y" 3  ((⊥{"y"\Def (VMpz 1%nat)},⊥), ⊥{(1%nat)\(Defined 3)}).
 Proof.
     assert (ir3: Int.inRange 3). easy.
     now apply (typeMpz (⊥,⊥) ⊥ Mpz "y" 3 1%nat (Int.mkMI 3 ir3)).
@@ -630,7 +644,7 @@ Qed.
 
 Open Scope list.
 
-Example envaddone : add_var_𝐴 (⊥,⊥) ⊥ ((T_Ext Mpz, "y", 3)::nil) ((⊥{"y"\VMpz 1%nat},⊥), ⊥{1%nat\(Defined 3)}).
+Example envaddone : add_var_𝐴 (⊥,⊥) ⊥ ((T_Ext Mpz, "y", 3)::nil) ((⊥{"y"\Def (VMpz 1%nat)},⊥), ⊥{1%nat\(Defined 3)}).
 Proof.
     assert (ir3: Int.inRange 3). easy.
     eapply add_var_cons with (t:=Mpz) (v:="y") (z:=3).

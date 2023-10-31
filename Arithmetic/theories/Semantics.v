@@ -29,7 +29,7 @@ Definition Empty_stmt_sem : @stmt_sem_sig Empty_set Empty_set := fun _ _ _  _ _ 
 Inductive generic_exp_sem {T:Set} {ext_exp : @exp_sem_sig T} (env : Ω) (mem:𝓜): @_c_exp T -> 𝕍 -> Prop :=
 | C_E_Int (z:Z) irz : env ⋅ mem |= z => Int.mkMI z irz
 | C_E_Var (x:𝓥) z : 
-    (fst env) x = Some (VInt z) -> 
+    (fst env) x = Some (Def (VInt z)) -> 
     env ⋅ mem |=  (C_Id x C_Int) => z
 | C_E_BinOpInt e e' (z z':Z) op z_ir z'_ir
     (H:Int.inRange (⋄ op z z')) :
@@ -47,9 +47,16 @@ Inductive generic_exp_sem {T:Set} {ext_exp : @exp_sem_sig T} (env : Ω) (mem:�
     ((◁ op) z z' = false ) ->
     env ⋅ mem |= BinOpBool e op e' => zero
 | C_Ext x v t: 
-    (* external semantic only allowed for variables not holding a value of type int *)
+    (* variable must not be of type int (treated by C_E_Var) *)
     t <> C_Int ->
-    ext_exp env mem (C_Id x t) v  ->
+    
+    (* variable must be bound and init *)
+    (fst env) x = Some (Def v) ->
+
+
+    (* the external semantic can only add additional constraint, the result is always v *)
+    ext_exp env mem (C_Id x t) v ->
+
     env ⋅ mem |= (C_Id x t) => v
 
 where  "Ω ⋅ M '|=' e => z" := (generic_exp_sem Ω M e z) : generic_sem_scope.
@@ -58,6 +65,16 @@ Definition c_exp_sem := @generic_exp_sem Empty_set Empty_exp_sem.
 
 Notation "Ω |= e => v"  := (c_exp_sem Ω ⊥ e v) : c_sem_scope.
 
+Inductive _gmp_exp_sem (env : Ω) (mem:𝓜) : gmp_exp -> 𝕍 -> Prop :=
+| GMP_E_Var (x:𝓥) (l:location) (z:mpz_val) : 
+    (fst env) x = Some (Def (VMpz l)) -> 
+    mem l = Some z ->
+    _gmp_exp_sem env mem (C_Id x Mpz) (VMpz l)
+.
+
+Definition gmp_exp_sem := @generic_exp_sem _gmp_t _gmp_exp_sem.
+Notation "Ω ⋅ M '|=' e => z" := (gmp_exp_sem Ω M e z) : gmp_sem_scope.
+
 Open Scope mini_c_scope.
 
 (* extensible statement semantic *)
@@ -65,6 +82,9 @@ Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt
     | S_skip  :  (env ⋅ mem |= <{ skip }> => env ⋅ mem) funs procs
     | S_Assign x z (e : @_c_exp T) : 
         type_of_value ((fst env) x) = Some C_Int ->
+        (* value returned must be of same type*)
+        type_of_value (Some z) = Some C_Int ->
+
         @generic_exp_sem T ext_exp env mem e z -> 
         (env ⋅ mem |= <{x = e}> => ((fst env){x\z},snd env) ⋅ mem) funs procs
     | S_IfTrue env' mem' z e s s' :
@@ -128,16 +148,6 @@ Definition c_decl_sem (env env':Ω) (mem mem':𝓜) d : Prop :=
 Notation "Ω ⋅ M |= d => Ω' ⋅ M'"  := (c_decl_sem Ω Ω' M M' d) : mini_c_decl_scope.
 
 
-Inductive _gmp_exp_sem (env : Ω) (mem:𝓜) : gmp_exp -> 𝕍 -> Prop :=
-| GMP_E_Var (x:𝓥) (l:location) (z:mpz_val) : 
-    (fst env) x = Some (VMpz l) -> 
-    mem l = Some z ->
-    _gmp_exp_sem env mem (C_Id x Mpz) (VMpz l)
-.
-
-Definition gmp_exp_sem := @generic_exp_sem _gmp_t _gmp_exp_sem.
-Notation "Ω ⋅ M '|=' e => z" := (gmp_exp_sem Ω M e z) : gmp_sem_scope.
-
 
 Open Scope gmp_sem_scope.
 Open Scope mini_gmp_scope.
@@ -145,25 +155,25 @@ Open Scope mini_gmp_scope.
 Inductive _gmp_stmt_sem { S T : Set }(funs : @𝓕 S T) (procs : @𝓟 S T) (env:Ω) (mem:𝓜) : gmp_statement -> Ω -> 𝓜 -> Prop := 
     | S_init x (l:location):
         fresh_location mem l ->
-        (forall v, (fst env) v <> Some (VMpz (Some l))) ->
-        (exists n, (fst env) x = Some (UMpz n))%type ->
-        (env ⋅ mem |= <init(x)> => ((fst env){x\VMpz (Some l)}, snd env) ⋅ mem{l\Defined 0}) funs procs
+        (forall v, (fst env) v <> Some (Def (VMpz (Some l)))) ->
+        (exists n, (fst env) x = Some (Undef (UMpz n)))%type ->
+        (env ⋅ mem |= <init(x)> => ((fst env){x\Def (VMpz (Some l))}, snd env) ⋅ mem{l\Defined 0}) funs procs
     
     | S_clear x a z :   
-        (fst env) x = Some (VMpz (Some a)) ->   
+        (fst env) x = Some (Def (VMpz (Some a))) ->   
         (* added *)
         mem a = Some (Defined z) ->   
         (* cl is not deterministic unless the umpz value used is always the same *)
-        (env ⋅ mem |= <cl(x)> => ((fst env){x\(VMpz None)}, snd env) ⋅ mem{a\Undefined z}) funs procs
+        (env ⋅ mem |= <cl(x)> => ((fst env){x\(Def (VMpz None))}, snd env) ⋅ mem{a\Undefined z}) funs procs
 
     | S_set_i x y z a :  
-        (fst env) x = Some (VMpz (Some a)) ->
+        (fst env) x = Some (Def (VMpz (Some a))) ->
         env ⋅ mem |= y => VInt z ->
         (env ⋅ mem |= <set_i(x,y)> => env ⋅ mem{a\Defined (z ̇)}) funs procs
 
     | S_set_z x y z (a n : location) :  
-        (fst env) x = Some (VMpz a) ->
-        (fst env) y = Some (VMpz n) ->
+        (fst env) x = Some (Def (VMpz a)) ->
+        (fst env) y = Some (Def (VMpz n)) ->
         mem n = Some z ->
         (env ⋅ mem |= <set_z(x,y)> => env ⋅ mem{a\z}) funs procs 
 
@@ -173,7 +183,7 @@ Inductive _gmp_stmt_sem { S T : Set }(funs : @𝓕 S T) (procs : @𝓟 S T) (env
         (env ⋅ mem |= <x = get_int(y)> => ((fst env){x\z ⁱⁿᵗ ir : 𝕍},(snd env)) ⋅ mem) funs procs
 
     | S_set_s s x z a :
-        (fst env) x = Some (VMpz (Some a)) ->
+        (fst env) x = Some (Def (VMpz (Some a))) ->
         BinaryString.to_Z s = z ->
         (env ⋅ mem |= <set_s(x,s)> => env ⋅ mem{a\Defined z}) funs procs
 
@@ -194,7 +204,7 @@ Inductive _gmp_stmt_sem { S T : Set }(funs : @𝓕 S T) (procs : @𝓟 S T) (env
         mem vx = Some (Defined z1) -> 
         env ⋅ mem |= C_Id y Mpz =>  vy ->
         mem vy = Some (Defined z2) -> 
-        (fst env) r = Some (VMpz (Some lr)) ->
+        (fst env) r = Some (Def (VMpz (Some lr))) ->
         (env ⋅ mem |= op bop r x y => env ⋅ mem{lr\Defined (⋄ (□ bop) z1 z2) }) funs procs
 
 where "Ω ⋅ M |= s => Ω' ⋅ M'"  := (fun funs procs => _gmp_stmt_sem funs procs Ω M s Ω' M') : _gmp_stmt_sem_scope.
@@ -208,7 +218,7 @@ Inductive fsl_term_sem (env:Ω) : ℨ -> Z -> Prop :=
 | FSL_E_Int z : fsl_term_sem env (T_Z z) z 
 | FSL_E_LVar x z : (snd env) x = Some z -> fsl_term_sem env (T_Id x) z
 | FSL_E_Var x v : 
-    (fst env) v = Some (VInt x) ->  
+    (fst env) v = Some (Def (VInt x)) ->  
     fsl_term_sem env (T_Id v) x ̇
 
 | FSL_E_BinOpInt t t' z zint z' z'int op :  

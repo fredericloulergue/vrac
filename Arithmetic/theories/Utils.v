@@ -112,9 +112,12 @@ Definition add_domain { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) (x:X) := d
 Infix "+" := add_domain : utils_scope.
 #[global] Hint Unfold add_domain : rac_hint.
 
-
-
-
+Fact not_in_diff {X Y : Type} : forall (x y:X) (f : (X ⇀ Y)), f y <> None -> x ∉ f -> y <> x.
+Proof.
+    intros x y f H H0 Hnot. subst. destruct (f x) eqn:F.
+    * now destruct H0 with y.
+    * contradiction.
+Qed.
 
 Fact d_sub_d_empty {X Y : Type} : forall (f : (X ⇀ Y)),
     ~ exists n, (dom f - dom f) n.
