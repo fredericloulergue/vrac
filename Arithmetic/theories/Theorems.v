@@ -441,13 +441,7 @@ Definition untouched_var_same_eval_exp_gmp := untouched_var_same_eval_exp _gmp_e
 Definition _untouched_var_same_eval_stmt {S T : Set} (exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) := 
     forall funs procs env mem env' mem' (s: @_c_statement S T) x, 
     stmt_sem funs procs env mem s env' mem' ->
-
-    (* doesn't work for a function call or a return if x = resf but 
-        induction doesn't remember the shape of s, so I can't add a constraint like 
-        (forall e res, s <> Return e res)
-        I tried 'dependent induction', and 'remember s in Hderiv' 
-     *) 
-    ~ List.In x (stmt_vars s) -> 
+    ~ List.In x (stmt_vars s) /\ is_comp_var x = false -> 
     (fst env) x = (fst env') x
     .
 
@@ -457,7 +451,7 @@ Fact untouched_var_same_eval_stmt {S T : Set} :
     _untouched_var_same_eval_stmt exp_sem stmt_sem ->
     _untouched_var_same_eval_stmt exp_sem (@generic_stmt_sem S T exp_sem stmt_sem).
 Proof.
-    intros exp_sem stmt_sem Hext funs procs env mem env' mem' s x Hderiv Hnotin. induction Hderiv ; simpl in Hnotin; trivial.
+    intros exp_sem stmt_sem Hext funs procs env mem env' mem' s x Hderiv [Hnotin Huservar]. induction Hderiv ; simpl in Hnotin; trivial.
     - subst. apply Decidable.not_or_iff in Hnotin as [Hdiffxresf]. simpl. rewrite p_map_not_same.
         * easy.
         * congruence.
@@ -474,10 +468,12 @@ Proof.
     - destruct IHHderiv.
         + intro Hcontra. apply Hnotin. apply  List.in_app_iff. now left.
         + apply IHHderiv0. intro Hcontra. apply Hnotin. apply List.in_app_iff. now right.
-    - admit. (* fcall *)
-    - admit. (* ret *)
+    - simpl. symmetry. apply p_map_not_same_eq ; auto.
+    - simpl. destruct (eq_dec res_f x). subst. 
+        * discriminate.
+        * symmetry. now apply p_map_not_same_eq.
     - eapply Hext in H ; eauto.
-Admitted.
+Qed.
 
 
 
@@ -510,7 +506,7 @@ Proof with eauto using refl_env_mem_partial_order,env_partial_order_add with rac
             + split...
             + apply S_Assign...
                 *** now apply env_same_ty with env. 
-                *** rewrite (exp_weak e) in H1. specialize (H1 Ω₀' M₀'). apply H1...
+                *** rewrite (exp_weak e) in H2. specialize (H2 Ω₀' M₀'). apply H2...
 
 
         (* if true *)
@@ -536,11 +532,11 @@ Proof with eauto using refl_env_mem_partial_order,env_partial_order_add with rac
          * specialize IHHderiv with (p_map_addall (H:=eqdec_v) ⊥ xargs zargs, ⊥)  M₀'. destruct IHHderiv as [env_s [mem_s [Hrel Hderiv2]]].
             + now split.
             + eexists ?[env],?[mem]. split.
-                ++ instantiate (env:=((fst Ω₀') {c \ z}, snd Ω₀')). instantiate (mem:=mem_s). split... easy. 
+                ++ instantiate (env:=((fst Ω₀') {c \Def z}, snd Ω₀')). instantiate (mem:=mem_s). split... easy. 
                 ++ eapply S_FCall... 
                     +++ epose proof (List.Forall2_impl (R1:=generic_exp_sem env mem) (generic_exp_sem Ω₀' M₀')) as Hforall. destruct Hforall with eargs zargs... intros.
-                        apply exp_weak with env mem...
-                    +++ admit . (* return value must be untouched because it isn't in the variables visible by the user *)
+                    apply exp_weak with env mem...
+                    +++ inversion Hrel. eapply eq_env_partial_order...
 
         (* p call *)
         * specialize IHHderiv with (p_map_addall (H:=eqdec_v) ⊥ xargs zargs, ⊥)  M₀'. destruct IHHderiv as [env_s [mem_s [Hrel Hderiv2]]].
@@ -552,7 +548,7 @@ Proof with eauto using refl_env_mem_partial_order,env_partial_order_add with rac
                     apply exp_weak with env mem...
 
         (* return *)
-        * exists ((fst Ω₀') {resf \ z}, snd Ω₀'), M₀'. split.
+        * exists ((fst Ω₀') {res_f \Def z}, snd Ω₀'), M₀'. split.
             + split...
             + apply S_Return... apply (exp_weak e env mem z)...
 
@@ -650,7 +646,8 @@ Definition _weakening_of_statement_semantics_2  {S T : Set} (exp_sem : @exp_sem_
     (
         forall Ω₁' M₁',
         stmt_sem funs procs Ω₀' M₀' s Ω₁' M₁'->
-        (forall (v:𝓥),v ∉ fst Ω₀ -> fst Ω₀' v = fst Ω₁' v) 
+        (* if v is a compiler variable, i.e. a function return value, v can change*)
+        (forall (v:𝓥), (v ∉ fst Ω₀) /\ is_comp_var v = false  -> fst Ω₀' v = fst Ω₁' v) 
         /\
         (forall (x:location) (v:𝓥), (fst Ω₀ v) <> Some (Def (VMpz x)) -> M₀' x = M₁' x)
     ).
@@ -670,7 +667,7 @@ Proof with auto with rac_hint.
     induction Hderiv1 ; intros Ω₁' M₁' Hderiv2 ; inversion Hderiv2 ; subst ; try easy...
     
     (* assign *)
-    - split... simpl. intros v H2.  assert (HH: type_of_value (fst env x) <> None) by congruence. apply type_of_value_env in HH.
+    - split... simpl. intros v [Hnotin Hnotcompvar].  assert (HH: type_of_value (fst env x) <> None) by congruence. apply type_of_value_env in HH.
         apply not_in_diff with (x:=v)  in HH... eapply p_map_not_same_eq... intro neq...
 
     (* if false *)
@@ -682,19 +679,18 @@ Proof with auto with rac_hint.
             apply determinist_exp_eval in H. apply H in H1. now subst. assumption.
 
     (* seq *)
-    -  admit.
+    - admit.
     
     (* fcall *)
-    - admit.
+    - rewrite H9 in H0. inversion H0. subst. clear H0 H9 H8 H14. split ; admit.
 
     (* pcall *)
-    -  rewrite H6 in H0. injection H0 as H0. subst. edestruct IHHderiv1... admit. admit.
+    - rewrite H6 in H0. injection H0 as H0. subst. edestruct IHHderiv1... admit. admit.
         epose proof (List.Forall2_impl (R1:=generic_exp_sem env mem) (generic_exp_sem env mem)) as Hforall. admit.
 
     (* return *)
-    - split ; intros... simpl. unfold "∉" in H0.  destruct (string_dec resf v).
-        + apply exp_weak with (env':=Ω₀') (mem':=M₁') in H...
-            apply determinist_exp_eval in H... apply H in H4. subst. admit. (* can't happen *)
+    -  split ; intros v... intros [Hnotin Hnotcomp]. destruct (string_dec res_f v).
+        + subst. discriminate. (* v is the function return value*)
         +  symmetry. apply p_map_not_same...
             
     (* assert *)
@@ -791,7 +787,7 @@ Proof with auto with rac_hint.
     (* skip *)
     - exists Ω₀', M₀'. constructor.
     (* assign *)
-    - destruct Henv with x. simpl in H3. destruct H3...  
+    - destruct Henv with x. simpl in H4. destruct H4...  
     (* if true *)
     - destruct IHHderiv as [env'' [mem'' Hx]]...
         + intro v. destruct Henv with v. split... intros Hin. apply H2.
@@ -839,7 +835,7 @@ Proof with auto with rac_hint.
             apply List.in_app_iff...
         + intros l v Hdom. destruct Hmem with l v... split... intros Hin. apply H2. simpl in Hin.
             apply List.in_app_iff...
-        + eexists. eexists. apply S_Seq with env0 mem0... admit.        
+        + eexists. eexists. apply S_Seq with env0 mem0... admit. 
 
     (* fcall *)
     - eexists. eexists. apply S_FCall with b env' xargs zargs...
@@ -850,10 +846,10 @@ Proof with auto with rac_hint.
     (* pcall *)
     - repeat eexists. apply S_PCall with b env' xargs zargs...
         * admit.
-        * admit.
+        *  admit.
 
     (* return *)
-    - exists ((fst Ω₀'){resf\z},snd Ω₀').  eexists M₀'. apply S_Return.
+    - exists ((fst Ω₀'){res_f\Def z},snd Ω₀').  eexists M₀'. apply S_Return.
         eapply weakening_of_expression_semantics_3 in H... specialize H with Ω₀' M₀'. apply H...
         * apply Hrel.
         * easy. 
@@ -942,12 +938,13 @@ Qed.
 
 Lemma semantics_of_the_int_assgn_macro :
     forall funs procs e z (ir: Int.inRange z) Ω M v,
+    is_comp_var v = false ->
     Ω ⋅ M |= e ⇝ z ->
     type_of_value ((fst Ω) v) = Some C_Int ->
     gmp_stmt_sem funs procs Ω M (int_ASSGN v e) ((fst Ω){v\z ⁱⁿᵗ ir : 𝕍}, snd Ω)  M
 .
 Proof with eauto with rac_hint.
-    intros funs procs e z ir Ω M v H H0. 
+    intros funs procs e z ir Ω M v Hnotcomp H H0. 
     unfold int_ASSGN.
     destruct (ty e)  eqn:EqTY.
     - constructor... inversion H ; subst.
@@ -960,6 +957,7 @@ Qed.
 
 Lemma semantics_of_the_Z_assgn_macro_tint :
     forall funs procs z (ir: Int.inRange z) Ω M v,
+    is_comp_var v = false ->
     type_of_value ((fst Ω) v) = Some C_Int ->
     gmp_stmt_sem funs procs Ω M (Z_ASSGN C_Int v z) ((fst Ω){v\z ⁱⁿᵗ ir : 𝕍}, snd Ω) M
 .
@@ -980,6 +978,7 @@ Qed.
 Lemma semantics_of_the_cmp_macro :
     forall funs procs (Ω:Ω) (M:𝓜) c e1 e2 v1 v2 z1 z2 a,
     _no_env_mpz_aliasing Ω ->
+    is_comp_var c = false ->
     type_of_value ((fst Ω) c) = Some C_Int ->
     Ω ⋅ M |= e1 ⇝ z1 ->
     Ω ⋅ M |= e2 ⇝ z2 ->
@@ -1007,7 +1006,7 @@ Lemma semantics_of_the_cmp_macro :
 .
 
 Proof with try easy ; auto with rac_hint ; unshelve eauto using Z.ltb_irrefl,Z.gtb_ltb,Z.ltb_lt with rac_hint; auto with rac_hint.
-    intros funs procs Ω M c e1 e2 v1 v2 z1 z2 a Hnoalias H H0 H1 (inf & eq & sup) l1 l2 (Hv1 & Hv2) (Hv1NotIne2 & Hdiffl1l2).
+    intros funs procs Ω M c e1 e2 v1 v2 z1 z2 a Hnoalias Hnocom H H0 H1 (inf & eq & sup) l1 l2 (Hv1 & Hv2) (Hv1NotIne2 & Hdiffl1l2).
     
     assert (NotInt : 
         exists M', (
@@ -1068,6 +1067,7 @@ Qed.
 Lemma semantics_of_the_binop_macro_int :
     forall funs procs (Ω:Ω) (M:𝓜) (op:fsl_binop_int) c r e1 e2 v1 v2 z1 z2 (ir: Int.inRange (⋄ (□ op) z1 z2) ) l1 l2 lr,
     _no_env_mpz_aliasing Ω ->
+    is_comp_var c = false ->
     type_of_value ((fst Ω) c) = Some C_Int ->
     Ω ⋅ M |= e1 ⇝ z1 ->
     Ω ⋅ M |= e2 ⇝ z2 ->
@@ -1085,7 +1085,7 @@ Lemma semantics_of_the_binop_macro_int :
     .
 
 Proof with eauto with rac_hint.
-    intros funs procs Ω M op c r e1 e2 v1 v2 z1 z2 ir l1 l2 lr Hnoalias H H0 H1 zr H2. destruct H2 as (v1l & v2l & rl).  
+    intros funs procs Ω M op c r e1 e2 v1 v2 z1 z2 ir l1 l2 lr Hnoalias Hnocomp H H0 H1 zr H2. destruct H2 as (v1l & v2l & rl).  
     assert (NotInt : 
         exists M',
         (forall (v : 𝓥) (n : location),
