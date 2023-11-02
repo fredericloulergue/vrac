@@ -27,7 +27,7 @@ Definition fifteen := VInt (Int.mkMI 15 ir15).
 
 #[local] Coercion gmp_id (var:id) : _c_exp := C_Id var C_Int (T:=Empty_set).
 
-Definition funs  := ⊥{"test"\(["a";"b"] , <{ return ("b") in "resf" }> : c_statement)} .
+Definition funs  := ⊥{"test"\(["a";"b"] , <{ return ("b") }> : c_statement)} .
 
 (* Open Scope mini_c_decl_scope. *)
 (*

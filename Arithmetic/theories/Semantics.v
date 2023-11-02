@@ -81,36 +81,43 @@ Open Scope mini_c_scope.
 Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt_sem_sig S T} (funs:@𝓕 S T) (procs: @𝓟 S T) (env:Ω) (mem:𝓜) : @_c_statement S T -> Ω -> 𝓜 -> Prop := 
     | S_skip  :  (env ⋅ mem |= <{ skip }> => env ⋅ mem) funs procs
     | S_Assign x z (e : @_c_exp T) : 
+        (* must not be a compiler variable i.e. function return value *)
+        is_comp_var x = false ->
+
         type_of_value ((fst env) x) = Some C_Int ->
         (* value returned must be of same type*)
         type_of_value (Some z) = Some C_Int ->
 
         @generic_exp_sem T ext_exp env mem e z -> 
         (env ⋅ mem |= <{x = e}> => ((fst env){x\z},snd env) ⋅ mem) funs procs
+
     | S_IfTrue env' mem' z e s s' :
         @generic_exp_sem T ext_exp env mem e z /\ ~ (z = zero) ->
         (env ⋅ mem  |= s => env' ⋅ mem') funs procs ->
         (env ⋅ mem  |= <{ if e s else s'}> => env' ⋅ mem') funs procs
+
     | S_IfFalse env' mem' e s s' :
         @generic_exp_sem T ext_exp env mem e zero ->
         (env ⋅ mem |= s' => env' ⋅ mem') funs procs ->
         (env ⋅ mem |= <{ if e s else s'}> => env' ⋅ mem') funs procs
+
     | S_While e s   env' mem' :
         (env ⋅ mem |= <{ if e s ; while e s else skip }> =>  env' ⋅ mem') funs procs ->
         (env ⋅ mem |= <{ while e s }> =>  env' ⋅ mem') funs procs
+
     | S_Seq  env' mem' env'' mem'' s s' :
         (env ⋅ mem |= s => env' ⋅ mem') funs procs ->
         (env' ⋅ mem' |= s' => env'' ⋅ mem'') funs procs ->
         (env ⋅ mem |= <{ s ; s' }> =>  env'' ⋅ mem'') funs procs
 
-    | S_FCall f (b: @_c_statement S T) (env' : Ω) mem' c xargs eargs (zargs : 𝕍 ⃰ ) resf z : 
+    | S_FCall f (b: @_c_statement S T) (env' : Ω) mem' c xargs eargs (zargs : 𝕍 ⃰ ) z : 
         List.length xargs = List.length eargs ->
         funs f = Some (xargs,b) ->
         List.Forall2 (@generic_exp_sem T ext_exp env mem) eargs zargs ->
         (((p_map_addall ⊥ xargs zargs),⊥) ⋅ mem |= b => env' ⋅ mem') funs procs -> 
-        ~ List.In resf (stmt_vars b) -> (**)
-        (fst env') resf = Some z ->
-        (env ⋅ mem |= (FCall c resf f eargs) => ((fst env){c\z},(snd env)) ⋅ mem') funs procs
+        ~ List.In res_f (stmt_vars b) -> 
+        (fst env') res_f = Some (Def z) -> (* must be a defined value *)
+        (env ⋅ mem |= (FCall c f eargs) => ((fst env){c\Def z},(snd env)) ⋅ mem') funs procs
 
     | S_PCall p b (env' : Ω) mem' xargs eargs zargs : 
         List.length xargs = List.length eargs ->
@@ -119,9 +126,10 @@ Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt
         (((p_map_addall ⊥ xargs zargs),⊥) ⋅ mem |= b => env'⋅ mem') funs procs ->
         (env ⋅ mem |= PCall p eargs => env ⋅ mem') funs procs
 
-    | S_Return e z resf : 
-        @generic_exp_sem T ext_exp env mem e z ->
-        (env ⋅ mem |= <{ return e in resf }> =>  ((fst env){resf\z},snd env)⋅ mem) funs procs
+    | S_Return e z : 
+        (* not allowed to return an unassigned value *)
+        @generic_exp_sem T ext_exp env mem e (Def z) ->
+        (env ⋅ mem |= <{ return e }> =>  ((fst env){res_f\Def z},snd env)⋅ mem) funs procs
 
     | S_PAssert  e z :
         @generic_exp_sem T ext_exp env mem e z -> z <>  zero ->
