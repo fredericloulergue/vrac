@@ -898,7 +898,7 @@ Proof.
     exists var. intro H. unfold Definitions.ty in H. now rewrite H.
 Qed.
 
-Open Scope gmp_sem_scope.
+Open Scope macro_sem_scope.
 
 Corollary same_eval_macro :  forall Ω M v l e z z', 
     _no_env_mpz_aliasing Ω ->
@@ -1032,33 +1032,34 @@ Proof with try easy ; auto with rac_hint ; unshelve eauto using Z.ltb_irrefl,Z.g
     }
     unfold CMP. destruct (ty e1) eqn:T1, (ty e2) eqn:T2 ; try apply NotInt ; clear NotInt.
     
-     (* both ty(e1) = int and ty(e2) = int *)
-    - inversion H0 ; inversion H1 ; try 
-            match goal with 
-            | Contra :  _ ⋅ _ |= _ => Def (VMpz _) |- _ => 
-                inversion Contra ; match goal with 
-                | Contra : _gmp_exp_sem _ _ _ _ |- _ => inversion Contra ; now subst
-                end
-            end.
-        exists M. intros Hvdiff. clear Hvdiff (* not needed *). destruct (Z.lt_trichotomy z1 z2) as [inf' | [ eq' | sup']].
+    (* both ty(e1) = int and ty(e2) = int *)
+    inversion H0 ; inversion H1 ; try 
+    match goal with 
+    | Contra :  (_ ⋅ _ |= _ => Def (VMpz _))%gmpsem |- _ => 
+        inversion Contra ; match goal with 
+        | Contra : _gmp_exp_sem _ _ _ _ |- _ => inversion Contra ; now subst
+        end
+    end.
+
+    exists M. intros Hvdiff. clear Hvdiff (* not needed *). destruct (Z.lt_trichotomy z1 z2) as [inf' | [ eq' | sup']].
         
-        (* z1 < z2 *)
-        * assert (cmp := inf'). apply <- inf in inf'. clear eq inf sup. subst.
-            destruct x,x0. subst. apply S_IfTrue with one.
-            + split... apply C_E_BinOpTrue with val val0 in_range in_range0... apply Z.ltb_lt. apply cmp.
-            + inversion inf'. constructor...  apply (C_E_BinOpInt Ω M 0 1 0 1) with zeroinRange oneinRange...
+    (* z1 < z2 *)
+    * assert (cmp := inf'). apply <- inf in inf'. clear eq inf sup. subst.
+        destruct x,x0. subst. apply S_IfTrue with one.
+        + split... apply C_E_BinOpTrue with val val0 in_range in_range0... apply Z.ltb_lt. apply cmp.
+        + inversion inf'. constructor...  apply (C_E_BinOpInt Ω M 0 1 0 1) with zeroinRange oneinRange...
 
-        (* z1 = z2 *)
-        * assert (cmp := eq'). rewrite <- eq in eq'. clear eq inf sup. subst.
-            destruct x,x0. apply Int.mi_eq in cmp. injection cmp as cmp. inversion eq'. subst. constructor...
+    (* z1 = z2 *)
+    * assert (cmp := eq'). rewrite <- eq in eq'. clear eq inf sup. subst.
+        destruct x,x0. apply Int.mi_eq in cmp. injection cmp as cmp. inversion eq'. subst. constructor...
 
-        (* z1 > z2 *)
-        * assert (cmp := sup').  apply Z.lt_gt in sup'. apply <- sup in sup'.  clear inf eq sup. subst.
-          destruct x, x0. subst. constructor ; simpl in *.
-            + eapply C_E_BinOpFalse... apply Z.ltb_ge. unfold Z.le. now rewrite cmp.  
-            + inversion sup'. subst. apply S_IfTrue with one.
-                ++  subst. split... apply C_E_BinOpTrue with val val0 in_range in_range0... now apply Z.gtb_lt.
-                ++  constructor... 
+    (* z1 > z2 *)
+    * assert (cmp := sup').  apply Z.lt_gt in sup'. apply <- sup in sup'.  clear inf eq sup. subst.
+        destruct x, x0. subst. constructor ; simpl in *.
+        + eapply C_E_BinOpFalse... apply Z.ltb_ge. unfold Z.le. now rewrite cmp.  
+        + inversion sup'. subst. apply S_IfTrue with one.
+            ++  subst. split... apply C_E_BinOpTrue with val val0 in_range in_range0... now apply Z.gtb_lt.
+            ++  constructor... 
 Qed.
 
 
@@ -1120,7 +1121,7 @@ Proof with eauto with rac_hint.
     unfold binop_ASSGN. destruct (ty e1) eqn:T1, (ty e2) eqn:T2 ; try apply NotInt. clear NotInt.
     exists M. intros. inversion H0 ; inversion H1; try 
     match goal with 
-    | Contra :  _ ⋅ _ |= _ => Def (VMpz _) |- _ => 
+    | Contra :  (_ ⋅ _ |= _ => Def (VMpz _))%gmpsem |- _ => 
         inversion Contra ; match goal with 
         | Contra : _gmp_exp_sem _ _ _ _ |- _ => inversion Contra ; now subst
         end

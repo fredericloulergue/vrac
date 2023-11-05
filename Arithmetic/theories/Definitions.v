@@ -74,7 +74,7 @@ Definition c_binop_int_model (x:c_binop_int) : Z -> Z -> Z := match x with
     | C_Mul => Z.mul
     | C_Div => Z.div
 end.
-Notation "⋄" := c_binop_int_model.
+Notation "⋄" := c_binop_int_model : definition_scope.
 
 
 Definition fsl_binop_int_to_c (x:fsl_binop_int) : c_binop_int := match x with
@@ -102,6 +102,7 @@ Inductive _c_exp {T : Set}  :=
     | BinOpInt (le : _c_exp) (op:c_binop_int) (re : _c_exp) (* can only be of type int *)
     | BinOpBool (le : _c_exp) (op:c_binop_bool) (re : _c_exp) (* can only be of type int *)
 .
+#[global] Hint Constructors _c_exp  : rac_hint.
 
 
 Inductive _c_statement {S T : Set} :=
@@ -117,6 +118,8 @@ Inductive _c_statement {S T : Set} :=
 | Decl (d: @_c_decl T)
 | S_Ext (stmt:S)
 .
+#[global] Hint Constructors _c_statement  : rac_hint.
+
 
 Definition compiler_prefix : id := "_".
 Definition comp_var x : id  := (compiler_prefix ++ x)%string.
@@ -145,6 +148,8 @@ Inductive _gmp_statement :=
     | Comp (res lid rid :id) (* mpz comparison *)
     | Coerc (name n : id) (* mpz coercion *)
     .
+
+#[global] Hint Constructors _gmp_statement  : rac_hint.
 
 Definition op (x:fsl_binop_int) : id -> id -> id -> _gmp_statement := match x with
     | FSL_Add => GMP_Add
@@ -490,6 +495,9 @@ Inductive param_env_partial_order (var: 𝓥) (env env':Ω) : Prop :=
     -> param_env_partial_order var env env'
 | Enone : (fst env) var = None -> param_env_partial_order var env env'
 .
+
+#[global] Hint Constructors param_env_partial_order : rac_hint.
+
 
 Definition env_partial_order env env' := forall v, param_env_partial_order v env env'.
 

@@ -7,8 +7,6 @@ From Coq Require Import Strings.String.
 Open Scope string_scope.
 Open Scope Z_scope.
 Open Scope utils_scope.
-Delimit Scope utils_scope with utils.
-
 Create HintDb rac_hint.
 
 
