@@ -20,6 +20,7 @@ Reserved Notation "f { xy , .. , xy' }" (xy custom pmap, xy' custom pmap, at lev
 Reserved Notation "Ω |= e => v" (at level 70). (* semantic of expressions, v ∈ Value *)
 Reserved Notation "Ω ⋅ M |= e => v" (at level 70,  M at next level).  (* semantic of gmp expressions *) 
 Reserved Notation "Ω ⋅ M |= s => Ω' ⋅  M'" (at level 70,  M at next level, Ω' at next level).  (* semantic of statements *) 
+Reserved Notation "Ω ⋅ M '|=' e ⇝ z" (M at next level, at level 70).
 Reserved Notation "e ⊑ e'" ( e  constr, e'  constr, at level 99).
 Reserved Notation "( e , m ) ⊑ ( e' , m' )".
 Reserved Notation "e ⊑ e'" (at level 99).
