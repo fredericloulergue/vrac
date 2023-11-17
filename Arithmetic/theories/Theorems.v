@@ -474,7 +474,12 @@ Proof.
     - destruct IHHderiv.
         + intro Hcontra. apply Hnotin. apply  List.in_app_iff. now left.
         + apply IHHderiv0. intro Hcontra. apply Hnotin. apply List.in_app_iff. now right.
-    - admit. (* fcall *)
+    - destruct IHHderiv.
+      destruct Hnotin.
+      destruct H3.
+
+      
+      admit. (* fcall *)
     - admit. (* ret *)
     - eapply Hext in H ; eauto.
 Admitted.
