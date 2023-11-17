@@ -167,17 +167,13 @@ Open Scope mini_gmp_scope.
 
 Inductive _gmp_stmt_sem { S T : Set }(funs : @𝓕 S T) (procs : @𝓟 S T) (env:Ω) (mem:𝓜) : gmp_statement -> Ω -> 𝓜 -> Prop := 
     | S_init x (l:location):
-        fresh_location mem l ->
         (forall v, (fst env) v <> Some (Def (VMpz (Some l)))) ->
         (exists n, (fst env) x = Some (Undef (UMpz n)))%type ->
         (env ⋅ mem |= <init(x)> => ((fst env){x\Def (VMpz (Some l))}, snd env) ⋅ mem{l\Defined 0}) funs procs
     
-    | S_clear x a z :   
+    | S_clear x a u:   
         (fst env) x = Some (Def (VMpz (Some a))) ->   
-        (* added *)
-        mem a = Some (Defined z) ->   
-        (* cl is not deterministic unless the umpz value used is always the same *)
-        (env ⋅ mem |= <cl(x)> => ((fst env){x\(Def (VMpz None))}, snd env) ⋅ mem{a\Undefined z}) funs procs
+        (env ⋅ mem |= <cl(x)> => ((fst env){x\(Def (VMpz None))}, snd env) ⋅ mem{a\Undefined u}) funs procs
 
     | S_set_i x y z a :  
         (fst env) x = Some (Def (VMpz (Some a))) ->

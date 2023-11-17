@@ -35,9 +35,9 @@ Proof with auto with rac_hint.
     intros v v' ll l' Hvv' Hl Hl' leq ; subst ; simpl in *.
     - destruct (eq_dec x v).
         + subst. rewrite p_map_same in Hl. rewrite p_map_not_same in Hl'... inversion Hl. 
-            subst. now  destruct H0 with v'.
+            subst. now destruct H with v'.
         + rewrite p_map_not_same in Hl... destruct (eq_dec x v').
-            * subst. rewrite p_map_same in Hl'. inversion Hl'. subst. now destruct H0 with v.
+            * subst. rewrite p_map_same in Hl'. inversion Hl'. subst. now destruct H with v.
             * rewrite p_map_not_same in Hl'... destruct Hnoalias with v v' l' l'...
     - destruct (eq_dec x v).
         + subst. now rewrite p_map_same in Hl.
@@ -104,14 +104,14 @@ Proof with auto with rac_hint.
     - apply H in H0... destruct H0 with v v' l' l'...
 Admitted. *)
 
-Fact eq_env_partial_order :  forall e e' v z, e ⊑ e' ->  
+Fact eq_env_partial_order :  forall e e' v z, (e ⊑ e')%env ->  
     (fst e) v = Some (Def z) -> (fst e') v = Some (Def z).
 Proof.
     intros e e' v z Hrel He. destruct Hrel with v; congruence.
     
     Qed.
 Fact sym_env_cond : forall env env', 
-(forall v, (dom (fst env) - dom (fst env')) v ) -> (env ⊑ env') -> (env' ⊑ env).
+(forall v, (dom (fst env) - dom (fst env')) v ) -> (env ⊑ env')%env -> (env' ⊑ env)%env.
 
 Proof.
     intros env env' H rel v ; destruct H with v as [Hin Hnotin] ; destruct Hnotin ; destruct rel with v.
@@ -135,7 +135,7 @@ Qed.
 
 
 
-Corollary eq_env_partial_order_add :  forall e e' v v' z z',  e ⊑ e' ->  
+Corollary eq_env_partial_order_add :  forall (e e' :Ω) v v' z z',  (e ⊑ e')%env ->  
     v <> v' ->
     (fst e) v = Some (Def z) -> ((fst e'){v'\z'}) v = Some (Def z).
 Proof.
@@ -146,7 +146,7 @@ Qed.
 
 
 Fact eq_mem_partial_order :  
-    forall mem mem' z l, mems_partial_order mem mem' -> z <> None ->  
+    forall mem mem' z l, (mem ⊑ mem')%mem -> z <> None ->  
     mem l = z ->  mem' l = z.
 Proof.
     intros. destruct z.
@@ -156,8 +156,10 @@ Qed.
 
 
 
-Fact env_partial_order_add : forall Ω₀ Ω₀', Ω₀ ⊑ Ω₀' -> 
-    (forall var' z, (((fst Ω₀) {var' \ z}, snd Ω₀)) ⊑  (((fst (Ω₀')) {var' \ z}, snd Ω₀'))).
+Fact env_partial_order_add : forall Ω₀ Ω₀', (Ω₀ ⊑ Ω₀')%env -> 
+    (forall var' z, 
+    ( ( (fst Ω₀) {var' \ z}, snd Ω₀) ) ⊑  ( ((fst (Ω₀')) {var' \ z}, snd Ω₀') )
+    )%env.
 Proof with auto with rac_hint.
     intros [v l][v' l'] H x z var. destruct (string_dec x var) as [Heq|Hneq].
     - subst. simpl. specialize (H var). destruct z. 
@@ -204,10 +206,10 @@ Proof.
 Qed.
 
 
-Fact env_same_ty : forall  (Ω Ω' : Ω) v t, Ω ⊑ Ω' -> t <> None -> type_of_value (fst Ω v) = t -> type_of_value (fst Ω' v) = t.
+Fact env_same_ty : forall  (Ω Ω' : Ω) v t, (Ω ⊑ Ω')%env -> t <> None -> type_of_value (fst Ω v) = t -> type_of_value (fst Ω' v) = t.
 Proof.
     intros. 
-    match goal with | IncRel : _ ⊑ _ |- _ =>  destruct IncRel with v ; subst end ;
+    match goal with | IncRel : (_ ⊑ _)%env |- _ =>  destruct IncRel with v ; subst end ;
     match goal with 
     | L : fst Ω v = _,  R : fst Ω' v = _  |- _ => now rewrite L,R 
     | L : fst Ω v = _,  R : fst Ω' v = _ \/ _ |- _ => destruct R as [SomeUInt | [ x Some_n ]]; [now rewrite L,SomeUInt | now rewrite L,Some_n] 
@@ -263,74 +265,6 @@ Proof.
         apply determinist_exp_eval in H0 ; [|assumption]. apply H0 in H1. subst. f_equal. clear H0.
         now apply IHHderiv in Hderiv2.
 Qed.
-
-
-
-(* Definition _determinist_stmt_eval {S T : Set} (exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) : Prop := 
-    @_determinist_exp_eval T exp_sem  -> 
-    forall funs procs s env mem env' mem',  stmt_sem funs procs env mem s env' mem' ->  (forall env'' mem'', stmt_sem funs procs env mem s env'' mem'' -> env' = env'' /\ mem' = mem'').
-
-
-
-
-Fact determinist_stmt_eval {S T : Set}: 
-    forall  exp_sem stmt_sem, 
-    @_determinist_stmt_eval S T exp_sem stmt_sem -> 
-    _determinist_stmt_eval exp_sem (@generic_stmt_sem S T exp_sem stmt_sem).
-Proof with auto. 
-    intros exp_sem stmt_sem Hds Hde funs procs s env mem env' mem' Hderiv. induction Hderiv ; intros.
-    - inversion H... 
-    - inversion H2 ; subst ; split... repeat f_equal. apply determinist_exp_eval in H1...
-    - inversion H1 ; subst...  apply determinist_exp_eval in H7... destruct H. apply H7 in H. now symmetry in H.
-    - inversion H1 ; subst... apply determinist_exp_eval in H... destruct H7. apply H in H2. now symmetry in H2. 
-    - inversion H0... 
-    - inversion H1 ; subst... apply IHHderiv in H4 as [Eq1 Eq2]. subst. apply IHHderiv0 in H7. now subst. 
-    - inversion H5 ; subst. 
-       (* same args, same body *) 
-            rewrite H11 in H0. injection H0 as H0. subst.
-            (* same args eval *) 
-            assert (zargs = zargs0) by auto using (@Forall2_same_zargs T env mem eargs zargs zargs0 exp_sem). 
-            subst. apply IHHderiv in H15 as [Eq1 Eq2]. subst. rewrite H4 in H17. injection H17 as H17. now subst.
-    - inversion H3.  subst. split... rewrite H7 in H0. injection H0 as Eq1. subst. 
-            assert (zargs = zargs0) by auto using (@Forall2_same_zargs T env'' mem eargs zargs zargs0 exp_sem). subst. 
-            now apply IHHderiv in H11.
-    - inversion H0 ; subst... apply determinist_exp_eval in H... apply H in H5. now subst.
-    - inversion H1...
-    - inversion H0. subst. unfold _determinist_stmt_eval in Hds. eapply Hds... apply H. apply H2.
-Qed.
-
-
-Fact _determinist_gmp_stmt_eval :  _determinist_stmt_eval _gmp_exp_sem _gmp_stmt_sem.
-Proof with auto.
-    intros Hde funs procs s. induction s 
-    ; intros ; inversion H ; inversion H0; subst ; split ; try easy ; try now destruct bop.
-    - assert (l = l0) by eauto using fresh_location_deterministic. subst. inversion H7. subst. easy.
-    - assert (l = l0) by eauto using fresh_location_deterministic. now subst.
-    - congruence.
-    - congruence.
-    - injection H6 as H6. subst. rewrite H2 in H7. apply determinist_gmp_exp_eval in H3. apply H3 in H8. congruence.
-    - injection H7 as H7. subst. rewrite H3 in H9. inversion H9. subst. rewrite H8 in H2. inversion H2.  congruence.
-    - injection H6 as H6. subst. apply determinist_gmp_exp_eval in H2. apply H2 in H7. injection H7 as Eq2. subst. rewrite H3 in H8. 
-        injection H8 as Eq2. subst. f_equal. f_equal. f_equal. f_equal. now apply Int.mi_eq.
-    - injection H6 as H6. subst. congruence.
-    -  injection H9 as H9. subst. repeat f_equal. destruct H6 as [Sup [Inf Eq]]. destruct H14 as [Sup2 [Inf2 Eq2]].
-        apply determinist_gmp_exp_eval in H3. apply H3 in H11. clear H3.
-        apply determinist_gmp_exp_eval in H2. apply H2 in H10. clear H2. injection H10 as H10. injection H11 as H11. subst. rewrite H4 in H12. rewrite H5 in H13.
-        injection H12 as H12. injection H13 as H13. subst. destruct (Z.lt_trichotomy lx0 ly0) as [Hinf | [Heq | Hsup]].
-            + apply Inf in Hinf as X. apply Inf2 in Hinf as X2. congruence.
-            + apply Eq in Heq as X. apply Eq2 in Heq as X2. congruence.
-            + apply Z.lt_gt in Hsup. apply Sup in Hsup as X. apply Sup2 in Hsup as X2. congruence.
-
-    - unfold op in H9. destruct bop,bop0 ; try easy.
-        1,2,3,4: (injection H9 as H9; subst; apply determinist_gmp_exp_eval in H2; apply H2 in H10; 
-            apply determinist_gmp_exp_eval in H4; apply H4 in H12 ;
-            inversion H10 ; inversion H11 ; inversion H12 ; subst ;
-                rewrite H8 in H3 ; inversion H3 ; subst ; congruence).
-Qed.
-
-
-Definition determinist_gmp_stmt_eval := determinist_stmt_eval _gmp_exp_sem _gmp_stmt_sem _determinist_gmp_stmt_eval. *)
-
 
 Definition _weakening_of_expression_semantics {T : Set} (exp_sem : @exp_sem_sig T) : Prop := 
     forall e env mem (x:𝕍), 
@@ -474,8 +408,7 @@ Proof.
     - simpl. symmetry. apply p_map_not_same_eq ; auto.
     - simpl. destruct (eq_dec res_f x). subst. 
         * discriminate.
-        * symmetry. rewrite p_map_not_same_eq. auto. congruence.
-          
+        * symmetry. rewrite p_map_not_same_eq. auto. congruence.     
     - eapply Hext in H ; eauto.
 Qed.
 
@@ -484,7 +417,6 @@ Qed.
 
 Definition _weakening_of_statement_semantics_1  {S T : Set} (exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) := 
     _weakening_of_expression_semantics exp_sem ->
-    (* _determinist_stmt_eval exp_sem stmt_sem ->  *)
     forall (funs : @𝓕 S T) (procs : @𝓟 S T) Ω₀ M₀ s Ω₁ M₁,
     stmt_sem funs procs Ω₀ M₀ s Ω₁ M₁ <->
     ( forall Ω₀' M₀', (Ω₀ , M₀) ⊑ (Ω₀', M₀') ->
@@ -586,15 +518,25 @@ Proof with eauto using eq_env_partial_order, eq_mem_partial_order,refl_env_mem_p
     intros Hweak funs procs Ω₀ M₀ s Ω₁ M₁. split.
     - intro Hderiv. induction Hderiv; intros Ω₀' M₀' [Henv Hmem] ;
         pose proof (fun y => weakening_of_gmp_expression_semantics y Ω₀ M₀) as weak_exp. 
-        * exists (p_map (fst Ω₀') (x, (Def (VMpz (Some l)))), snd Ω₀'). exists M₀'{l \Defined 0}. split...
+
+        (* init *)
+        * exists ( (fst Ω₀') {x \ Def (VMpz (Some l))}, snd Ω₀'),  M₀'{l \Defined 0}. split.
             + split. 
                 ++ apply env_partial_order_add... 
                 ++ apply mems_partial_order_add...
             + apply S_init.
-                ++ admit.
-                ++ apply fresh_location_no_alias in H. intros v Heq.  admit.
-                ++ destruct H1. exists x0. admit.
-        * exists (p_map (fst Ω₀') (x, Def (VMpz None)), snd Ω₀'). exists M₀' {a \ Undefined z}. split.
+                ++ intros v Hcontra. 
+                    (* the fact v is not bound to mpz location l by Ω₀ doesn't mean 
+                        that v will also not be bound to mpz location l by Ω₀' 
+                    *) 
+                    admit.
+                ++ (* the semantic of ⊑ only ensures a defined mpz must stay the same, 
+                        but here, x points to an undefined mpz value so it can be either stay like so or
+                        be defined 
+                    *)
+                    admit.
+        (* clear *)
+        * exists (p_map (fst Ω₀') (x, Def (VMpz None)), snd Ω₀'). eexists M₀' {a \ Undefined u}. split.
             + split.
                 ++ apply env_partial_order_add...
                 ++ apply mems_partial_order_add...
