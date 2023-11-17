@@ -503,7 +503,15 @@ Definition env_partial_order env env' := forall v, param_env_partial_order v env
 
 Definition mems_partial_order (mem mem':𝓜) : Prop := forall l i, mem l = Some i ->  mem' l = Some i.
 
-Infix "⊑" := env_partial_order : definition_scope.
+Declare Scope env_scope.
+Delimit Scope env_scope with env.
+Declare Scope mem_scope.
+Delimit Scope mem_scope with mem.
+
+Infix "⊑" := env_partial_order : env_scope.
+
+Infix "⊑" := mems_partial_order : mem_scope.
+
 
 Notation "( e , m ) ⊑ ( e' , m' )" :=  (
     env_partial_order e e' /\ mems_partial_order m m'
