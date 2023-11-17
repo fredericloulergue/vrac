@@ -445,6 +445,9 @@ Definition _untouched_var_same_eval_stmt {S T : Set} (exp_sem : @exp_sem_sig T) 
     (fst env) x = (fst env') x
     .
 
+
+
+
     
 Fact untouched_var_same_eval_stmt {S T : Set} : 
     forall exp_sem stmt_sem, 
@@ -471,7 +474,8 @@ Proof.
     - simpl. symmetry. apply p_map_not_same_eq ; auto.
     - simpl. destruct (eq_dec res_f x). subst. 
         * discriminate.
-        * symmetry. now apply p_map_not_same_eq.
+        * symmetry. rewrite p_map_not_same_eq. auto. congruence.
+          
     - eapply Hext in H ; eauto.
 Qed.
 
