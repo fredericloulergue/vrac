@@ -108,8 +108,8 @@ Fact eq_env_partial_order :  forall e e' v z, (e ⊑ e')%env ->
     (fst e) v = Some (Def z) -> (fst e') v = Some (Def z).
 Proof.
     intros e e' v z Hrel He. destruct Hrel with v; congruence.
-    
-    Qed.
+Qed.
+
 Fact sym_env_cond : forall env env', 
 (forall v, (dom (fst env) - dom (fst env')) v ) -> (env ⊑ env')%env -> (env' ⊑ env)%env.
 
@@ -224,9 +224,9 @@ Definition _determinist_exp_eval {T : Set} (exp_sem : @exp_sem_sig T) : Prop :=
 .
 
 Fact determinist_exp_eval {T : Set}: 
-forall exp_sem, _determinist_exp_eval exp_sem -> _determinist_exp_eval (@generic_exp_sem T exp_sem).
+forall ext_exp_sem, _determinist_exp_eval ext_exp_sem -> _determinist_exp_eval (@generic_exp_sem T ext_exp_sem).
 Proof.
-    intros exp_sem ext_inj. unfold _determinist_exp_eval. intros e. induction e ; intros ; inversion H ; inversion H0 ; subst ; try easy.
+    intros ext_exp_sem ext_inj. unfold _determinist_exp_eval. intros e. induction e ; intros ; inversion H ; inversion H0 ; subst ; try easy.
     5,6:
         apply IHe1 with (v:=(z ⁱⁿᵗ z_ir)) (v':=(z0 ⁱⁿᵗ z_ir0)) in H11 ; [|assumption] ; injection H11 as eqz ;
         apply IHe2 with (v:=(z' ⁱⁿᵗ z'_ir)) (v':=(z'0 ⁱⁿᵗ z'_ir0)) in H13; [|assumption] ;  injection H13 as eqz' ; subst ; now rewrite H14 in H7.
@@ -253,7 +253,6 @@ Qed.
 
 Definition determinist_gmp_exp_eval := determinist_exp_eval _gmp_exp_sem _determinist_gmp_exp_eval.
 
-
 Fact Forall2_same_zargs { T : Set} : forall env mem eargs zargs zargs0  exp_sem, 
     _determinist_exp_eval exp_sem
     -> List.Forall2 (@generic_exp_sem T exp_sem env mem) eargs zargs 
@@ -265,6 +264,42 @@ Proof.
         apply determinist_exp_eval in H0 ; [|assumption]. apply H0 in H1. subst. f_equal. clear H0.
         now apply IHHderiv in Hderiv2.
 Qed.
+
+Definition _determinist_stmt_eval {S T : Set} (ext_exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) : Prop := 
+    @_determinist_exp_eval T ext_exp_sem  -> 
+    forall funs procs s env mem env' mem',  stmt_sem funs procs env mem s env' mem' ->  (forall env'' mem'', stmt_sem funs procs env mem s env'' mem'' -> env' = env'' /\ mem' = mem'').
+
+
+Fact determinist_stmt_eval {S T : Set}: 
+    forall ext_exp_sem ext_stmt_sem, 
+    @_determinist_stmt_eval S T ext_exp_sem ext_stmt_sem -> 
+    _determinist_stmt_eval ext_exp_sem (@generic_stmt_sem S T ext_exp_sem ext_stmt_sem).
+Proof with auto. 
+    intros ext_exp_sem ext_stmt_sem Hds Hde funs procs s env mem env' mem' Hderiv. induction Hderiv ; intros.
+    - inversion H... 
+    - inversion H3 ; subst ; split... repeat f_equal. apply determinist_exp_eval in H2...
+    - inversion H1 ; subst...  apply determinist_exp_eval in H7... destruct H. apply H7 in H. now symmetry in H.
+    - inversion H1 ; subst... apply determinist_exp_eval in H... destruct H7. apply H in H2. now symmetry in H2. 
+    - inversion H0... 
+    - inversion H1 ; subst... apply IHHderiv in H4 as [Eq1 Eq2]. subst. apply IHHderiv0 in H7. now subst. 
+    - inversion H5 ; subst. 
+       (* same args, same body *) 
+            rewrite H10 in H0. injection H0 as H0. subst.
+            (* same args eval *) 
+            assert (zargs = zargs0) by auto using (@Forall2_same_zargs T env mem eargs zargs zargs0 ext_exp_sem). 
+            subst. apply IHHderiv in H12 as [Eq1 Eq2]. subst. rewrite H4 in H16. injection H16 as H16. now subst.
+    - inversion H3.  subst. split... rewrite H7 in H0. injection H0 as Eq1. subst. 
+            assert (zargs = zargs0) by auto using (@Forall2_same_zargs T env'' mem eargs zargs zargs0 ext_exp_sem). subst. 
+            now apply IHHderiv in H11.
+    - inversion H0 ; subst... apply determinist_exp_eval in H... apply H in H2. injection H2 as H2. now subst.
+    - inversion H1...
+    - inversion H0. subst. unfold _determinist_stmt_eval in Hds. eapply Hds... apply H. apply H2.
+Qed.
+
+Fact _determinist_c_stmt_eval : _determinist_stmt_eval Empty_exp_sem Empty_stmt_sem. easy. Qed.
+
+Definition determinist_c_stmt_eval := determinist_stmt_eval Empty_exp_sem Empty_stmt_sem _determinist_c_stmt_eval.
+
 
 Definition _weakening_of_expression_semantics {T : Set} (exp_sem : @exp_sem_sig T) : Prop := 
     forall e env mem (x:𝕍), 
@@ -426,7 +461,6 @@ Definition _weakening_of_statement_semantics_1  {S T : Set} (exp_sem : @exp_sem_
 Lemma weakening_of_statement_semantics_1 {S T : Set} : 
     forall exp_sem stmt_sem, 
     _weakening_of_statement_semantics_1 exp_sem stmt_sem 
-    (* -> _determinist_stmt_eval exp_sem stmt_sem *)
     -> _weakening_of_statement_semantics_1 exp_sem (@generic_stmt_sem S T exp_sem stmt_sem)
 .
 Proof with eauto using refl_env_mem_partial_order,env_partial_order_add with rac_hint.
