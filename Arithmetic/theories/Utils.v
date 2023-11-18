@@ -7,8 +7,6 @@ From Coq Require Import Strings.String.
 Open Scope string_scope.
 Open Scope Z_scope.
 Open Scope utils_scope.
-Delimit Scope utils_scope with utils.
-
 Create HintDb rac_hint.
 
 
@@ -20,10 +18,7 @@ Infix "⨉" := prod (at level 99) : utils_scope.
 Notation "⊥" := empty_p : utils_scope.
 Notation "'ℤ'" := Z (at level 99) : utils_scope.
 
-Class EqDec X :=
-{
-  eq_dec : forall (x y : X), {x = y} + {x <> y}
-}.
+Class EqDec X := {eq_dec : forall (x y : X), {x = y} + {x <> y}}.
 
 Fact dec_neq_out_neq_in {X T : Type } `{EqDec X}: forall (f : X -> T) (x x' : X)  , f x <> f x' -> x <> x'.
 Proof.

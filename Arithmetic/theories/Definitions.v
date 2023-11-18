@@ -74,7 +74,7 @@ Definition c_binop_int_model (x:c_binop_int) : Z -> Z -> Z := match x with
     | C_Mul => Z.mul
     | C_Div => Z.div
 end.
-Notation "⋄" := c_binop_int_model.
+Notation "⋄" := c_binop_int_model : definition_scope.
 
 
 Definition fsl_binop_int_to_c (x:fsl_binop_int) : c_binop_int := match x with
@@ -102,21 +102,29 @@ Inductive _c_exp {T : Set}  :=
     | BinOpInt (le : _c_exp) (op:c_binop_int) (re : _c_exp) (* can only be of type int *)
     | BinOpBool (le : _c_exp) (op:c_binop_bool) (re : _c_exp) (* can only be of type int *)
 .
+#[global] Hint Constructors _c_exp  : rac_hint.
 
 
 Inductive _c_statement {S T : Set} :=
 | Skip (* empty statement *)
 | Assign (var:id) (e: @_c_exp T) (* assignment *)
-| FCall (var:id) (resf:id) (fname:string) (args: @_c_exp T ⃰) (* function call *)
+| FCall (var:id) (fname:string) (args: @_c_exp T ⃰) (* function call *)
 | PCall  (fname:string) (args: @_c_exp T ⃰) (* procedure call *)
 | Seq (s1 : _c_statement) (s2 : _c_statement) (* sequence *)
 | If (cond:@_c_exp T) (_then:_c_statement) (_else:_c_statement) (* conditional *)
 | While (cond:@_c_exp T) (body:_c_statement) (* loop *)
 | PAssert (e:@_c_exp T) (* program assertion *)
-| Return (e:@_c_exp T) (resf:id) 
+| Return (e:@_c_exp T) 
 | Decl (d: @_c_decl T)
 | S_Ext (stmt:S)
 .
+#[global] Hint Constructors _c_statement  : rac_hint.
+
+
+Definition compiler_prefix : id := "_".
+Definition comp_var x : id  := (compiler_prefix ++ x)%string.
+Definition is_comp_var := String.prefix compiler_prefix.
+Definition res_f : id := comp_var "res".
 
 Inductive _c_routine {S T : Set} :=
 | PFun (ret: @_c_type T) (name:id) (args: @_c_decl T ⃰) (b_decl: @_c_decl T ⃰) (body: @_c_statement T S) (* program function *)
@@ -140,6 +148,8 @@ Inductive _gmp_statement :=
     | Comp (res lid rid :id) (* mpz comparison *)
     | Coerc (name n : id) (* mpz coercion *)
     .
+
+#[global] Hint Constructors _gmp_statement  : rac_hint.
 
 Definition op (x:fsl_binop_int) : id -> id -> id -> _gmp_statement := match x with
     | FSL_Add => GMP_Add
@@ -226,7 +236,7 @@ Notation "s1 ';' s2" := (Seq s1 s2) (in custom c_stmt at level 90, right associa
 Notation "x = y" := (Assign x y) (in custom c_stmt at level 0, x constr at level 0, y custom c_exp at level 85, no associativity) : mini_c_scope.
 Notation "'assert' e" := (PAssert e) (in custom c_stmt at level 0, e custom c_exp at level 99) : mini_c_scope.
 Notation "'while' e s" := (While e s) (in custom c_stmt at level 89, e custom c_exp at level 99, s at level 99) : mini_c_scope.
-Notation "'return' e 'in' v" := (Return e v) (in custom c_stmt at level 0, e custom c_exp at level 99, v constr at level 0) : mini_c_scope.
+Notation "'return' e" := (Return e) (in custom c_stmt at level 0, e custom c_exp at level 99) : mini_c_scope.
 
 Notation "f args" := (PCall f args) (in custom c_stmt at level 99, args custom c_args) : mini_c_scope.
 Notation "c '<-' f args" := (FCall c f args) (in custom c_stmt at level 80, f at next level, args custom c_args) : mini_c_scope.
@@ -355,13 +365,13 @@ end.
 Fixpoint stmt_vars {T S:Set} (stmt : @_c_statement T S) : list id := match stmt with 
 | Skip => nil 
 | Assign var e => var::exp_vars e
-| FCall var _resf f args => var::List.flat_map exp_vars args
+| FCall var f args => var::List.flat_map exp_vars args
 | PCall f args => List.flat_map exp_vars args
 | Seq s1 s2 =>  stmt_vars s1 ++ stmt_vars s2
 | If cond then_ else_ =>  exp_vars cond ++ stmt_vars then_ ++ stmt_vars else_
 | While cond s => exp_vars cond ++ stmt_vars s 
 | PAssert e => exp_vars e
-| Return e _resf => exp_vars e (* resf is invisible to the user  *)
+| Return e  => exp_vars e 
 | Decl (C_Decl ty id) => id::nil
 | S_Ext s => nil
 end.
@@ -486,11 +496,22 @@ Inductive param_env_partial_order (var: 𝓥) (env env':Ω) : Prop :=
 | Enone : (fst env) var = None -> param_env_partial_order var env env'
 .
 
+#[global] Hint Constructors param_env_partial_order : rac_hint.
+
+
 Definition env_partial_order env env' := forall v, param_env_partial_order v env env'.
 
 Definition mems_partial_order (mem mem':𝓜) : Prop := forall l i, mem l = Some i ->  mem' l = Some i.
 
-Infix "⊑" := env_partial_order : definition_scope.
+Declare Scope env_scope.
+Delimit Scope env_scope with env.
+Declare Scope mem_scope.
+Delimit Scope mem_scope with mem.
+
+Infix "⊑" := env_partial_order : env_scope.
+
+Infix "⊑" := mems_partial_order : mem_scope.
+
 
 Notation "( e , m ) ⊑ ( e' , m' )" :=  (
     env_partial_order e e' /\ mems_partial_order m m'
