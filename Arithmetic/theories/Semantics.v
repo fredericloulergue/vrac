@@ -7,23 +7,14 @@ From Coq Require Import BinaryString.
 Open Scope Z_scope.
 
 
-#[local] Declare Scope generic_sem_scope.
-#[local] Declare Scope _gmp_stmt_sem_scope.
-
-
-
-Declare Scope c_sem_scope.
-Declare Scope mini_c_decl_scope.
-Declare Scope gmp_sem_scope.
-Declare Scope fsl_sem_scope.
-
-
-
 Definition exp_sem_sig {T : Set} : Type := Ω -> 𝓜 -> @_c_exp T -> 𝕍 -> Prop.
 Definition stmt_sem_sig {S T: Set} : Type  :=  @𝓕 S T -> @𝓟 S T-> Ω -> 𝓜 -> @_c_statement S T ->  Ω -> 𝓜 -> Prop.
 Definition Empty_exp_sem : @exp_sem_sig Empty_set := fun _ _ _  _ => False.
 Definition Empty_stmt_sem : @stmt_sem_sig Empty_set Empty_set := fun _ _ _  _ _ _ _ => False.
 
+
+Declare Scope generic_sem_scope.
+Delimit Scope generic_sem_scope with gensem.
 
 (* extensible expression semantic *)
 Inductive generic_exp_sem {T:Set} {ext_exp : @exp_sem_sig T} (env : Ω) (mem:𝓜): @_c_exp T -> 𝕍 -> Prop :=
@@ -61,6 +52,13 @@ Inductive generic_exp_sem {T:Set} {ext_exp : @exp_sem_sig T} (env : Ω) (mem:�
 
 where  "Ω ⋅ M '|=' e => z" := (generic_exp_sem Ω M e z) : generic_sem_scope.
 
+#[global] Hint Constructors generic_exp_sem  : rac_hint.
+
+
+Declare Scope c_sem_scope.
+Delimit Scope c_sem_scope with csem.
+
+
 Definition c_exp_sem := @generic_exp_sem Empty_set Empty_exp_sem.
 
 Notation "Ω |= e => v"  := (c_exp_sem Ω ⊥ e v) : c_sem_scope.
@@ -72,6 +70,10 @@ Inductive _gmp_exp_sem (env : Ω) (mem:𝓜) : gmp_exp -> 𝕍 -> Prop :=
     _gmp_exp_sem env mem (C_Id x Mpz) (VMpz l)
 .
 
+#[global] Hint Constructors _gmp_exp_sem  : rac_hint.
+
+Declare Scope gmp_sem_scope.
+Delimit Scope gmp_sem_scope with gmpsem.
 Definition gmp_exp_sem := @generic_exp_sem _gmp_t _gmp_exp_sem.
 Notation "Ω ⋅ M '|=' e => z" := (gmp_exp_sem Ω M e z) : gmp_sem_scope.
 
@@ -81,36 +83,43 @@ Open Scope mini_c_scope.
 Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt_sem_sig S T} (funs:@𝓕 S T) (procs: @𝓟 S T) (env:Ω) (mem:𝓜) : @_c_statement S T -> Ω -> 𝓜 -> Prop := 
     | S_skip  :  (env ⋅ mem |= <{ skip }> => env ⋅ mem) funs procs
     | S_Assign x z (e : @_c_exp T) : 
+        (* must not be a compiler variable i.e. function return value *)
+        is_comp_var x = false ->
+
         type_of_value ((fst env) x) = Some C_Int ->
         (* value returned must be of same type*)
         type_of_value (Some z) = Some C_Int ->
 
         @generic_exp_sem T ext_exp env mem e z -> 
         (env ⋅ mem |= <{x = e}> => ((fst env){x\z},snd env) ⋅ mem) funs procs
+
     | S_IfTrue env' mem' z e s s' :
         @generic_exp_sem T ext_exp env mem e z /\ ~ (z = zero) ->
         (env ⋅ mem  |= s => env' ⋅ mem') funs procs ->
         (env ⋅ mem  |= <{ if e s else s'}> => env' ⋅ mem') funs procs
+
     | S_IfFalse env' mem' e s s' :
         @generic_exp_sem T ext_exp env mem e zero ->
         (env ⋅ mem |= s' => env' ⋅ mem') funs procs ->
         (env ⋅ mem |= <{ if e s else s'}> => env' ⋅ mem') funs procs
+
     | S_While e s   env' mem' :
         (env ⋅ mem |= <{ if e s ; while e s else skip }> =>  env' ⋅ mem') funs procs ->
         (env ⋅ mem |= <{ while e s }> =>  env' ⋅ mem') funs procs
+
     | S_Seq  env' mem' env'' mem'' s s' :
         (env ⋅ mem |= s => env' ⋅ mem') funs procs ->
         (env' ⋅ mem' |= s' => env'' ⋅ mem'') funs procs ->
         (env ⋅ mem |= <{ s ; s' }> =>  env'' ⋅ mem'') funs procs
 
-    | S_FCall f (b: @_c_statement S T) (env' : Ω) mem' c xargs eargs (zargs : 𝕍 ⃰ ) resf z : 
+    | S_FCall f (b: @_c_statement S T) (env' : Ω) mem' c xargs eargs (zargs : 𝕍 ⃰ ) z : 
         List.length xargs = List.length eargs ->
         funs f = Some (xargs,b) ->
         List.Forall2 (@generic_exp_sem T ext_exp env mem) eargs zargs ->
         (((p_map_addall ⊥ xargs zargs),⊥) ⋅ mem |= b => env' ⋅ mem') funs procs -> 
-        ~ List.In resf (stmt_vars b) -> (**)
-        (fst env') resf = Some z ->
-        (env ⋅ mem |= (FCall c resf f eargs) => ((fst env){c\z},(snd env)) ⋅ mem') funs procs
+        ~ List.In res_f (stmt_vars b) -> 
+        (fst env') res_f = Some (Def z) -> (* must be a defined value *)
+        (env ⋅ mem |= (FCall c f eargs) => ((fst env){c\Def z},(snd env)) ⋅ mem') funs procs
 
     | S_PCall p b (env' : Ω) mem' xargs eargs zargs : 
         List.length xargs = List.length eargs ->
@@ -119,9 +128,10 @@ Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt
         (((p_map_addall ⊥ xargs zargs),⊥) ⋅ mem |= b => env'⋅ mem') funs procs ->
         (env ⋅ mem |= PCall p eargs => env ⋅ mem') funs procs
 
-    | S_Return e z resf : 
-        @generic_exp_sem T ext_exp env mem e z ->
-        (env ⋅ mem |= <{ return e in resf }> =>  ((fst env){resf\z},snd env)⋅ mem) funs procs
+    | S_Return e z : 
+        (* not allowed to return an unassigned value *)
+        @generic_exp_sem T ext_exp env mem e (Def z) ->
+        (env ⋅ mem |= <{ return e }> =>  ((fst env){res_f\Def z},snd env)⋅ mem) funs procs
 
     | S_PAssert  e z :
         @generic_exp_sem T ext_exp env mem e z -> z <>  zero ->
@@ -134,9 +144,14 @@ Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt
     
     where "Ω ⋅ M |= s => Ω' ⋅ M'"  := (fun funs procs => generic_stmt_sem funs procs Ω M s Ω' M') : generic_sem_scope.
     
+#[global] Hint Constructors generic_stmt_sem  : rac_hint.
 
-    Definition c_stmt_sem := @generic_stmt_sem Empty_set Empty_set Empty_exp_sem Empty_stmt_sem.
-    Notation "Ω ⋅ M |= s => Ω' ⋅ M'"  := (c_stmt_sem Ω M s Ω' M') : c_sem_scope.
+
+Declare Scope c_sem_scope.
+Delimit Scope c_sem_scope with csem. 
+Definition c_stmt_sem := @generic_stmt_sem Empty_set Empty_set Empty_exp_sem Empty_stmt_sem.
+Notation "Ω ⋅ M |= s => Ω' ⋅ M'"  := (c_stmt_sem Ω M s Ω' M') : c_sem_scope.
+
 
 
 Definition c_decl_sem (env env':Ω) (mem mem':𝓜) d : Prop := 
@@ -145,8 +160,6 @@ Definition c_decl_sem (env env':Ω) (mem mem':𝓜) d : Prop :=
         (Uτ u) = Some t ->
         d = C_Decl t x -> env' = ((fst env){x\u},snd env) /\ mem = mem'.
         
-Notation "Ω ⋅ M |= d => Ω' ⋅ M'"  := (c_decl_sem Ω Ω' M M' d) : mini_c_decl_scope.
-
 
 
 Open Scope gmp_sem_scope.
@@ -154,17 +167,13 @@ Open Scope mini_gmp_scope.
 
 Inductive _gmp_stmt_sem { S T : Set }(funs : @𝓕 S T) (procs : @𝓟 S T) (env:Ω) (mem:𝓜) : gmp_statement -> Ω -> 𝓜 -> Prop := 
     | S_init x (l:location):
-        fresh_location mem l ->
         (forall v, (fst env) v <> Some (Def (VMpz (Some l)))) ->
         (exists n, (fst env) x = Some (Undef (UMpz n)))%type ->
         (env ⋅ mem |= <init(x)> => ((fst env){x\Def (VMpz (Some l))}, snd env) ⋅ mem{l\Defined 0}) funs procs
     
-    | S_clear x a z :   
+    | S_clear x a u:   
         (fst env) x = Some (Def (VMpz (Some a))) ->   
-        (* added *)
-        mem a = Some (Defined z) ->   
-        (* cl is not deterministic unless the umpz value used is always the same *)
-        (env ⋅ mem |= <cl(x)> => ((fst env){x\(Def (VMpz None))}, snd env) ⋅ mem{a\Undefined z}) funs procs
+        (env ⋅ mem |= <cl(x)> => ((fst env){x\(Def (VMpz None))}, snd env) ⋅ mem{a\Undefined u}) funs procs
 
     | S_set_i x y z a :  
         (fst env) x = Some (Def (VMpz (Some a))) ->
@@ -207,12 +216,15 @@ Inductive _gmp_stmt_sem { S T : Set }(funs : @𝓕 S T) (procs : @𝓟 S T) (env
         (fst env) r = Some (Def (VMpz (Some lr))) ->
         (env ⋅ mem |= op bop r x y => env ⋅ mem{lr\Defined (⋄ (□ bop) z1 z2) }) funs procs
 
-where "Ω ⋅ M |= s => Ω' ⋅ M'"  := (fun funs procs => _gmp_stmt_sem funs procs Ω M s Ω' M') : _gmp_stmt_sem_scope.
+where "Ω ⋅ M |= s => Ω' ⋅ M'"  := (fun funs procs => _gmp_stmt_sem funs procs Ω M s Ω' M') : gmp_sem_scope.
+
+#[global] Hint Constructors _gmp_stmt_sem  : rac_hint.
 
 
 Definition gmp_stmt_sem := @generic_stmt_sem _gmp_statement _gmp_t _gmp_exp_sem _gmp_stmt_sem.
+(*
 Notation "Ω ⋅ M |= s => Ω' ⋅ M'"  := (fun funs procs => gmp_stmt_sem funs procs Ω M s Ω' M') : gmp_sem_scope. 
-
+ *)
 
 Inductive fsl_term_sem (env:Ω) : ℨ -> Z -> Prop :=
 | FSL_E_Int z : fsl_term_sem env (T_Z z) z 
@@ -273,6 +285,12 @@ fsl_pred_sem (env:Ω) :  𝔅 -> 𝔹 -> Prop :=
     fsl_pred_sem env (Disj p p') z
 .
 
+#[global] Hint Constructors fsl_term_sem : rac_hint.
+#[global] Hint Constructors fsl_pred_sem : rac_hint.
+
+Declare Scope fsl_sem_scope.
+Delimit Scope fsl_sem_scope with fslsem.
+
 Notation "Ω '|=' t => v" := (fsl_term_sem Ω t v) : fsl_sem_scope.
 
 Inductive _fsl_assert_sem { S T : Set } (funs : @𝓕 S T) (procs : @𝓟 S T) (env : Ω) (mem:𝓜) : fsl_statement -> Ω -> 𝓜 -> Prop :=
@@ -281,6 +299,9 @@ Inductive _fsl_assert_sem { S T : Set } (funs : @𝓕 S T) (procs : @𝓟 S T) (
     _fsl_assert_sem funs procs env mem (LAssert p) env mem
 .
 
+#[global] Hint Constructors _fsl_assert_sem : rac_hint.
+
+
 Definition fsl_stmt_sem := @generic_stmt_sem _fsl_statement _gmp_t gmp_exp_sem _fsl_assert_sem.
 Notation "Ω ⋅ M |= s => Ω' ⋅ M'"  := (fun funs procs => fsl_stmt_sem funs procs Ω M s Ω' M') : fsl_sem_scope. 
 
@@ -288,7 +309,8 @@ Notation "Ω ⋅ M |= s => Ω' ⋅ M'"  := (fun funs procs => fsl_stmt_sem funs 
 
 (* macro semantic *)
 
-Reserved Notation "Ω ⋅ M '|=' e ⇝ z" (M at next level, at level 70).
+
+Declare Scope macro_sem_scope.
 Inductive macro_sem (env : Ω) (mem:𝓜) (e:gmp_exp): Z -> Prop :=
 | M_Int x :  
     gmp_exp_sem env mem e (VInt x) ->
@@ -297,22 +319,6 @@ Inductive macro_sem (env : Ω) (mem:𝓜) (e:gmp_exp): Z -> Prop :=
     gmp_exp_sem env mem e (VMpz (Some l)) ->
     mem l = Some (Defined z) ->
     env ⋅ mem |= e ⇝ z
-where "Ω ⋅ M '|=' e ⇝ z" := (macro_sem Ω M e z).
+where "Ω ⋅ M '|=' e ⇝ z" := (macro_sem Ω M e z) : macro_sem_scope.
 
-
-#[global] Hint Constructors _c_statement  : rac_hint.
-#[global] Hint Constructors _c_exp  : rac_hint.
-#[global] Hint Constructors _gmp_statement  : rac_hint.
-
-#[global] Hint Constructors generic_exp_sem  : rac_hint.
-#[global] Hint Constructors generic_stmt_sem  : rac_hint.
-
-#[global] Hint Constructors _gmp_exp_sem  : rac_hint.
-#[global] Hint Constructors _gmp_stmt_sem  : rac_hint.
-
-
-#[global] Hint Constructors param_env_partial_order : rac_hint.
 #[global] Hint Constructors macro_sem : rac_hint.
-
-
-Close Scope generic_sem_scope.
