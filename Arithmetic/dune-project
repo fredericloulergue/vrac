@@ -7,4 +7,3 @@
   (name rac_formal))
 
 (generate_opam_files false)
-

@@ -12,18 +12,11 @@ Open Scope list_scope.
 Open Scope Z_scope.
 
 
-
-Fact ir2 : Int.inRange 2. now split. Qed.
-Fact ir3 : Int.inRange 3. now split. Qed.
-Fact ir5 : Int.inRange 5. now split. Qed.
-Fact ir10 : Int.inRange 10 . now split. Qed.
-Fact ir14 : Int.inRange 14. now split. Qed.
-Fact ir15 : Int.inRange 15. now split. Qed.
-Definition two := VInt (Int.mkMI 2 ir2).
-Definition three := VInt (Int.mkMI 3 ir3).
-Definition five := VInt (Int.mkMI 5 ir5).
-Definition ten := VInt (Int.mkMI 10 ir10).
-Definition fifteen := VInt (Int.mkMI 15 ir15).
+Definition two := VInt (2 ⁱⁿᵗ eq_refl).
+Definition three := VInt (3 ⁱⁿᵗ eq_refl).
+Definition five := VInt (5 ⁱⁿᵗ eq_refl).
+Definition ten := VInt (10 ⁱⁿᵗ eq_refl).
+Definition fifteen := VInt (15 ⁱⁿᵗ eq_refl).
 
 #[local] Coercion gmp_id (var:id) : _c_exp := C_Id var C_Int (T:=Empty_set).
 

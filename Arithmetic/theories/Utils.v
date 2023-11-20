@@ -11,14 +11,15 @@ Create HintDb rac_hint.
 
 
 
-Definition partial_function {X Y : Type} := X -> option Y.
+Definition partial_function (X Y : Type) : Type := X -> option Y.
 Definition empty_p {X Y:Type} := fun (_:X) => (None: option Y).
 
-Infix "⨉" := prod (at level 99) : utils_scope.
-Notation "⊥" := empty_p : utils_scope.
-Notation "'ℤ'" := Z (at level 99) : utils_scope.
+Infix "⨉" := prod (at level 99) : type_scope.
+Infix "⇀" := partial_function : type_scope.
+Notation "⊥" := empty_p : type_scope.
+Notation "'ℤ'" := Z (at level 99) : type_scope.
 
-Class EqDec X := {eq_dec : forall (x y : X), {x = y} + {x <> y}}.
+Class EqDec X := {eq_dec : forall (x y : X), {x = y} + {x <> y} }.
 
 Fact dec_neq_out_neq_in {X T : Type } `{EqDec X}: forall (f : X -> T) (x x' : X)  , f x <> f x' -> x <> x'.
 Proof.
@@ -29,19 +30,32 @@ Qed.
 #[global] Instance z_eq_dec : EqDec Z := {eq_dec := Z.eq_dec}.
 
 
-Definition p_map {X Y : Type} `{EqDec X}  (f: X -> option Y) (xy:X * Y) : X -> option Y :=
+Definition p_map_front {X Y : Type} `{EqDec X}  (f: X -> option Y) (xy:X * Y)   : X -> option Y :=
     fun i => if eq_dec (fst xy) i then Some (snd xy) else f i.
 
-Notation "f { xy , .. , xy' }" :=  (p_map .. (p_map f xy') .. xy ) : utils_scope.
+Definition p_map_back {X Y : Type} `{EqDec X}  (xy:X * Y) (f: X -> option Y)  : X -> option Y :=
+    p_map_front f xy.
+
+#[global] Hint Unfold p_map_back : rac_hint.
 
 
-Definition p_map_addall {X Y: Type} `{EqDec X} env (lx:list X) (ly : list Y) :=
+Notation "f { xy , .. , xy' }" :=  (p_map_front .. (p_map_front f xy') .. xy ) : utils_scope.
+Notation "'{{' xy , .. , xy' '}}'" := (fun f => p_map_back xy' .. (p_map_back xy f) .. ) : utils_scope. (* fixme: make same as the other*)
+
+Definition p_map_addall_front {X Y: Type} `{EqDec X} env (lx:list X) (ly : list Y) :=
     List.fold_left (fun f xy => f {(fst xy) \ (snd xy)}) (List.combine lx ly) env
 .
 
+Definition p_map_addall_back {X Y: Type} `{EqDec X} (lx:list X) (ly : list Y) env :=
+    p_map_addall_front env lx ly
+.
+
+#[global] Hint Unfold p_map_addall_back : rac_hint.
+
+
 Fact p_map_not_same {X T : Type } `{EqDec X}: forall f (x x' : X) (v : T), x <> x' -> f{x'\v} x = f x.
 Proof.
-    intros. unfold p_map. simpl. destruct eq_dec.
+    intros. unfold p_map_front. simpl. destruct eq_dec.
     - now destruct H0. 
     - easy.
 Qed.
@@ -63,7 +77,7 @@ Qed.
 
 Fact p_map_same {X T : Type } `{EqDec X}: forall f (x : X) (v : T), f{x\v} x = Some v.
 Proof.
-    intros. unfold p_map. simpl. now destruct eq_dec.
+    intros. unfold p_map_front. simpl. now destruct eq_dec.
 Qed.
 
 #[global] Hint Resolve p_map_same : rac_hint.
@@ -129,14 +143,12 @@ End Bounds.
 
 (* simplified from compcert.lib.Integers *)
 Module MachineInteger(B:Bounds).
-    Definition inRange n : Prop := andb (B.m_int <? n) (n <? B.M_int) = (true).
+    Open Scope bool_scope.
+    Definition inRange n : Prop := (B.m_int <? n) && (n <? B.M_int) = true.
 
-    Record MI := mkMI {val : Z; in_range : inRange val}.
-    
-    Definition to_z (i:MI) : Z := i.(val).
+    Definition MI := sig inRange.
 
-
-    Lemma mi_eq : forall (x y : MI), x = y <-> x.(val) = y.(val).
+    Lemma mi_eq : forall (x y : MI), x = y <-> proj1_sig x = proj1_sig y.
     Proof.
         intros x y. split ; intros EQ.
         - destruct x,y. simpl. now inversion EQ.

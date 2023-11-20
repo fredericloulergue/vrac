@@ -3,6 +3,10 @@ From RAC Require Import Utils.
 From Coq Require Import ZArith.ZArith.
 From Coq Require Import Strings.String.
 From Coq Require Import Setoid.
+
+From RecordUpdate Require Import RecordUpdate.
+Import RecordSetNotations.
+
 Open Scope Z_scope.
 
 Declare Scope definition_scope.
@@ -41,8 +45,8 @@ Inductive predicate :=
     | Disj (lp:predicate) (rp:predicate)  (* disjunction *)
     | Call (name:string) (args:fsl_decl ⃰) (* predicate call *)
 with fsl_term :=
-    | T_Z (z:Z) (* integer in Z *)
-    | T_Id (name:id) (* variable access *)
+    | T_Z (z:Z) :> fsl_term (* integer in Z *)
+    | T_Id (name:id) :> fsl_term (* variable access *)
     | T_BinOp (lt : fsl_term) (op:fsl_binop_int) (rt : fsl_term)
     | T_Cond (cond:predicate) (_then:fsl_term) (_else:fsl_term) (* conditional term *)
 .
@@ -77,7 +81,7 @@ end.
 Notation "⋄" := c_binop_int_model : definition_scope.
 
 
-Definition fsl_binop_int_to_c (x:fsl_binop_int) : c_binop_int := match x with
+Coercion fsl_binop_int_to_c (x:fsl_binop_int) : c_binop_int := match x with
     | FSL_Add => C_Add
     | FSL_Sub => C_Sub
     | FSL_Mul => C_Mul
@@ -85,7 +89,7 @@ Definition fsl_binop_int_to_c (x:fsl_binop_int) : c_binop_int := match x with
 end.
 Notation "□" := fsl_binop_int_to_c : definition_scope.
 
-Definition fsl_binop_bool_to_c (x:fsl_binop_bool) : c_binop_bool := match x with
+Coercion fsl_binop_bool_to_c (x:fsl_binop_bool) : c_binop_bool := match x with
     | FSL_Lt => C_Lt
     | FSL_Le => C_Le 
     | FSL_Gt => C_Gt
@@ -95,9 +99,9 @@ Definition fsl_binop_bool_to_c (x:fsl_binop_bool) : c_binop_bool := match x with
 end.
 Notation "◖" := fsl_binop_bool_to_c : definition_scope.
 
-
+(* #[warnings="-uniform-inheritance"]  *)
 Inductive _c_exp {T : Set}  :=
-    | Zm (z : Z) (* machine integer *) (* can only be of type int *)
+    | Zm (z : Z) :> _c_exp(* machine integer *) (* can only be of type int *)
     | C_Id (var : id) (ty : @_c_type T) (* variable access *) (* can be either int or mpz *)
     | BinOpInt (le : _c_exp) (op:c_binop_int) (re : _c_exp) (* can only be of type int *)
     | BinOpBool (le : _c_exp) (op:c_binop_bool) (re : _c_exp) (* can only be of type int *)
@@ -105,19 +109,21 @@ Inductive _c_exp {T : Set}  :=
 #[global] Hint Constructors _c_exp  : rac_hint.
 
 
+(* #[warnings="-uniform-inheritance"]  *)
 Inductive _c_statement {S T : Set} :=
-| Skip (* empty statement *)
-| Assign (var:id) (e: @_c_exp T) (* assignment *)
-| FCall (var:id) (fname:string) (args: @_c_exp T ⃰) (* function call *)
-| PCall  (fname:string) (args: @_c_exp T ⃰) (* procedure call *)
-| Seq (s1 : _c_statement) (s2 : _c_statement) (* sequence *)
-| If (cond:@_c_exp T) (_then:_c_statement) (_else:_c_statement) (* conditional *)
-| While (cond:@_c_exp T) (body:_c_statement) (* loop *)
-| PAssert (e:@_c_exp T) (* program assertion *)
-| Return (e:@_c_exp T) 
-| Decl (d: @_c_decl T)
-| S_Ext (stmt:S)
+    | Skip (* empty statement *)
+    | Assign (var:id) (e: @_c_exp T) (* assignment *)
+    | FCall (var:id) (fname:string) (args: @_c_exp T ⃰) (* function call *)
+    | PCall  (fname:string) (args: @_c_exp T ⃰) (* procedure call *)
+    | Seq (s1 : _c_statement) (s2 : _c_statement) (* sequence *)
+    | If (cond:@_c_exp T) (_then:_c_statement) (_else:_c_statement) (* conditional *)
+    | While (cond:@_c_exp T) (body:_c_statement) (* loop *) 
+    | PAssert (e:@_c_exp T) (* program assertion *)
+    | Return (e:@_c_exp T) 
+    | Decl (d: @_c_decl T) :> _c_statement
+    | S_Ext (stmt:S)
 .
+
 #[global] Hint Constructors _c_statement  : rac_hint.
 
 
@@ -146,16 +152,16 @@ Inductive _gmp_statement :=
     | GMP_Mul (lid rid res :id)
     | GMP_Div (lid rid res :id)
     | Comp (res lid rid :id) (* mpz comparison *)
-    | Coerc (name n : id) (* mpz coercion *)
-    .
+    | Coerc (name n : id)  (* mpz coercion *)
+.
 
 #[global] Hint Constructors _gmp_statement  : rac_hint.
 
 Definition op (x:fsl_binop_int) : id -> id -> id -> _gmp_statement := match x with
-    | FSL_Add => GMP_Add
-    | FSL_Sub => GMP_Sub
-    | FSL_Mul => GMP_Mul
-    | FSL_Div => GMP_Div
+| FSL_Add => GMP_Add
+| FSL_Sub => GMP_Sub
+| FSL_Mul => GMP_Mul
+| FSL_Div => GMP_Div
 end.
 
 
@@ -246,7 +252,7 @@ Declare Scope mini_gmp_scope.
 Delimit Scope mini_gmp_scope with gmp.
 Declare Custom Entry gmp_stmt. 
 Notation "e" := e (in custom gmp_stmt at level 0,  e constr at level 0) : mini_c_scope.
-Notation "< s >" := s (at level 0, s custom gmp_stmt at level 99, format "< s >") : mini_gmp_scope.
+Notation "<( s )>" := s (at level 0, s custom gmp_stmt at level 99, format "<( s )>") : mini_gmp_scope.
 Notation "'set_i' ( id , e )" := (Set_i id e) (in custom gmp_stmt) : mini_gmp_scope.
 Notation "'set_s' ( id , l )" := (Set_s id l) (in custom gmp_stmt): mini_gmp_scope.
 Notation "'set_z' ( id1 , id2 )" := (Set_z id1 id2) (in custom gmp_stmt): mini_gmp_scope.
@@ -259,8 +265,9 @@ Notation "'sub' ( id1 , id2 , id3 )" := (GMP_Sub id1 id2 id3) (in custom gmp_stm
 Notation "'mul' ( id1 , id2 , id3 )" := (GMP_Mul id1 id2 id3) (in custom gmp_stmt): mini_gmp_scope.
 Notation "'div' ( id1 , id2 , id3 )" := (GMP_Div id1 id2 id3) (in custom gmp_stmt): mini_gmp_scope.
 
-Definition 𝓥 := id. (* program variables and routines *)
-Definition 𝔏 := id. (* logic variables *)
+
+Definition 𝓥 : Type := id. (* program variables and routines *)
+Definition 𝔏 : Type := id. (* logic variables *)
 
 Definition 𝐒 := gmp_statement. (* program statements *)
 Definition ℨ := fsl_term. (* logical terms *)
@@ -269,8 +276,6 @@ Definition 𝔗 := gmp_t. (* minigmp types *)
 
 
 #[global] Instance eqdec_v : EqDec 𝓥 := {eq_dec := string_dec}.
-
-
 
 Definition 𝓕 {S T : Set} := 𝓥 ⇀ (𝓥 ⃰ ⨉ @_c_statement S T). (* program functions *)
 Definition 𝓟 {S T : Set} := 𝓥 ⇀ (𝓥 ⃰ ⨉ @_c_statement S T). (* program procedures *)
@@ -282,10 +287,10 @@ Module Int16Bounds.
     Definition m_int := -32768.
     Definition M_int := 32767.
 End Int16Bounds.
-
-Definition location := nat. 
 Module Int := MachineInteger Int16Bounds.
 
+
+Definition location := nat. 
 #[global] Instance location_eq_dec : EqDec location := {eq_dec := Nat.eq_dec}.
 
 Fact zeroinRange : Int.inRange 0.  now split. Qed.
@@ -297,8 +302,8 @@ Fact suboneinRange : Int.inRange (-1). now split. Qed.
 #[global] Hint Resolve suboneinRange: rac_hint.
 
 Inductive value := 
-    | VInt (n:Int.MI) (* set of type int, a machine integer (may overflow) *)
-    | VMpz (l:option location)  (* memory location for values of type mpz, none is a null pointer *) 
+    | VInt (n:Int.MI) :> value (* set of type int, a machine integer (may overflow) *)
+    | VMpz (l:option location) (* memory location for values of type mpz, none is a null pointer *) 
 .
 
 Inductive undef := 
@@ -306,12 +311,12 @@ Inductive undef :=
     | UMpz (l:option location) (* set of undefined values of type mpz *) 
 .
 
-Inductive 𝕍 :=  Def (v : value)  | Undef (uv : undef).
+Inductive 𝕍 :=  Def (v : value) :> 𝕍 | Undef (uv : undef) :> 𝕍.
 
 Inductive 𝔹 := BTrue | BFalse.
 
-Notation "z ̇" := (Int.to_z z) (at level 0) : definition_scope.
-Notation "z 'ⁱⁿᵗ' ir" := (Int.mkMI z ir) (at level 99) : definition_scope.
+Notation "z ̇" := (proj1_sig z) (at level 0) : definition_scope.
+Notation "z 'ⁱⁿᵗ'" := (exist Int.inRange z) (at level 99) : definition_scope.
 
 
 Fact x_of_z_to_z_is_x : forall x irx, (x ̇ ⁱⁿᵗ irx) = x.
@@ -321,19 +326,13 @@ Proof.
 Qed.
     
 
-Inductive mpz_val := Defined (z:Z) | Undefined (z:Z).
+Inductive mpz_val := Defined (z:Z) :> mpz_val | Undefined (z:Z).
 
 
-Coercion Zm : Z >-> _c_exp.
-Coercion Decl : _c_decl >-> _c_statement.
+(* Coercion ir_z (x:Z) ir : 𝕍 := VInt (x ⁱⁿᵗ ir). *)
 Coercion int_option_loc (l:nat) :=  Some l.
-Coercion T_Id : id >-> fsl_term.
-Coercion T_Z : Z >-> fsl_term.
-Coercion Def : value >-> 𝕍. 
-Coercion Undef : undef >-> 𝕍. 
 Coercion v_int (mi:Int.MI) : 𝕍 := Def (VInt mi). 
 Coercion def_v_mpz (l:nat) : 𝕍 := Def (VMpz (Some l)). 
-Coercion Defined : Z >-> mpz_val. 
 Coercion mpz_loc (l:location) : 𝕍 := VMpz (Some l).
 Coercion gmp_s_ext (s:_gmp_statement) := S_Ext s (T:=_gmp_t).
 Coercion fsl_s_ext (s:_fsl_statement) := S_Ext s (T:=_gmp_t).
@@ -380,11 +379,32 @@ end.
 Definition 𝓜 := location ⇀ mpz_val. 
 Definition Ωᵥ : Type := 𝓥 ⇀ 𝕍.
 Definition Ωₗ : Type := 𝔏 ⇀ ℤ.
-Definition Ω :Type := Ωᵥ ⨉ Ωₗ.
 
-Fact type_of_value_env : forall (env:Ω) var, type_of_value ((fst env) var) <> None -> (fst env) var <> None.
+Record Ω := mkΩ {vars :> Ωᵥ ;  binds :> Ωₗ}.
+Definition empty_Ω  : Ω := {|vars:=⊥;binds:=⊥|}.
+#[export] Instance etaΩ : Settable _ := settable! mkΩ <vars ; binds>.
+
+Record Env := mkEnv {env :> Ω ;  mstate :> 𝓜}.
+Definition empty_env : Env := {|env:=empty_Ω;mstate:=⊥|}.
+#[export] Instance etaEnv : Settable _ := settable! mkEnv <env ; mstate>.
+
+Fact abcd {A B : Type} (proj : Env -> (A ⇀ B) ) `{EqDec A} `{Setter Env (A ⇀ B) proj} (ev : Env) (v : A) : forall (x1 x2 : A) (y1 y2 : B), 
+    (ev <| proj ::= {{x1\y1}} |> <| proj ::= {{x2\y2}} |> ).(proj) v 
+    = 
+    (ev <|  proj ::= {{x1\y1,x2\y2}} |>).(proj) v.
+Proof. 
+intros. compute. destruct H. admit.
+Admitted. 
+
+Definition apply_env (a : Ω) (v : 𝓥) : option 𝕍 := a.(vars) v.
+Coercion apply_env : Ω >-> Funclass.
+
+Definition apply_mem (a : Ω) (l : 𝔏) : option Z := a.(binds) l.
+(* Coercion apply_mem : Ω >-> Funclass. *) (* can't use same coercion path *)
+
+Fact type_of_value_env : forall (env:Ω) (var:𝓥), type_of_value (env var) <> None -> env var <> None.
 Proof.
-    intros env var Hty. now destruct (fst  env var) as [v|].
+    intros env var Hty. now destruct (env var) as [v|].
 Qed.
 
 
@@ -436,14 +456,9 @@ end
 
 Definition inUτ v : bool := if Uτ v then true else false.
 
-Definition zero := Int.mkMI 0 zeroinRange.
-Definition one := Int.mkMI 1 oneinRange.
-Definition sub_one := Int.mkMI (-1) suboneinRange.
-
-
-(* integer from value *)
-Definition z_of_Int : Int.MI -> Z := Int.to_z.
-
+Definition zero :=  0ⁱⁿᵗ zeroinRange.
+Definition one := 1ⁱⁿᵗ oneinRange.
+Definition sub_one := (-1)ⁱⁿᵗ suboneinRange.
 
 
 
@@ -480,20 +495,20 @@ Close Scope utils_scope.
 
 Inductive param_env_partial_order (var: 𝓥) (env env':Ω) : Prop :=
 | EsameInt n : 
-    (fst env) var = Some (Def (VInt n))
-    -> (fst env') var = Some (Def (VInt n))
+    env var = Some (Def (VInt n))
+    ->  env' var = Some (Def (VInt n))
     -> param_env_partial_order var env env'
 | EsameMpz l : 
-    (fst env) var = Some (Def (VMpz l))
-    -> (fst env') var = Some (Def (VMpz l))
+    env var = Some (Def (VMpz l))
+    -> env' var = Some (Def (VMpz l))
     -> param_env_partial_order var env env'
-| EundefInt n: (fst env) var = Some (Undef (UInt n))
-    -> (fst env') var = Some (Undef (UInt n)) \/  (exists n, (fst env') var = Some (Def (VInt n)))
+| EundefInt n: env var = Some (Undef (UInt n))
+    -> env' var = Some (Undef (UInt n)) \/  (exists n, env' var = Some (Def (VInt n)))
     -> param_env_partial_order var env env'
-| EundefMpz n : (fst env) var = Some (Undef (UMpz n))
-    -> (fst env') var = Some (Undef (UMpz n)) \/  (exists n, (fst env') var = Some (Def (VMpz n)))
+| EundefMpz n : env var = Some (Undef (UMpz n))
+    -> env' var = Some (Undef (UMpz n)) \/  (exists n, env' var = Some (Def (VMpz n)))
     -> param_env_partial_order var env env'
-| Enone : (fst env) var = None -> param_env_partial_order var env env'
+| Enone : env var = None -> param_env_partial_order var env env'
 .
 
 #[global] Hint Constructors param_env_partial_order : rac_hint.
@@ -507,16 +522,15 @@ Declare Scope env_scope.
 Delimit Scope env_scope with env.
 Declare Scope mem_scope.
 Delimit Scope mem_scope with mem.
+Declare Scope env_mem_scope.
+Delimit Scope env_mem_scope with envmem.
+
 
 Infix "⊑" := env_partial_order : env_scope.
 
 Infix "⊑" := mems_partial_order : mem_scope.
 
-
-Notation "( e , m ) ⊑ ( e' , m' )" :=  (
-    env_partial_order e e' /\ mems_partial_order m m'
-
-) : definition_scope.
+Infix "⊑" :=  ( fun e e' => (e.(env) ⊑ e'.(env))%env /\ (e.(mstate) ⊑ e'.(mstate))%mem) : env_mem_scope.
 
 Fact refl_env_partial_order : reflexive Ω env_partial_order.
 Proof.
@@ -544,7 +558,7 @@ Proof.
 Qed.
 
 Fact antisym_env_partial_order : forall env env',
-    env_partial_order env' env /\ env_partial_order env env' -> forall v, (fst env) v = (fst env') v.
+    env_partial_order env' env /\ env_partial_order env env' -> forall v, env v = env' v.
 
 Proof.
     intros env env' [H1 H2] v. specialize (H1 v). inversion H1 ; try congruence.
@@ -557,7 +571,7 @@ Qed.
 
 #[global] Add Relation Ω env_partial_order
     reflexivity proved by refl_env_partial_order
-    transitivity proved by trans_env_partial_order as env.
+    transitivity proved by trans_env_partial_order as Renv.
 
 
 Fact refl_mem_partial_order : reflexive 𝓜 mems_partial_order.
@@ -589,29 +603,35 @@ Qed.
     transitivity proved by trans_mem_partial_order as mem.
 
     
-Fact refl_env_mem_partial_order : forall e m, ( e , m ) ⊑ ( e , m ).
+Fact refl_env_mem_partial_order : forall ev, (ev ⊑ ev)%envmem.
 Proof.
     intros. split.
     - pose refl_env_partial_order as r. now unfold reflexive in r.
     - pose refl_mem_partial_order as r. now unfold reflexive in r.
 Qed.
 
-
+Open Scope utils_scope.
 (* invariants for routine translation *)
 
 (* notations *)
-Inductive add_var (env : Ω) (mem_state : 𝓜) (τ:gmp_t) (v:id) (z:Z) : Ω * 𝓜 -> Prop :=
+Inductive add_var (e : Env) (τ:gmp_t) (v:id) (z:Z) : Env -> Prop :=
 | typeInt irz : 
     τ = C_Int ->
-    add_var env mem_state τ v z (((fst env){v\ z ⁱⁿᵗ irz :𝕍}, snd env),mem_state)%utils
+    add_var e τ v z (e <| env ; vars ::= {{v\(VInt (z ⁱⁿᵗ irz)) :𝕍}} |>)%utils
 
 | typeMpz x (n:Int.MI) :
     τ  = Mpz ->
-    (forall v',  (fst env) v' <> Some (Def (VMpz (Some x))) )->
-    add_var env mem_state τ v z (((fst env){v\Def (VMpz (Some x))}, snd env),mem_state{x\Defined (z_of_Int n)})%utils
+    (forall v',  e v' <> Some (Def (VMpz (Some x))) )->
+    add_var e τ v z 
+    ( e 
+    <| env ; vars ::= {{ v\Def (VMpz (Some x)) }} |>
+    <| mstate ::= {{x\Defined (proj1_sig n)}} |> 
+    )
 .
 
-
+Example add_var_int : forall (ir3 :Int.inRange 3),
+add_var empty_env C_Int "y" 3 (empty_env  <| env ; vars := ⊥{"y"\Def (VInt ( 3ⁱⁿᵗ ir3))} |>).
+Proof. now constructor. Qed.
 
 Definition 𝐴 := list (gmp_t * id * Z).
 
@@ -631,65 +651,70 @@ Definition add_var_𝐴 (env : Ω) (mem_state : 𝓜) (A : 𝐴) : Prop :=
     ) A (env,mem_state)
  . *)
 
-Inductive add_var_𝐴 (env : Ω) (mem_state : 𝓜) : 𝐴 -> Ω * 𝓜 -> Prop := 
-| add_var_nil : add_var_𝐴  env mem_state nil (env,mem_state)
+Inductive add_var_𝐴 (e : Env) : 𝐴 -> Env -> Prop := 
+| add_var_nil : add_var_𝐴  e nil e
 
-| add_var_cons t v z A env' mem_state': 
+| add_var_cons t v z A e': 
     True -> 
-    add_var env mem_state t v z (env',mem_state') -> 
-    add_var_𝐴 env mem_state A (env',mem_state')
+    add_var e t v z e' -> 
+    add_var_𝐴 e A e'
 .
 
-Open Scope utils_scope.
 
 
-Example add_var_int : forall (ir3 :Int.inRange 3), add_var (⊥,⊥) ⊥ C_Int "y" 3  ((⊥{"y"\Def (VInt (Int.mkMI 3 ir3))},⊥), ⊥).
-Proof.
-   now constructor.
-Qed.
-
-Example add_var_mpz : add_var (⊥,⊥) ⊥ Mpz "y" 3  ((⊥{"y"\Def (VMpz 1%nat)},⊥), ⊥{(1%nat)\(Defined 3)}).
+Example add_var_mpz  : 
+add_var empty_env Mpz "y" 3  
+    ( empty_env 
+        <| env ; vars := ⊥{"y"\Def 1%nat} |>
+        <| mstate := ⊥{(1%nat)\(Defined 3)} |>
+    )
+.
 Proof.
     assert (ir3: Int.inRange 3). easy.
-    now apply (typeMpz (⊥,⊥) ⊥ Mpz "y" 3 1%nat (Int.mkMI 3 ir3)).
+    now apply (typeMpz empty_env Mpz "y" 3 1%nat (3ⁱⁿᵗ ir3)).
 Qed.
 
 
 
 (* Compute add_var_𝐴 (⊥,⊥) ⊥ nil. *)
 
-Example envaddnil : add_var_𝐴 (⊥,⊥) ⊥ nil ((⊥,⊥), ⊥).
+Example envaddnil : add_var_𝐴 empty_env nil empty_env.
 Proof.
  constructor.
 Qed.
 
 Open Scope list.
 
-Example envaddone : add_var_𝐴 (⊥,⊥) ⊥ ((T_Ext Mpz, "y", 3)::nil) ((⊥{"y"\Def (VMpz 1%nat)},⊥), ⊥{1%nat\(Defined 3)}).
+Example envaddone : add_var_𝐴 empty_env  ((T_Ext Mpz, "y", 3)::nil) 
+    (empty_env 
+        <| env ; vars := ⊥{"y"\Def (VMpz 1%nat)} |>
+        <| mstate := ⊥{1%nat\(Defined 3)} |>
+    )
+.
 Proof.
     assert (ir3: Int.inRange 3). easy.
     eapply add_var_cons with (t:=Mpz) (v:="y") (z:=3).
  - auto.
- - apply (typeMpz (⊥,⊥) ⊥ Mpz "y" 3 1%nat (Int.mkMI 3 ir3)).
+ - apply (typeMpz empty_env Mpz "y" 3 1%nat (3ⁱⁿᵗ ir3)).
     * reflexivity.
     * intro v. intro contra. inversion contra.
 Qed.
 
 
 (* synchronicity invariant *)
-Definition I1 (env:Ω) (ienv:Γ) := ((dom (snd env)) = (dom (fst ienv) + dom (snd ienv)))%utils.
+Definition I1 (env:Ω) (ienv:Γ) := ((dom env.(binds)) = (dom (fst ienv) + dom (snd ienv)))%utils.
 
 (* suitability invariant *)
 Definition I2 (env:ψ) := True. (* todo *)
 
 
-Inductive pgrm_var_representation (iop:ϴ) (env:Ω) (mem : 𝓜) (ienv:Γ) : (Ω * 𝓜) -> Prop :=
+Inductive pgrm_var_representation (iop:ϴ) (e : Env) (ienv:Γ) : Env -> Prop :=
 | empty ΩΓ 𝓜Γ :   
-    I1 env ienv ->
+    I1 e ienv ->
     let A := nil  (* { (iop ((snd ienv) v), v, (snd env) v ) | v in dom ienv  } *)
     in
-    add_var_𝐴 env mem A (ΩΓ,𝓜Γ) -> 
-    pgrm_var_representation iop env mem ienv (ΩΓ,𝓜Γ)
+    add_var_𝐴 e A {|env:=ΩΓ; mstate:=𝓜Γ|} -> 
+    pgrm_var_representation iop e ienv{|env:=ΩΓ; mstate:=𝓜Γ|}
 .
 
 (* Definition well_formed_program :=
