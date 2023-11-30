@@ -24,15 +24,15 @@ Definition _no_env_mpz_aliasing (ev : Ω) : Prop :=
     l <> l'.
 
 Definition _no_mem_aliasing {S T : Set} (stmt_sem : @stmt_sem_sig S T)  : Prop := 
-    forall (exp_sem:@exp_sem_sig T) funs procs (ev:Env) s (ev':Env), 
+    forall (exp_sem:@exp_sem_sig T) f (ev:Env) s (ev':Env), 
     _no_env_mpz_aliasing ev
-    -> stmt_sem funs procs ev s ev' 
+    -> stmt_sem f ev s ev' 
     -> _no_env_mpz_aliasing ev'.
 
 
 Fact _no_mem_aliasing_gmp : _no_mem_aliasing _gmp_stmt_sem.
 Proof with auto with rac_hint.
-    intros exp_sem funs procs ev s ev' Hnoalias H. induction H
+    intros exp_sem f ev s ev' Hnoalias H. induction H
     ; auto ;  try (rename v into l1) ;
     intros v v' ll l' Hvv' Hl Hl' leq ; subst ; autounfold with rac_hint in * ; simpl in *.
     - destruct (eq_dec x v).
@@ -275,7 +275,7 @@ Qed.
 
 Definition _determinist_stmt_eval {S T : Set} (ext_exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) : Prop := 
     @_determinist_exp_eval T ext_exp_sem  -> 
-    forall funs procs s ev ev',  stmt_sem funs procs ev s ev' ->  (forall ev'', stmt_sem funs procs ev s ev'' -> ev' = ev'').
+    forall f s ev ev',  stmt_sem f ev s ev' ->  (forall ev'', stmt_sem f ev s ev'' -> ev' = ev'').
 
 
 Fact determinist_stmt_eval {S T : Set}: 
@@ -283,7 +283,7 @@ Fact determinist_stmt_eval {S T : Set}:
     @_determinist_stmt_eval S T ext_exp_sem ext_stmt_sem -> 
     _determinist_stmt_eval ext_exp_sem (@generic_stmt_sem S T ext_exp_sem ext_stmt_sem).
 Proof with auto. 
-    intros ext_exp_sem ext_stmt_sem Hds Hde funs procs s ev ev' Hderiv. induction Hderiv ; intros.
+    intros ext_exp_sem ext_stmt_sem Hds Hde f s ev ev' Hderiv. induction Hderiv ; intros.
     - inversion H... 
     - inversion H3 ; subst... repeat f_equal.  apply determinist_exp_eval in H2... apply H2 in H10. now subst.
     - inversion H1 ; subst...  apply determinist_exp_eval in H6... destruct H. apply H6 in H. now symmetry in H.
@@ -409,8 +409,8 @@ Definition untouched_var_same_eval_exp_gmp := untouched_var_same_eval_exp _gmp_e
 
 
 Definition _untouched_var_same_eval_stmt {S T : Set} (exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) := 
-    forall funs procs ev ev' (s: @_c_statement S T) x, 
-    stmt_sem funs procs ev s ev' ->
+    forall f ev ev' (s: @_c_statement S T) x, 
+    stmt_sem f ev s ev' ->
     ~ List.In x (stmt_vars s) /\ is_comp_var x = false -> 
     ev x = ev' x
     .
@@ -421,7 +421,7 @@ Fact untouched_var_same_eval_stmt {S T : Set} :
     _untouched_var_same_eval_stmt exp_sem stmt_sem ->
     _untouched_var_same_eval_stmt exp_sem (@generic_stmt_sem S T exp_sem stmt_sem).
 Proof.
-    intros exp_sem stmt_sem Hext funs procs ev ev' s x Hderiv [Hnotin Huservar]. induction Hderiv ; simpl in Hnotin; trivial.
+    intros exp_sem stmt_sem Hext f ev ev' s x Hderiv [Hnotin Huservar]. induction Hderiv ; simpl in Hnotin; trivial.
     - subst. apply Decidable.not_or_iff in Hnotin as [Hdiffxresf]. simpl. autounfold with rac_hint. rewrite p_map_not_same.
         * easy.
         * congruence.
@@ -451,10 +451,10 @@ Qed.
 
 Definition _weakening_of_statement_semantics_1  {S T : Set} (exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) := 
     _weakening_of_expression_semantics exp_sem ->
-    forall (funs : @𝓕 S T) (procs : @𝓟 S T) ev₀ s ev₁,
-    stmt_sem funs procs ev₀ s ev₁ <->
+    forall (f : @fenv S T) ev₀ s ev₁,
+    stmt_sem f ev₀ s ev₁ <->
     ( forall ev₀', (ev₀  ⊑ ev₀')%envmem ->
-    exists ev₁' , (ev₁  ⊑ ev₁')%envmem /\ stmt_sem funs procs ev₀' s ev₁').
+    exists ev₁' , (ev₁  ⊑ ev₁')%envmem /\ stmt_sem f ev₀' s ev₁').
     
 
 Lemma weakening_of_statement_semantics_1 {S T : Set} : 
@@ -463,7 +463,7 @@ Lemma weakening_of_statement_semantics_1 {S T : Set} :
     -> _weakening_of_statement_semantics_1 exp_sem (@generic_stmt_sem S T exp_sem stmt_sem)
 .
 Proof with eauto using refl_env_mem_partial_order,env_partial_order_add with rac_hint.
-    intros exp_sem stmt_sem Hext_stmt Hext_exp funs procs ev₀ s ev₁. 
+    intros exp_sem stmt_sem Hext_stmt Hext_exp f ev₀ s ev₁. 
     pose proof (weakening_of_expression_semantics exp_sem Hext_exp) as exp_weak.
     split.
     - intro Hderiv. induction Hderiv ; intros ev₀' [Henv Hmem].
@@ -524,7 +524,7 @@ Proof with eauto using refl_env_mem_partial_order,env_partial_order_add with rac
             apply (exp_weak e ev z)...
 
         (* other cases *)
-        * specialize (Hext_stmt Hext_exp funs procs ev (S_Ext s) ev').
+        * specialize (Hext_stmt Hext_exp f ev (S_Ext s) ev').
             apply Hext_stmt with ev₀' in H. destruct H as [ev'' [Hrel2 Hderiv]]... easy.
                 
     - intros H. admit. (* ??? *)
@@ -546,7 +546,7 @@ Lemma _weakening_of_gmp_statements_semantics_1 :
     _weakening_of_statement_semantics_1 _gmp_exp_sem _gmp_stmt_sem
 .
 Proof with eauto using eq_env_partial_order, eq_mem_partial_order,refl_env_mem_partial_order with rac_hint ; try easy.
-    intros Hweak funs procs ev₀ s ev₁. split.
+    intros Hweak f ev₀ s ev₁. split.
     - intro Hderiv. induction Hderiv; intros ev₀' [Henv Hmem] ;
         pose proof (fun y => weakening_of_gmp_expression_semantics y ev₀) as weak_exp. 
 
@@ -618,13 +618,13 @@ Definition weakening_of_gmp_statements_semantics_1 :=
 
 Definition _weakening_of_statement_semantics_2  {S T : Set} (exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) := 
     
-    forall (funs : @𝓕 S T) (procs : @𝓟 S T) ev₀ ev₀' s ev₁,
+    forall (f: @fenv S T) ev₀ ev₀' s ev₁,
     _determinist_exp_eval exp_sem ->
     _weakening_of_expression_semantics exp_sem ->
-    stmt_sem funs procs ev₀ s ev₁ /\ (ev₀ ⊑ ev₀')%envmem  ->
+    stmt_sem f ev₀ s ev₁ /\ (ev₀ ⊑ ev₀')%envmem  ->
     (
         forall ev₁',
-        stmt_sem funs procs ev₀' s ev₁'->
+        stmt_sem f ev₀' s ev₁'->
         (* if v is a compiler variable, i.e. a function return value, v can change*)
         (forall (v:𝓥), (v ∉ ev₀) /\ is_comp_var v = false  -> ev₀' v = ev₁' v) 
         /\
@@ -638,7 +638,7 @@ Lemma weakening_of_statement_semantics_2 {S T : Set} :
     -> _weakening_of_statement_semantics_2 exp_sem (@generic_stmt_sem S T exp_sem stmt_sem)
 .
 Proof with auto with rac_hint.
-    intros exp_sem stmt_sem ext_stmt_weak funs procs ev₀ ev₀' s ev₁ ext_exp_deter ext_exp_weak  [Hderiv1 Hrel].
+    intros exp_sem stmt_sem ext_stmt_weak f ev₀ ev₀' s ev₁ ext_exp_deter ext_exp_weak  [Hderiv1 Hrel].
     pose proof (weakening_of_expression_semantics exp_sem ext_exp_weak) as exp_weak.
     unfold _weakening_of_expression_semantics in exp_weak.
     unfold _weakening_of_statement_semantics_2 in ext_stmt_weak.
@@ -740,8 +740,8 @@ Proof with auto.
 Qed.
 
 Definition _weakening_of_statement_semantics_3  {S T : Set} (stmt_sem : @stmt_sem_sig S T) := 
-    forall funs procs ev₀  s ev₁,
-    stmt_sem funs procs ev₀ s ev₁ -> 
+    forall f ev₀  s ev₁,
+    stmt_sem f ev₀ s ev₁ -> 
     (
         forall ev₀', (ev₀' ⊑ ev₀)%envmem ->
         (
@@ -750,7 +750,7 @@ Definition _weakening_of_statement_semantics_3  {S T : Set} (stmt_sem : @stmt_se
             (forall x v, (dom ev₀.(mstate) - dom ev₀'.(mstate)) x -> ev₀ v = Some (Def (VMpz x)) /\ ~ List.In v (stmt_vars s))
         ) ->
 
-        exists ev₁', stmt_sem funs procs ev₀' s ev₁'
+        exists ev₁', stmt_sem f ev₀' s ev₁'
     ).
 
 Lemma weakening_of_statement_semantics_3 {S T : Set} : 
@@ -761,7 +761,7 @@ Lemma weakening_of_statement_semantics_3 {S T : Set} :
 .
 
 Proof with auto with rac_hint.
-    intros exp_sem stmt_sem ext_exp_weak ext_stmt_weak funs procs ev₀ s ev₁ Hderiv ev₀' Hrel [Henv Hmem].
+    intros exp_sem stmt_sem ext_exp_weak ext_stmt_weak f ev₀ s ev₁ Hderiv ev₀' Hrel [Henv Hmem].
     induction Hderiv.
     (* skip *)
     - exists ev₀'. constructor.
@@ -838,7 +838,7 @@ Proof with auto with rac_hint.
 
     (* other cases *)
     - unfold _weakening_of_statement_semantics_3 in ext_stmt_weak.
-        specialize (ext_stmt_weak funs procs  ev (S_Ext s) _ H ev₀' Hrel).
+        specialize (ext_stmt_weak f  ev (S_Ext s) _ H ev₀' Hrel).
         destruct ext_stmt_weak as [ev'' Hd]... exists ev''...
 Admitted.
 
@@ -895,10 +895,10 @@ Proof.
 Qed.
 
 Lemma semantics_of_the_mpz_assgn_macro :
-    forall funs procs e z (ev : Env) v (y:location),
+    forall f e z (ev : Env) v (y:location),
     ev |= e ⇝ z ->
     ev v = Some (Def (VMpz y)) ->
-    gmp_stmt_sem funs procs ev (mpz_ASSGN v e) (ev <| mstate ::= {{y\Defined z}} |>)
+    gmp_stmt_sem f ev (mpz_ASSGN v e) (ev <| mstate ::= {{y\Defined z}} |>)
 .
 Proof.
     intros. 
@@ -913,14 +913,14 @@ Proof.
 Qed.
 
 Lemma semantics_of_the_int_assgn_macro :
-    forall funs procs e z (ir: Int.inRange z) (ev:Env) v,
+    forall f e z (ir: Int.inRange z) (ev:Env) v,
     is_comp_var v = false ->
     ev |= e ⇝ z ->
     type_of_value (ev v) = Some C_Int ->
-    gmp_stmt_sem funs procs ev (int_ASSGN v e) (ev <| env ; vars ::= {{v\VInt (z ⁱⁿᵗ ir) : 𝕍}} |>)
+    gmp_stmt_sem f ev (int_ASSGN v e) (ev <| env ; vars ::= {{v\VInt (z ⁱⁿᵗ ir) : 𝕍}} |>)
 .
 Proof with eauto with rac_hint.
-    intros funs procs e z ir ev v Hnotcomp H H0. 
+    intros f e z ir ev v Hnotcomp H H0. 
     unfold int_ASSGN.
     destruct (ty e)  eqn:EqTY.
     - constructor... inversion H ; subst.
@@ -932,19 +932,19 @@ Proof with eauto with rac_hint.
 Qed.
 
 Lemma semantics_of_the_Z_assgn_macro_tint :
-    forall funs procs z (ir: Int.inRange z) (ev:Env) v,
+    forall f z (ir: Int.inRange z) (ev:Env) v,
     is_comp_var v = false ->
     type_of_value (ev v) = Some C_Int ->
-    gmp_stmt_sem funs procs ev (Z_ASSGN C_Int v z) (ev <| env ; vars ::= {{v\VInt (z ⁱⁿᵗ ir) : 𝕍}} |>)
+    gmp_stmt_sem f ev (Z_ASSGN C_Int v z) (ev <| env ; vars ::= {{v\VInt (z ⁱⁿᵗ ir) : 𝕍}} |>)
 .
 Proof.
     intros.  constructor ; auto with rac_hint.
 Qed.
 
 Lemma semantics_of_the_Z_assgn_macro_tmpz :
-    forall funs procs y (z:ℤ) (ev:Env) v,
+    forall f y (z:ℤ) (ev:Env) v,
     ev v = Some (Def (VMpz (Some y))) ->
-    gmp_stmt_sem funs procs ev (Z_ASSGN Mpz v z) (ev <| mstate ::= {{y\Defined z}} |>)
+    gmp_stmt_sem f ev (Z_ASSGN Mpz v z) (ev <| mstate ::= {{y\Defined z}} |>)
 .
 Proof with auto using BinaryString.Z_of_of_Z.
     intros. simpl. constructor. apply S_set_s...
@@ -952,7 +952,7 @@ Qed.
 
 
 Lemma semantics_of_the_cmp_macro :
-    forall funs procs (ev:Env) c e1 e2 v1 v2 z1 z2 a,
+    forall f (ev:Env) c e1 e2 v1 v2 z1 z2 a,
     _no_env_mpz_aliasing ev ->
     is_comp_var c = false ->
     type_of_value (ev c) = Some C_Int ->
@@ -978,11 +978,11 @@ Lemma semantics_of_the_cmp_macro :
         ev.(mstate) n = M n
     ) -> 
     
-    gmp_stmt_sem funs procs ev (CMP c e1 e2 v1 v2) (ev <| env ; vars ::= {{c\Def a}} |> <| mstate := M |>) 
+    gmp_stmt_sem f ev (CMP c e1 e2 v1 v2) (ev <| env ; vars ::= {{c\Def a}} |> <| mstate := M |>) 
 .
 
 Proof with try easy ; auto with rac_hint ; unshelve eauto using Z.ltb_irrefl,Z.gtb_ltb,Z.ltb_lt with rac_hint; auto with rac_hint.
-    intros funs procs ev c e1 e2 v1 v2 z1 z2 a Hnoalias Hnocom H H0 H1 (inf & eq & sup) l1 l2 (Hv1 & Hv2) (Hv1NotIne2 & Hdiffl1l2).
+    intros f ev c e1 e2 v1 v2 z1 z2 a Hnoalias Hnocom H H0 H1 (inf & eq & sup) l1 l2 (Hv1 & Hv2) (Hv1NotIne2 & Hdiffl1l2).
     
     assert (NotInt : 
         exists M, (
@@ -991,7 +991,8 @@ Proof with try easy ; auto with rac_hint ; unshelve eauto using Z.ltb_irrefl,Z.g
             ev v <> ev v1 /\ ev v <> ev v2  -> 
             ev.(mstate) n = M n
         ) -> 
-        gmp_stmt_sem funs procs ev <{(mpz_ASSGN v1 e1); (mpz_ASSGN v2 e2); <(c = cmp (v1, v2) )>}> 
+        let cmp := S_Ext <(c = cmp (v1, v2) )> in
+        gmp_stmt_sem f ev <{(mpz_ASSGN v1 e1); (mpz_ASSGN v2 e2); cmp}> 
         (ev <| env ; vars ::= {{c \Def a}} |> <| mstate := M |>)
     ). {
         exists ev.(mstate){l2 \Defined z2, l1 \Defined  z1}. intros Hvdiff. 
@@ -1049,7 +1050,7 @@ Qed.
 
 
 Lemma semantics_of_the_binop_macro_int :
-    forall funs procs (ev:Env) (op:fsl_binop_int) c r e1 e2 v1 v2 z1 z2 (ir: Int.inRange (⋄ op z1 z2) ) l1 l2 lr,
+    forall f (ev:Env) (op:fsl_binop_int) c r e1 e2 v1 v2 z1 z2 (ir: Int.inRange (⋄ op z1 z2) ) l1 l2 lr,
     _no_env_mpz_aliasing ev ->
     is_comp_var c = false ->
     type_of_value (ev c) = Some C_Int ->
@@ -1065,11 +1066,11 @@ Lemma semantics_of_the_binop_macro_int :
 
     ~ List.In v1 ((exp_vars e2)) /\  l1 <> l2   -> (* not in paper proof *)
 
-    gmp_stmt_sem funs procs ev (binop_ASSGN op (c,C_Int) e1 e2 r v1 v2) (ev <| env ; vars ::= fun e => e{c\VInt (zr ⁱⁿᵗ ir) : 𝕍} |> <| mstate := M |>)
+    gmp_stmt_sem f ev (binop_ASSGN op (c,C_Int) e1 e2 r v1 v2) (ev <| env ; vars ::= fun e => e{c\VInt (zr ⁱⁿᵗ ir) : 𝕍} |> <| mstate := M |>)
     .
 
 Proof with eauto with rac_hint.
-    intros funs procs ev op c r e1 e2 v1 v2 z1 z2 ir l1 l2 lr Hnoalias Hnocomp H H0 H1 zr H2. destruct H2 as (v1l & v2l & rl).  
+    intros f ev op c r e1 e2 v1 v2 z1 z2 ir l1 l2 lr Hnoalias Hnocomp H H0 H1 zr H2. destruct H2 as (v1l & v2l & rl).  
     assert (NotInt : 
         exists M,
         (forall (v : 𝓥) (n : location),
@@ -1077,10 +1078,10 @@ Proof with eauto with rac_hint.
         ev v1 <> ev v /\ ev v2 <> ev v ->
         ev.(mstate) n = M n) ->
         ~ List.In v1 ((exp_vars e2)) /\  l1 <> l2   -> (* not in paper proof *)
-        gmp_stmt_sem funs procs ev <{
+        gmp_stmt_sem f ev <{
             (mpz_ASSGN v1 e1);
             (mpz_ASSGN v2 e2);
-            (Definitions.op op r v1 v2);
+            (S_Ext (Definitions.op op r v1 v2));
             (int_ASSGN c (C_Id r Mpz))
         }> (ev <| env ; vars ::= fun e => e{c \VInt (zr ⁱⁿᵗ ir) : 𝕍} |> <| mstate := M |> )
     ). {
@@ -1120,7 +1121,7 @@ Qed.
 
 
 Lemma semantics_of_the_binop_macro_mpz :
-    forall funs procs (ev:Env) (op:fsl_binop_int) c y r e1 e2 v1 v2 z1 z2 l1 l2,
+    forall f (ev:Env) (op:fsl_binop_int) c y r e1 e2 v1 v2 z1 z2 l1 l2,
     _no_env_mpz_aliasing ev ->
     type_of_value (ev c) = Some C_Int ->
     ev |= e1 ⇝ z1 ->
@@ -1132,10 +1133,10 @@ Lemma semantics_of_the_binop_macro_mpz :
     exists M, (forall v n, ev v = Some (Def (VMpz (Some n))) ->
     ev v1 <> ev v /\ ev v2 <> ev v -> ev.(mstate) n = M n) -> 
     l1 <> l2 -> (* not in paper proof *)
-    gmp_stmt_sem funs procs ev (binop_ASSGN op (c,T_Ext Mpz) e1 e2 r v1 v2) (ev <| mstate := M{y\Defined zr} |>)
+    gmp_stmt_sem f ev (binop_ASSGN op (c,T_Ext Mpz) e1 e2 r v1 v2) (ev <| mstate := M{y\Defined zr} |>)
     .
 Proof with eauto using p_map_same with rac_hint.
-    intros funs procs ev op c y r e1 e2 v1 v2 z1 z2 l1 l2 Hnoalias H H0 H1 zr H2 H3. 
+    intros f ev op c y r e1 e2 v1 v2 z1 z2 l1 l2 Hnoalias H H0 H1 zr H2 H3. 
     exists ev.(mstate){l2\Defined z2,l1\Defined z1}. intros. destruct H2 as (v1l & v2l & rl). unfold binop_ASSGN.
     apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |>).
     - apply semantics_of_the_mpz_assgn_macro...

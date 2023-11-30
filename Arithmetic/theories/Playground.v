@@ -156,7 +156,7 @@ end.
 Open Scope Z_scope.
 Open Scope mini_gmp_scope.
 
-Definition p := Disj (Not (P_BinOp "x" FSL_Lt 3%Z)) P_False. 
+Definition p := P_Disj (P_Not (P_BinOp (T_Id "x" FSL_Int) FSL_Lt 3%Z)) P_False. 
 
 
 Definition dummy_iop : ϴ := fun i => Mpz. 
@@ -173,7 +173,7 @@ Definition dummy_defs : ψ := ⊥.
 
 Compute ( 
         let z := (C_Id "z" C_Int) in 
-        translate_program dummy_bindings dummy_tinf  
+        translate_program (Build_fenv _fsl_statement Empty_set ⊥ ⊥ ⊥ ⊥) dummy_bindings dummy_tinf  
         ([] : list _c_decl,
         [<[
             fun int "add" ((C_Decl C_Int "z")) [
