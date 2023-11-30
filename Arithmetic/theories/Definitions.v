@@ -17,8 +17,7 @@ Inductive _c_type {T:Set} := C_Int | Void | T_Ext (t:T).  (* program types τc *
 Inductive _gmp_t := String | Mpz. 
 Definition gmp_t := @_c_type _gmp_t.  (* type extension τ *)
 
-
-Inductive fsl_decl :=  FSL_Decl (τ:gmp_t) (name:id). (* logic declaration δ *)
+Inductive fsl_type := FSL_Int (* machine integer *) | FSL_Integer. (* mathematical integer *)
 
 Inductive fsl_binop_bool :=  FSL_Lt | FSL_Le | FSL_Gt | FSL_Ge | FSL_Eq | FSL_NEq.
 Definition fsl_binop_bool_model (x:fsl_binop_bool) : Z -> Z -> Prop := match x with
@@ -38,21 +37,21 @@ Definition fsl_binop_int_model (x:fsl_binop_int) : Z -> Z -> Z := match x with
     | FSL_Div => Z.div
 end.
 
+Inductive fsl_decl :=  FSL_Decl (τ:gmp_t) (name:id). (* logic declaration δ *)
+
 Inductive predicate :=
     | P_True | P_False (* truth values *)
     | P_BinOp (lt: fsl_term) (op:fsl_binop_bool) (rt : fsl_term)
-    | Not (t:predicate)
-    | Disj (lp:predicate) (rp:predicate)  (* disjunction *)
-    | Call (name:string) (args:fsl_decl ⃰) (* predicate call *)
+    | P_Not (t:predicate)
+    | P_Disj (lp:predicate) (rp:predicate)  (* disjunction *)
+    | P_Call (name:string) (args:fsl_term ⃰) (* predicate call *)
 with fsl_term :=
     | T_Z (z:Z) :> fsl_term (* integer in Z *)
-    | T_Id (name:id) :> fsl_term (* variable access *)
+    | T_Id (name:id) (ty:fsl_type)  (* variable access, ty added to distinguish between program var and logic var *)
     | T_BinOp (lt : fsl_term) (op:fsl_binop_int) (rt : fsl_term)
     | T_Cond (cond:predicate) (_then:fsl_term) (_else:fsl_term) (* conditional term *)
+    | T_Call (name:string) (args:fsl_term ⃰) (* logic function call *)
 .
-
-
-Inductive fsl_type := FSL_Int | Integer. (* logic types *)
 
 Inductive _fsl_statement := LAssert (p:predicate). (* logic assertion *)
 
@@ -145,10 +144,11 @@ Definition comp_var x : id  := (compiler_prefix ++ x)%string.
 Definition is_comp_var := String.prefix compiler_prefix.
 Definition res_f : id := comp_var "res".
 
+Definition gmp_exp := @_c_exp _gmp_t.
 
 Inductive _gmp_statement := 
     | Init (name:id) (* mpz allocation *)
-    | Set_i (name:id) (i:@_c_exp _gmp_t) (* assignment from an int *)
+    | Set_i (name:id) (i: gmp_exp) (* assignment from an int *)
     | Set_s (name:id) (l:string) (* assignment from a string literal *)
     | Set_z (name z:id)(* assignment from a mpz *)
     | Clear (name:id) (* mpz de-allocation *)
@@ -158,7 +158,11 @@ Inductive _gmp_statement :=
     | GMP_Div (lid rid res :id)
     | Comp (res lid rid :id) (* mpz comparison *)
     | Coerc (name n : id)  (* mpz coercion *)
-    | GMP_Decl (type: @_c_type _gmp_t) (name:id) (* added because translation seems to insert declarations inside statements *)
+    
+    (* GMP_Decl added because translation seems to insert declarations inside statements 
+        type is gmp_t because DECLS input is gmp_t
+    *)
+    | GMP_Decl (type: gmp_t) (name:id) 
 .
 
 #[global] Hint Constructors _gmp_statement  : rac_hint.
@@ -170,25 +174,21 @@ Definition op (x:fsl_binop_int) : id -> id -> id -> _gmp_statement := match x wi
 | FSL_Div => GMP_Div
 end.
 
-
-
-
 Definition c_exp := @_c_exp Empty_set.
-Definition gmp_exp := @_c_exp _gmp_t.
+
 
 Definition c_statement := @_c_statement Empty_set Empty_set.
-Definition fsl_statement := @_c_statement _fsl_statement _gmp_t.
-Definition gmp_statement := @_c_statement _gmp_statement _gmp_t.
-
-Definition gmp_decl := @_c_decl _gmp_t.
+Definition fsl_statement := @_c_statement _fsl_statement Empty_set.
+Definition gmp_statement := @_c_statement _gmp_statement _gmp_t. 
 
 Definition c_decl := @_c_decl Empty_set.
+Definition gmp_decl := @_c_decl _gmp_t.
+(* fsl_decl defined earlier *)
 
-Definition fsl_routine := @_c_routine _fsl_routine _fsl_statement _gmp_t.
+Definition fsl_routine := @_c_routine _fsl_routine _fsl_statement Empty_set.
 Definition gmp_routine := @_c_routine Empty_set _gmp_statement _gmp_t.
 
-Definition fsl_pgrm := @_c_program _fsl_routine _fsl_statement _gmp_t.
-
+Definition fsl_pgrm := @_c_program _fsl_routine _fsl_statement Empty_set.
 Definition rac_pgrm := @_c_program Empty_set _gmp_statement _gmp_t.
 
 
@@ -238,9 +238,9 @@ Notation "x > y"   := (BinOpBool x C_Gt y) (in custom c_exp at level 50, no asso
 Notation "x >= y"  := (BinOpBool x C_Ge y) (in custom c_exp at level 50, no associativity) : mini_c_scope.
 
 
-Notation "'/*@' 'logic' k id '(' x ',' .. ',' y ')' '=' t" := (LFun k id (cons x .. (cons y nil) ..) t) (in custom c_decl at level 0): mini_c_scope.
-Notation "'/*@' 'predicate' id '(' x ',' .. ',' y ')' '=' p" := (Predicate id (cons x .. (cons y nil) ..) p) (p custom c_stmt, in custom c_decl at level 0): mini_c_scope.
-Notation "'/*@' 'assert' p '*/'" := (LAssert p) (in custom c_stmt at level 0) : mini_c_scope.
+Notation "'/*@' 'logic' k id '(' x ',' .. ',' y ')' '=' t" := (S_Ext (LFun k id (cons x .. (cons y nil) ..) t)) (in custom c_decl at level 0): mini_c_scope.
+Notation "'/*@' 'predicate' id '(' x ',' .. ',' y ')' '=' p" := (S_Ext (Predicate id (cons x .. (cons y nil) ..) p)) (p custom c_stmt, in custom c_decl at level 0): mini_c_scope.
+Notation "'/*@' 'assert' p '*/'" := (S_Ext (LAssert p)) (in custom c_stmt at level 0) : mini_c_scope.
 
 
 Notation "'skip'" := Skip  (in custom c_stmt at level 99) : mini_c_scope.
@@ -290,6 +290,14 @@ Definition 𝓕 {S T : Set} := 𝓥 ⇀ (𝓥 ⃰ ⨉ @_c_statement S T). (* pro
 Definition 𝓟 {S T : Set} := 𝓥 ⇀ (𝓥 ⃰ ⨉ @_c_statement S T). (* program procedures *)
 Definition 𝔉 :=  𝔏 ⇀ (𝔏 ⃰ ⨉ ℨ). (* logic functions *)
 Definition 𝔓 :=  𝔏 ⇀ (𝔏 ⃰ ⨉ 𝔅). (* predicates *)
+
+Record fenv {S T : Set} := {
+    funs : @𝓕 S T ;
+    procs : @𝓟 S T ;
+    lfuns : 𝔉 ;
+    preds : 𝔓 ;
+}.
+
 
 
 Module Int16Bounds.
@@ -343,8 +351,8 @@ Coercion int_option_loc (l:nat) :=  Some l.
 Coercion v_int (mi:Int.MI) : 𝕍 := Def (VInt mi). 
 Coercion def_v_mpz (l:nat) : 𝕍 := Def (VMpz (Some l)). 
 Coercion mpz_loc (l:location) : 𝕍 := VMpz (Some l).
-Coercion gmp_s_ext (s:_gmp_statement) := S_Ext s (T:=_gmp_t).
-Coercion fsl_s_ext (s:_fsl_statement) := S_Ext s (T:=_gmp_t).
+Coercion gmp_s_ext (s:_gmp_statement) : gmp_statement := S_Ext s (T:=_gmp_t).
+Coercion fsl_s_ext (s:_fsl_statement) : fsl_statement := S_Ext s (T:=Empty_set).
 Coercion gmp_t_ext (t:_gmp_t) : _c_type := T_Ext t.
 
 

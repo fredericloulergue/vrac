@@ -83,6 +83,14 @@ Qed.
 #[global] Hint Resolve p_map_same : rac_hint.
 
 
+Fixpoint fold_left2 {Acc A B : Type} (f : Acc -> A -> B -> Acc) (acc:Acc) (l1 : list A) (l2 : list B) : Acc := 
+    match l1,l2 with
+      | nil,nil => acc
+      | cons b1 t1,cons b2 t2 => fold_left2 f (f acc b1 b2) t1 t2
+      | _,_ => acc (* both lists must have the same length,
+       otherwise computation will be interrupted when one of the list is empty but not the other *)
+end.
+
 
 Fact p_map_apply {X T T' : Type } `{EqDec X} : forall env (x :X)  (v : T) (f : option T -> T'),  f (env{x\v} x)  = f (Some v).
 Proof.
