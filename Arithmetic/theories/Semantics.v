@@ -158,18 +158,20 @@ Notation "ev |= s => ev'"  := (c_stmt_sem ev s ev') : c_sem_scope. *)
 
 
 
-Definition c_decl_sem (env env':Ω) (mem mem':𝓜) d : Prop := 
+(* Definition c_decl_sem (env env':Ω) (mem mem':𝓜) d : Prop := 
         forall x t u,
         env x  = None -> 
-        (Uτ u) = Some t ->
+        (ty u) = Some t ->
         d = C_Decl t x -> env' = env <| vars ::= {{x\u}} |> /\ mem = mem'.
-        
+         *)
 
 
 Open Scope gmp_exp_sem_scope.
 Open Scope mini_gmp_scope.
 Declare Scope gmp_stmt_sem_scope.
 Delimit Scope gmp_stmt_sem_scope with gmpssem.
+
+Definition undef_type (u:undef) := match u with UMpz _ => Mpz | UInt _ => C_Int end.
 
 Inductive _gmp_stmt_sem { S T : Set }(funs : @𝓕 S T) (procs : @𝓟 S T) (ev:Env) : gmp_statement -> Env -> Prop := 
     | S_init x (l:location):
@@ -222,9 +224,16 @@ Inductive _gmp_stmt_sem { S T : Set }(funs : @𝓕 S T) (procs : @𝓟 S T) (ev:
         ev r = Some (Def (VMpz (Some lr))) ->
         (ev |= op bop r x y => ev <| mstate ::= {{lr\Defined (⋄ (□ bop) z1 z2) }} |>) funs procs
 
-where "ev |= s => ev'"  := (fun funs procs => _gmp_stmt_sem funs procs ev s ev') : gmp_stmt_sem_scope.
+    (* required because you can insert declarations inside statements according to the translation *)
+    | S_decl : forall t x n (u := Undef n),
+        undef_type u = t ->
+        (ev |= GMP_Decl t x => ev <| env; vars ::= {{x\u}} |>) funs procs 
+
+where "ev |= s => ev'" := (fun funs procs => _gmp_stmt_sem funs procs ev s ev') : gmp_stmt_sem_scope.
 
 #[global] Hint Constructors _gmp_stmt_sem  : rac_hint.
+
+
 
 
 Definition gmp_stmt_sem := @generic_stmt_sem _gmp_statement _gmp_t _gmp_exp_sem _gmp_stmt_sem.

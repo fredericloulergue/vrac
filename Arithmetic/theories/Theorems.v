@@ -64,6 +64,11 @@ Proof with auto with rac_hint.
         + rewrite p_map_not_same in Hl'... destruct (string_dec c v).
             * subst. rewrite p_map_same in Hl. injection Hl as Hl. now subst.
             * rewrite p_map_not_same in Hl... destruct Hnoalias with v v' l' l'...
+    - destruct (string_dec x v').
+        + subst. rewrite p_map_same in Hl'. discriminate.
+        + rewrite p_map_not_same in Hl'... destruct (string_dec x v).
+            * subst. rewrite p_map_same in Hl. discriminate.
+            * rewrite p_map_not_same in Hl... destruct Hnoalias with v v' l' l'...
 Qed.
     
 
@@ -597,6 +602,8 @@ Proof with eauto using eq_env_partial_order, eq_mem_partial_order,refl_env_mem_p
         * eexists (ev₀' <| mstate ::= {{lr \Defined (⋄ bop z1 z2)}} |>). split.
             ** split... intro n. apply mems_partial_order_add...
             **  apply S_op with vx vy ; try apply weak_exp...
+
+        * exists (ev₀' <| env; vars ::= {{x \ u}} |>)... repeat split... now apply env_partial_order_add.
     
     - intro H. specialize (H ev₀ (refl_env_mem_partial_order ev₀))...
         destruct H as [ev₁' [Hrel Hderiv ]]... induction Hderiv.
@@ -1058,7 +1065,7 @@ Lemma semantics_of_the_binop_macro_int :
 
     ~ List.In v1 ((exp_vars e2)) /\  l1 <> l2   -> (* not in paper proof *)
 
-    gmp_stmt_sem funs procs ev (binop_ASSGN op (C_Int,c) e1 e2 r v1 v2) (ev <| env ; vars ::= fun e => e{c\VInt (zr ⁱⁿᵗ ir) : 𝕍} |> <| mstate := M |>)
+    gmp_stmt_sem funs procs ev (binop_ASSGN op (c,C_Int) e1 e2 r v1 v2) (ev <| env ; vars ::= fun e => e{c\VInt (zr ⁱⁿᵗ ir) : 𝕍} |> <| mstate := M |>)
     .
 
 Proof with eauto with rac_hint.
@@ -1125,7 +1132,7 @@ Lemma semantics_of_the_binop_macro_mpz :
     exists M, (forall v n, ev v = Some (Def (VMpz (Some n))) ->
     ev v1 <> ev v /\ ev v2 <> ev v -> ev.(mstate) n = M n) -> 
     l1 <> l2 -> (* not in paper proof *)
-    gmp_stmt_sem funs procs ev (binop_ASSGN op (T_Ext Mpz,c) e1 e2 r v1 v2) (ev <| mstate := M{y\Defined zr} |>)
+    gmp_stmt_sem funs procs ev (binop_ASSGN op (c,T_Ext Mpz) e1 e2 r v1 v2) (ev <| mstate := M{y\Defined zr} |>)
     .
 Proof with eauto using p_map_same with rac_hint.
     intros funs procs ev op c y r e1 e2 v1 v2 z1 z2 l1 l2 Hnoalias H H0 H1 zr H2 H3. 

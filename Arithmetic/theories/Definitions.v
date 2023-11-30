@@ -17,9 +17,9 @@ Inductive _c_type {T:Set} := C_Int | Void | T_Ext (t:T).  (* program types τc *
 Inductive _gmp_t := String | Mpz. 
 Definition gmp_t := @_c_type _gmp_t.  (* type extension τ *)
 
-(* mini-FSL *)
 
 Inductive fsl_decl :=  FSL_Decl (τ:gmp_t) (name:id). (* logic declaration δ *)
+
 Inductive fsl_binop_bool :=  FSL_Lt | FSL_Le | FSL_Gt | FSL_Ge | FSL_Eq | FSL_NEq.
 Definition fsl_binop_bool_model (x:fsl_binop_bool) : Z -> Z -> Prop := match x with
     | FSL_Lt => Z.lt
@@ -56,9 +56,6 @@ Inductive fsl_type := FSL_Int | Integer. (* logic types *)
 
 Inductive _fsl_statement := LAssert (p:predicate). (* logic assertion *)
 
-
-(* mini-C *)
-Inductive _c_decl {T:Set} :=  C_Decl (type: @_c_type T) (name:id). (* program declaration *)
 
 Inductive c_binop_bool :=  C_Lt | C_Le | C_Gt | C_Ge | C_Eq | C_NEq.
 Definition c_binop_bool_model (x:c_binop_bool) : Z -> Z -> bool := match x with
@@ -99,7 +96,7 @@ Coercion fsl_binop_bool_to_c (x:fsl_binop_bool) : c_binop_bool := match x with
 end.
 Notation "◖" := fsl_binop_bool_to_c : definition_scope.
 
-(* #[warnings="-uniform-inheritance"]  *)
+#[warnings="-uniform-inheritance"] 
 Inductive _c_exp {T : Set}  :=
     | Zm (z : Z) :> _c_exp(* machine integer *) (* can only be of type int *)
     | C_Id (var : id) (ty : @_c_type T) (* variable access *) (* can be either int or mpz *)
@@ -120,11 +117,27 @@ Inductive _c_statement {S T : Set} :=
     | While (cond:@_c_exp T) (body:_c_statement) (* loop *) 
     | PAssert (e:@_c_exp T) (* program assertion *)
     | Return (e:@_c_exp T) 
-    | Decl (d: @_c_decl T) :> _c_statement
+    (* | Decl (d: @_c_decl T) :> _c_statement *)
     | S_Ext (stmt:S)
 .
 
 #[global] Hint Constructors _c_statement  : rac_hint.
+
+Inductive _c_decl {T:Set} :=  C_Decl (type: @_c_type T) (name:id). (* program declaration *)
+
+Inductive _c_routine {F S T : Set} :=
+| PFun (rtype: @_c_type T) (name:id) (args: @_c_decl T ⃰) (b_decl: @_c_decl T ⃰) (body: @_c_statement S T) (* program function *)
+| F_Ext (f:F)
+.
+
+Inductive _fsl_routine :=
+| LFun (ret:fsl_type) (name:id) (args: fsl_decl ⃰) (body:fsl_term) (* logic function *)
+| Predicate (name:id) (args: fsl_decl ⃰) (p:predicate) (* predicate *)
+.
+
+Definition _c_program {F S T : Set} := (@_c_decl T ⃰ ⨉ @_c_routine F S T  ⃰). 
+(*  mini-GMP *)
+
 
 
 Definition compiler_prefix : id := "_".
@@ -132,14 +145,6 @@ Definition comp_var x : id  := (compiler_prefix ++ x)%string.
 Definition is_comp_var := String.prefix compiler_prefix.
 Definition res_f : id := comp_var "res".
 
-Inductive _c_routine {S T : Set} :=
-| PFun (ret: @_c_type T) (name:id) (args: @_c_decl T ⃰) (b_decl: @_c_decl T ⃰) (body: @_c_statement T S) (* program function *)
-| LFun (ret:fsl_type) (name:id) (args: fsl_decl ⃰) (body:fsl_term) (* logic function *)
-| Predicate (name:id) (args: fsl_decl ⃰) (p:predicate) (* predicate *)
-.
-
-Record _c_program {S T : Set}:= mkPgrm { decls: @_c_decl T ⃰ ; routines: @_c_routine T S ⃰ }. 
-(*  mini-GMP *)
 
 Inductive _gmp_statement := 
     | Init (name:id) (* mpz allocation *)
@@ -153,6 +158,7 @@ Inductive _gmp_statement :=
     | GMP_Div (lid rid res :id)
     | Comp (res lid rid :id) (* mpz comparison *)
     | Coerc (name n : id)  (* mpz coercion *)
+    | GMP_Decl (type: @_c_type _gmp_t) (name:id) (* added because translation seems to insert declarations inside statements *)
 .
 
 #[global] Hint Constructors _gmp_statement  : rac_hint.
@@ -168,29 +174,32 @@ end.
 
 
 Definition c_exp := @_c_exp Empty_set.
-Definition c_statement := @_c_statement Empty_set Empty_set.
-
-Definition gmp_decl := @_c_decl _gmp_t.
 Definition gmp_exp := @_c_exp _gmp_t.
 
+Definition c_statement := @_c_statement Empty_set Empty_set.
 Definition fsl_statement := @_c_statement _fsl_statement _gmp_t.
 Definition gmp_statement := @_c_statement _gmp_statement _gmp_t.
 
-Definition fsl_pgrm := @_c_program _fsl_statement _gmp_t.
-Definition rac_pgrm := @_c_program _gmp_statement _gmp_t.
+Definition gmp_decl := @_c_decl _gmp_t.
+
+Definition c_decl := @_c_decl Empty_set.
+
+Definition fsl_routine := @_c_routine _fsl_routine _fsl_statement _gmp_t.
+Definition gmp_routine := @_c_routine Empty_set _gmp_statement _gmp_t.
+
+Definition fsl_pgrm := @_c_program _fsl_routine _fsl_statement _gmp_t.
+
+Definition rac_pgrm := @_c_program Empty_set _gmp_statement _gmp_t.
 
 
 
-
-
-
-(* ty the function that gives the type of a mini-GMP expression *)
-Definition ty (e: gmp_exp) : gmp_t := match e with 
+(* ty the function that gives the type of an expression *)
+Definition ty {T : Set } (e: @_c_exp T) : @_c_type T := match e with 
     | Zm _  => C_Int
     | C_Id _ ty => ty
     | BinOpInt _ _ _  => C_Int
     | BinOpBool _ _ _ => C_Int
-    end.
+end.
 
 Declare Scope mini_c_scope.
 Delimit Scope mini_c_scope with c.
@@ -371,7 +380,6 @@ Fixpoint stmt_vars {T S:Set} (stmt : @_c_statement T S) : list id := match stmt 
 | While cond s => exp_vars cond ++ stmt_vars s 
 | PAssert e => exp_vars e
 | Return e  => exp_vars e 
-| Decl (C_Decl ty id) => id::nil
 | S_Ext s => nil
 end.
 
@@ -387,14 +395,6 @@ Definition empty_Ω  : Ω := {|vars:=⊥;binds:=⊥|}.
 Record Env := mkEnv {env :> Ω ;  mstate :> 𝓜}.
 Definition empty_env : Env := {|env:=empty_Ω;mstate:=⊥|}.
 #[export] Instance etaEnv : Settable _ := settable! mkEnv <env ; mstate>.
-
-Fact abcd {A B : Type} (proj : Env -> (A ⇀ B) ) `{EqDec A} `{Setter Env (A ⇀ B) proj} (ev : Env) (v : A) : forall (x1 x2 : A) (y1 y2 : B), 
-    (ev <| proj ::= {{x1\y1}} |> <| proj ::= {{x2\y2}} |> ).(proj) v 
-    = 
-    (ev <|  proj ::= {{x1\y1,x2\y2}} |>).(proj) v.
-Proof. 
-intros. compute. destruct H. admit.
-Admitted. 
 
 Definition apply_env (a : Ω) (v : 𝓥) : option 𝕍 := a.(vars) v.
 Coercion apply_env : Ω >-> Funclass.
@@ -447,15 +447,6 @@ intros. destruct mem eqn:X.
 Qed.
 
 
-Definition Uτ (v:𝕍) : option (@_c_type Empty_set) := match v with 
-    | UInt _ => Some C_Int 
-    | _ => None
-end
-.
-
-
-Definition inUτ v : bool := if Uτ v then true else false.
-
 Definition zero :=  0ⁱⁿᵗ zeroinRange.
 Definition one := 1ⁱⁿᵗ oneinRange.
 Definition sub_one := (-1)ⁱⁿᵗ suboneinRange.
@@ -473,7 +464,17 @@ Definition Γᵥ := 𝔏 ⇀ 𝓥 ⨉ 𝐼. (* environment for bindings :  varia
 Definition Γ := Γᵥ ⨉ Γᵢ.
 
 
-Definition ψ := 𝔏 ⨉ (𝔏 ⇀ 𝐼) ⇀ 𝓥 . (* global definitions env *)
+(* See 5.1. (𝔏 ⇀ 𝐼) is the interval infered for each function arguments but how to make it decidable ? *)
+Axiom eq_dec_bindings : forall (e1 e2 : (𝔏 ⨉ (𝔏 ⇀ 𝐼))), {e1 = e2} + {e1 <> e2}. 
+
+#[global] Instance eqdec_bindings : EqDec (𝔏 ⨉ (𝔏 ⇀ 𝐼)) := {
+    eq_dec := eq_dec_bindings
+}.
+
+
+
+
+Definition ψ := (𝔏 ⨉ (𝔏 ⇀ 𝐼)) ⇀ 𝓥 . (* global definitions env *)
 
 
 Notation "'Γ' '(' x ')' " := (Γᵥ x, Γᵢ x) : definition_scope.
