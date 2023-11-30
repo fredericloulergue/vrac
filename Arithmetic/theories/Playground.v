@@ -170,13 +170,22 @@ Definition dummy_bindings : Γᵥ := ⊥.
 
 Definition dummy_defs : ψ := ⊥.
 
-(* Compute ( 
-    exec (
-        translate_c_statement dummy_bindings dummy_tinf dummy_defs 
-        <{
-            "x" = 1 + 3  ;
-            /*@ assert p */ ;
-             "x" = 2  
-        }>
-    ) 
-). *)
+
+Compute ( 
+        let z := (C_Id "z" C_Int) in 
+        translate_program dummy_bindings dummy_tinf  
+        ([] : list _c_decl,
+        [<[
+            fun int "add" ((C_Decl C_Int "z")) [
+                (C_Decl C_Int "nothing") ; 
+
+                 <{
+                    "x" = z + 3  ;
+                    /*@ assert p */ ;
+                    "x" = 2
+                 }> 
+            ]
+         ]>
+        ]
+        )
+). 
