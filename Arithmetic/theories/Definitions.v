@@ -162,7 +162,7 @@ Inductive _gmp_statement :=
     (* GMP_Decl added because translation seems to insert declarations inside statements 
         type is gmp_t because DECLS input is gmp_t
     *)
-    | GMP_Decl (type: gmp_t) (name:id) 
+    (* | GMP_Decl (type: gmp_t) (name:id)  *)
 .
 
 #[global] Hint Constructors _gmp_statement  : rac_hint.
@@ -238,8 +238,8 @@ Notation "x > y"   := (BinOpBool x C_Gt y) (in custom c_exp at level 50, no asso
 Notation "x >= y"  := (BinOpBool x C_Ge y) (in custom c_exp at level 50, no associativity) : mini_c_scope.
 
 
-Notation "'/*@' 'logic' k id '(' x ',' .. ',' y ')' '=' t" := (S_Ext (LFun k id (cons x .. (cons y nil) ..) t)) (in custom c_decl at level 0): mini_c_scope.
-Notation "'/*@' 'predicate' id '(' x ',' .. ',' y ')' '=' p" := (S_Ext (Predicate id (cons x .. (cons y nil) ..) p)) (p custom c_stmt, in custom c_decl at level 0): mini_c_scope.
+Notation "'/*@' 'logic' k id '(' x ',' .. ',' y ')' '=' t '*/'" := (F_Ext (LFun k id (cons x .. (cons y nil) ..) t)) (in custom c_decl at level 0): mini_c_scope.
+Notation "'/*@' 'predicate' id '(' x ',' .. ',' y ')' '=' p '*/'" := (F_Ext (Predicate id (cons x .. (cons y nil) ..) p)) (p custom c_stmt, in custom c_decl at level 0): mini_c_scope.
 Notation "'/*@' 'assert' p '*/'" := (S_Ext (LAssert p)) (in custom c_stmt at level 0) : mini_c_scope.
 
 

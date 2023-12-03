@@ -156,7 +156,6 @@ end.
 Open Scope Z_scope.
 Open Scope mini_gmp_scope.
 
-Definition p := P_Disj (P_Not (P_BinOp (T_Id "x" FSL_Int) FSL_Lt 3%Z)) P_False. 
 
 
 Definition dummy_iop : ϴ := fun i => Mpz. 
@@ -170,22 +169,29 @@ Definition dummy_bindings : Γᵥ := ⊥.
 
 Definition dummy_defs : ψ := ⊥.
 
+Definition x := FSL_Decl (T_Ext Mpz) "x".
+Definition y := FSL_Decl (T_Ext Mpz) "y".
+
+Definition p : predicate := (P_BinOp (T_Id "x" FSL_Int) FSL_Gt (T_Id "y" FSL_Int)). 
+
+Definition greaterThan : predicate := P_Call "greaterThan" [T_Id "x" FSL_Int; T_Z 3].
 
 Compute ( 
         let z := (C_Id "z" C_Int) in 
         translate_program (Build_fenv _fsl_statement Empty_set ⊥ ⊥ ⊥ ⊥) dummy_bindings dummy_tinf  
         ([] : list _c_decl,
-        [<[
+        [<[ /*@ predicate "greaterThan"(x,y) = p  */ ]>;
+        <[
             fun int "add" ((C_Decl C_Int "z")) [
                 (C_Decl C_Int "nothing") ; 
 
                  <{
                     "x" = z + 3  ;
-                    /*@ assert p */ ;
+                    /*@ assert p  */ ;
                     "x" = 2
                  }> 
             ]
-         ]>
+         ]> 
         ]
         )
 ). 

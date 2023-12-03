@@ -223,11 +223,6 @@ Inductive _gmp_stmt_sem { S T : Set } (f : @fenv S T) (ev:Env) : gmp_statement -
         ev r = Some (Def (VMpz (Some lr))) ->
         (ev |= op bop r x y => ev <| mstate ::= {{lr\Defined (⋄ (□ bop) z1 z2) }} |>) f
 
-    (* required because you can insert declarations inside statements according to the translation *)
-    | S_decl : forall t x n (u := Undef n),
-        undef_type u = t ->
-        (ev |= GMP_Decl t x => ev <| env; vars ::= {{x\u}} |>) f 
-
 where "ev |= s => ev'" := (fun f => _gmp_stmt_sem f ev s ev') : gmp_stmt_sem_scope.
 
 #[global] Hint Constructors _gmp_stmt_sem  : rac_hint.
