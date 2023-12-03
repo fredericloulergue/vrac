@@ -64,11 +64,6 @@ Proof with auto with rac_hint.
         + rewrite p_map_not_same in Hl'... destruct (string_dec c v).
             * subst. rewrite p_map_same in Hl. injection Hl as Hl. now subst.
             * rewrite p_map_not_same in Hl... destruct Hnoalias with v v' l' l'...
-    - destruct (string_dec x v').
-        + subst. rewrite p_map_same in Hl'. discriminate.
-        + rewrite p_map_not_same in Hl'... destruct (string_dec x v).
-            * subst. rewrite p_map_same in Hl. discriminate.
-            * rewrite p_map_not_same in Hl... destruct Hnoalias with v v' l' l'...
 Qed.
     
 
@@ -602,8 +597,6 @@ Proof with eauto using eq_env_partial_order, eq_mem_partial_order,refl_env_mem_p
         * eexists (ev₀' <| mstate ::= {{lr \Defined (⋄ bop z1 z2)}} |>). split.
             ** split... intro n. apply mems_partial_order_add...
             **  apply S_op with vx vy ; try apply weak_exp...
-
-        * exists (ev₀' <| env; vars ::= {{x \ u}} |>)... repeat split... now apply env_partial_order_add.
     
     - intro H. specialize (H ev₀ (refl_env_mem_partial_order ev₀))...
         destruct H as [ev₁' [Hrel Hderiv ]]... induction Hderiv.
