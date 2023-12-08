@@ -162,72 +162,140 @@ Definition fresh_variable :=  c <- fresh ;;; ("_v" ++ string_of_nat c)%string.
 Definition fresh_fname id :=  c <- fresh ;;; ("_id" ++ id ++ string_of_nat c)%string. 
 
 
+From Equations Require Import Equations.
 
-(* Since predicates are evaluated to 0 or 1, their result always fits in an int.*)
+Section todo.
+Set Equations Transparent.
 
-Fixpoint translate_predicate (f : fenv) (bindings:Γᵥ) (t_inf : type_inf) (e: ψ) (p: predicate) (fuel:nat) : state  := 
-match fuel with | O => ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) nil  ("",C_Int)) | S n =>
+Set Universe Polymorphism.
 
-    match p with
-    | P_True => 
-        c <- fresh_variable ;;
+
+Inductive logic_tr_proto : forall (A B C D E  : Type), (A -> B -> C -> D -> E -> Type) -> Set :=
+| tr_pred : logic_tr_proto (@fenv _fsl_statement Empty_set) Γᵥ type_inf ψ predicate (fun _ _ _ _ _ => @state (@translated_statement gmp_statement))
+| tr_term : logic_tr_proto (@fenv _fsl_statement Empty_set) Γᵥ type_inf ψ fsl_term (fun _ _ _ _ _ => @state (@translated_statement gmp_statement))
+| f_gen : logic_tr_proto (@fenv _fsl_statement Empty_set) Γᵥ type_inf ψ id (fun _ _ _ _ _ =>  @state (@translation_result 𝓥))
+.
+
+Derive Signature NoConfusion for logic_tr_proto.
+
+Import Sigma_Notations.
+
+
+Definition args_size {A : Type} (size:A -> nat) (l:list A) := (fold_right (fun a s => size a + s) 0 l)%nat.
+
+Definition args_size_lt_in : forall (A:Type) (l:list A) (f : A -> nat) (a:A), 
+    List.In a l -> (f a < S (args_size f l))%nat.
+Proof. Open Scope nat.
+    intros A l f a Hin. unfold args_size. induction l.
+    - inversion Hin.
+    - simpl in *. destruct Hin.
+        *  subst. now auto with arith.
+        *  apply IHl in H. clear IHl. simpl. rewrite Nat.add_comm.  auto with arith.
+Qed. 
+
+Fixpoint term_size (t : fsl_term) : nat :=
+    match t with
+    | T_Z _ | T_Id _ _  => 1
+    | T_BinOp l _ r => S (term_size l) + (term_size r)
+    | T_Cond p t e => S (term_size t) + (term_size e) + (pred_size p)
+    | T_Call _ args => S (args_size term_size args)
+end
+with pred_size (p : predicate) :=  match p with
+    | P_True | P_False => 1
+    | P_Not x => S (pred_size x)
+    | P_BinOp l _ r  => S (term_size l) + (term_size r)
+    | P_Disj l r => S (pred_size l) + (pred_size r)
+    | P_Call _ args =>  S (args_size term_size args)
+end.
+
+
+Equations measure : (Σ A B C D E P (_ : A) (_ : B) (_ : C) (_ : D) (_ : E), logic_tr_proto A B C D E P) -> nat :=
+    | (_,_,_,_,_,_, _,_,_,_,p,tr_pred) => pred_size p
+    | (_,_,_,_,_,_, _,_,_,_,t,tr_term) => term_size t
+    | (_,_,_,_,_,_, fenv,_,_,e,fname,f_gen)  =>  0
+
+.
+
+Definition rel := Program.Wf.MR lt measure.
+#[global] Instance: WellFounded rel.
+Proof.
+    red. apply Wf.measure_wf. apply Wf_nat.lt_wf.
+Defined.
+
+
+(* pack take the function and all its arguments *)
+Definition pack {A B C D E} {P} (x1 : A) (x2 : B) (x3 : C) (x4 : D) (x5 : E) (t : logic_tr_proto A B C D E P) :=
+     (A,B,C,D,E,P, x1, x2, x3, x4, x5, t) : (Σ A B C D E P (_ : A) (_ : B) (_ : C) (_ : D) (_ : E), logic_tr_proto A B C D E P).
+
+
+End todo.
+
+
+Equations translate_fsl {A B C D E} {P} (t : logic_tr_proto A B C D E P) (f : A) (bindings : B) (t_inf:C) (e:D) (x: E) : P f bindings t_inf e x by wf (pack f bindings t_inf e x t) rel := 
+
+(* predicate translation *)
+
+| tr_pred , _, _ , _ , _ , P_True => 
+    c <- fresh_variable ;;
         let decl := [(c,C_Int)] in
         let code := <{ c = 1 }> in
         ret (mkSTR gmp_statement (mkTR gmp_statement code e nil) decl (c,C_Int))
-    | P_False => 
-        c <- fresh_variable ;; 
-        let decl := [(c,C_Int)] in
-        let code := <{ c = 0 }> in
-        ret (mkSTR gmp_statement (mkTR gmp_statement code e nil) decl  (c, C_Int))
 
-    | P_Not p => 
-        c <- fresh_variable ;; 
-        p_tr <- translate_predicate f bindings t_inf e p n ;;;
-        let _res := C_Id (fst p_tr.(res)) (snd p_tr.(res)) in
-        let decl := (c,C_Int)::p_tr.(decls) in
-        let code := <{ (p_tr.(tr).(chunk gmp_statement)) ; if _res c = 0 else c = 1 }> in
-        mkSTR gmp_statement (mkTR gmp_statement code p_tr.(tr).(tenv gmp_statement) nil) decl (c, C_Int)
-    
-    | P_Disj p1 p2 => 
-        c <- fresh_variable ;;
-        tr_p1 <- translate_predicate f bindings t_inf e p1 n ;;
-        let p1_res := C_Id (fst tr_p1.(res)) (snd tr_p1.(res)) in
-        let p1_code := tr_p1.(tr).(chunk gmp_statement) in
-        tr_p2 <- translate_predicate f bindings t_inf tr_p1.(tr).(tenv gmp_statement) p2  n;;;
-        let p2_res := C_Id (fst tr_p2.(res)) (snd tr_p2.(res)) in
-        let p2_code := tr_p2.(tr).(chunk gmp_statement) in
-        let decl := (c,C_Int)::tr_p1.(decls) ++ tr_p2.(decls) in
-        let code := <{ p1_code ; if p1_res c = 1 else <{ p2_code ; <{c = p2_res}> }> }> 
-        in
-        mkSTR gmp_statement (mkTR gmp_statement code tr_p2.(tr).(tenv gmp_statement) nil) decl  (c,C_Int)
+| tr_pred , _, _ , _ , _ , P_False => 
+    c <- fresh_variable ;; 
+    let decl := [(c,C_Int)] in
+    let code := <{ c = 0 }> in
+    ret (mkSTR gmp_statement (mkTR gmp_statement code e nil) decl  (c, C_Int))
 
-    | P_BinOp t1 fsl_op t2 =>
-        c <- fresh_variable ;;
+| tr_pred , _, _ , _ , _ , P_Not p => 
+    c <- fresh_variable ;; 
+    p_tr <- translate_fsl tr_pred f bindings t_inf e p ;;;
+    let _res := C_Id (fst p_tr.(res)) (snd p_tr.(res)) in
+    let decl := (c,C_Int)::p_tr.(decls) in
+    let code := <{ (p_tr.(tr).(chunk gmp_statement)) ; if _res c = 0 else c = 1 }> in
+    mkSTR gmp_statement (mkTR gmp_statement code p_tr.(tr).(tenv gmp_statement) nil) decl (c, C_Int)
 
-        tr_t1 <- translate_term f bindings t_inf e t1 n ;;
-        let t1_code := tr_t1.(tr).(chunk gmp_statement) in
-        tr_t2 <- translate_term f bindings t_inf tr_t1.(tr).(tenv gmp_statement) t2  n;;
-        let t2_code := tr_t2.(tr).(chunk gmp_statement) in
+| tr_pred , _, _ , _ , _ , P_Disj p1 p2 => 
+    c <- fresh_variable ;;
+    tr_p1 <- translate_fsl tr_pred f bindings t_inf e p1 ;;
+    let p1_res := C_Id (fst tr_p1.(res)) (snd tr_p1.(res)) in
+    let p1_code := tr_p1.(tr).(chunk gmp_statement) in
+    tr_p2 <- translate_fsl tr_pred f bindings t_inf tr_p1.(tr).(tenv gmp_statement) p2 ;;;
+    let p2_res := C_Id (fst tr_p2.(res)) (snd tr_p2.(res)) in
+    let p2_code := tr_p2.(tr).(chunk gmp_statement) in
+    let decl := (c,C_Int)::tr_p1.(decls) ++ tr_p2.(decls) in
+    let code := <{ p1_code ; if p1_res c = 1 else <{ p2_code ; <{c = p2_res}> }> }> 
+    in
+    mkSTR gmp_statement (mkTR gmp_statement code tr_p2.(tr).(tenv gmp_statement) nil) decl  (c,C_Int)
 
-        let decl := ("v1", T_Ext Mpz)::("v2",T_Ext Mpz)::(c,C_Int)::tr_t1.(decls) ++ tr_t2.(decls) in
+| tr_pred , _, _ , _ , _ , P_BinOp t1 fsl_op t2 =>
+    c <- fresh_variable ;;
 
-        let (ct1,tt1) := tr_t1.(res) in 
-        let (ct2,tt2) := tr_t1.(res) in 
-        let comp := CMP c (C_Id ct1 tt1) (C_Id ct2 tt2) "v1" "v2" in 
+    tr_t1 <- translate_fsl tr_term f bindings t_inf e t1 ;;
+    let t1_code := tr_t1.(tr).(chunk gmp_statement) in
+    tr_t2 <- translate_fsl tr_term f bindings t_inf tr_t1.(tr).(tenv gmp_statement) t2  ;;
+    let t2_code := tr_t2.(tr).(chunk gmp_statement) in
 
-        let code := <{ t1_code ; t2_code; comp ; (Assign c (BinOpBool (C_Id c C_Int) (◖fsl_op) 0)) }>  in
-        ret (mkSTR gmp_statement (mkTR gmp_statement code tr_t2.(tr).(tenv gmp_statement) []) decl  (c,C_Int))
+    let decl := ("v1", T_Ext Mpz)::("v2",T_Ext Mpz)::(c,C_Int)::tr_t1.(decls) ++ tr_t2.(decls) in
 
-    | P_Call pname args as call =>  
-        match f.(preds) pname with 
-        | None => (* shoudn't happen *)
-            ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) nil  ("",C_Int))
-        | Some (params,_) =>
+    let (ct1,tt1) := tr_t1.(res) in 
+    let (ct2,tt2) := tr_t1.(res) in 
+    let comp := CMP c (C_Id ct1 tt1) (C_Id ct2 tt2) "v1" "v2" in 
+
+    let code := <{ t1_code ; t2_code; comp ; (Assign c (BinOpBool (C_Id c C_Int) (◖fsl_op) 0)) }>  in
+    ret (mkSTR gmp_statement (mkTR gmp_statement code tr_t2.(tr).(tenv gmp_statement) []) decl  (c,C_Int))
+
+| tr_pred , _, _ , _ , _ , P_Call pname args with f.(preds) pname =>  
+    {
+        (* shouldn't happen *)
+        | None => ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) nil  ("",C_Int))
+
+        | Some (params,_) => 
             (* value returned by the function call *)
             c <- fresh_variable ;;
 
             (* for each pair of function argument and parameter *)
-            let f_res := fold_left2 ( fun done arg param => 
+            let f_res := fold_left2_in args params ( fun done arg param => 
                 done <- done ;;
 
                 (* get current declarations, translation and bindings environment *)
@@ -235,9 +303,7 @@ match fuel with | O => ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) 
                 
 
                 (* translate the argument *)
-                (* fixme : doesn't detect decreasing *)
-                t_tr <- translate_term f bindings t_inf curr_tr.(tenv) arg n ;;
-                (* let t_tr := mkSTR gmp_statement (mkTR _ Skip e nil) ([]:var_list ) (c,C_Int) in   *)
+                t_tr <- translate_fsl tr_term f bindings t_inf curr_tr.(tenv) (proj1_sig arg) ;;
 
                 let new_tr := curr_tr 
                     <| tenv := t_tr.(tr).(tenv) |> (* pass the updated env *)
@@ -247,23 +313,22 @@ match fuel with | O => ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) 
 
                 (* building the fresh binding env for parameters *)
                 v <- fresh_variable ;;;
-                let interval := t_inf.(oracle) arg t_inf.(t_env)  in
+                let interval := t_inf.(oracle) (proj1_sig arg) t_inf.(t_env)  in
 
                 (* collect and append  *)
                 ( 
                     curr_decls ++ t_tr.(decls), (* the new fresh variables from the translation of the argument *)
                     curr_args_ids ++ [C_Id (fst t_tr.(res)) (snd t_tr.(res))], (* the variable used to represent the argument *)
                     new_tr, (* the updated function translation  *)
-                    binds{param\(v,interval)} (* the updated bindings *)
+                    binds{(proj1_sig param)\(v,interval)} (* the updated bindings *)
                 )
 
-            ) (ret ([(c,C_Int)], ([] : list _c_exp), mkTR gmp_statement Skip e [], ⊥)) args params  in
-
-            
+            ) (ret ([(c,C_Int)], ([] : list _c_exp), mkTR gmp_statement Skip e [], ⊥))  in
+        
             f_res <- f_res ;;
 
             let '(decls,params_id,f_tr,binds) := f_res in 
-            
+        
             (* last env needed for function generation *)
             let last_env := f_tr.(tenv) in 
 
@@ -275,7 +340,7 @@ match fuel with | O => ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) 
             *)
             | Some name => ret (name,e,[]) 
             | None => (* no function specialized for those binders, generate a new one *)
-                new_f <- function_generation f binds t_inf last_env pname n ;;;
+                new_f <- translate_fsl f_gen f binds t_inf last_env pname ;;;
                 (* one new global : the function declaration itself *)
                 (new_f.(chunk), new_f.(tenv), new_f.(glob))
             end ;;;
@@ -292,87 +357,89 @@ match fuel with | O => ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) 
             let code := PCall gf_name params_id in
 
             mkSTR gmp_statement (mkTR _ code gf_env globs) decls res
-        end 
-    end
-end
+    }
 
-with translate_term (f : @fenv _fsl_statement Empty_set) (bindings : Γᵥ) (t_inf : type_inf) (e: ψ) (t : fsl_term) (fuel:nat) {struct fuel}
-    : @state translated_statement := 
+(* term translation *)
 
-match fuel with | O => ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) nil  ("",C_Int)) | S n =>
-    match t with
-    | T_Id v FSL_Int => (* program variable *)
-        ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) nil (v,C_Int))
+| tr_term , _, _ , _ , _ , T_Id v FSL_Int => 
+    (* program variable *)
+    ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) nil (v,C_Int))
 
-    | T_Id v FSL_Integer => (* logic var *)
-        let res := match bindings v with 
-            (*  bindings v necessarily succeeds (section 4.5.)... *)
-            | Some x => fst x
-            | None => "fixme"
-        end  
-        in 
-        ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) nil (v,T_Ext Mpz))
+| tr_term , _, _ , _ , _ , T_Id v FSL_Integer => (* logic var *)
+    let res := match bindings v with 
+        (*  bindings v necessarily succeeds (section 4.5.)... *)
+        | Some x => fst x
+        | None => "fixme"
+    end in 
+    ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) nil (v,T_Ext Mpz))
 
-    | T_Z z =>
-        let τ := 𝚪 t_inf.(oracle) t_inf.(i_op) z t_inf.(t_env) in
-        c <- fresh_variable ;;
-        let decl := [(c,τ)]  in 
-        let code := Z_ASSGN C_Int c z in
-        ret (mkSTR gmp_statement (mkTR gmp_statement code e nil) decl (c,C_Int))
+| tr_term , _, _ , _ , _ , T_Z z =>
+    let τ := 𝚪 t_inf.(oracle) t_inf.(i_op) z t_inf.(t_env) in
+    c <- fresh_variable ;;
+    let decl := [(c,τ)]  in 
+    let code := Z_ASSGN C_Int c z in
+    ret (mkSTR gmp_statement (mkTR gmp_statement code e nil) decl (c,C_Int))
 
-    | T_BinOp t1 _op t2 => 
-        let τ := 𝚪 t_inf.(oracle) t_inf.(i_op) (T_BinOp t1 _op t2) t_inf.(t_env) in
-        c <- fresh_variable ;;
-        v1 <- fresh_variable ;;
-        v2 <- fresh_variable ;;
-        r <- fresh_variable ;;
-        t1_tr <- translate_term f bindings t_inf e t1  n ;; 
-        let t1_code := t1_tr.(tr).(chunk gmp_statement) in
-        let t1_res := C_Id (fst t1_tr.(res)) (snd t1_tr.(res)) in
-        t2_tr <- translate_term f bindings t_inf t1_tr.(tr).(tenv gmp_statement) t2  n;; 
-        let t2_code := t2_tr.(tr).(chunk gmp_statement) in
-        let t2_res :=  C_Id (fst t2_tr.(res)) (snd t2_tr.(res)) in
-        let decl := (c,τ) :: (v1,T_Ext Mpz) :: (v2,T_Ext Mpz) :: (r,T_Ext Mpz) :: t1_tr.(decls) ++ t2_tr.(decls) in
-        let assgn := binop_ASSGN _op (c,τ) t1_res t2_res r v1 v2 in
-        let code := <{ t1_code ; t2_code ; assgn }> in
-        ret (mkSTR gmp_statement (mkTR gmp_statement code t2_tr.(tr).(tenv gmp_statement) nil) decl (c,C_Int))
+| tr_term , _, _ , _ , _ , T_BinOp t1 _op t2 =>
+    let τ := 𝚪 t_inf.(oracle) t_inf.(i_op) (T_BinOp t1 _op t2) t_inf.(t_env) in
+    c <- fresh_variable ;;
+    v1 <- fresh_variable ;;
+    v2 <- fresh_variable ;;
+    r <- fresh_variable ;;
+    t1_tr <- translate_fsl tr_term f bindings t_inf e t1  ;; 
+    let t1_code := t1_tr.(tr).(chunk gmp_statement) in
+    let t1_res := C_Id (fst t1_tr.(res)) (snd t1_tr.(res)) in
+    t2_tr <- translate_fsl tr_term f bindings t_inf t1_tr.(tr).(tenv gmp_statement) t2 ;; 
+    let t2_code := t2_tr.(tr).(chunk gmp_statement) in
+    let t2_res :=  C_Id (fst t2_tr.(res)) (snd t2_tr.(res)) in
+    let decl := (c,τ) :: (v1,T_Ext Mpz) :: (v2,T_Ext Mpz) :: (r,T_Ext Mpz) :: t1_tr.(decls) ++ t2_tr.(decls) in
+    let assgn := binop_ASSGN _op (c,τ) t1_res t2_res r v1 v2 in
+    let code := <{ t1_code ; t2_code ; assgn }> in
+    ret (mkSTR gmp_statement (mkTR gmp_statement code t2_tr.(tr).(tenv gmp_statement) nil) decl (c,C_Int))
 
-    | T_Cond p t1 t2 as cond => 
-        c <- fresh_variable ;;
-        let τ := 𝚪 t_inf.(oracle) t_inf.(i_op) cond t_inf.(t_env) in
-        p_tr <- translate_predicate f bindings t_inf e p n ;;
-        t1_tr <- translate_term f bindings t_inf p_tr.(tr).(tenv gmp_statement) t1  n ;; 
-        let t1_code := t1_tr.(tr).(chunk gmp_statement) in
-        let t1_res := C_Id (fst t1_tr.(res)) (snd t1_tr.(res))  in
-        t2_tr <- translate_term f bindings t_inf t1_tr.(tr).(tenv gmp_statement) t2  n;;;
-        let t2_code := t2_tr.(tr).(chunk gmp_statement) in
-        let t2_res := C_Id (fst t2_tr.(res)) (snd t2_tr.(res)) in
-        let p_code  := p_tr.(tr).(chunk gmp_statement) in 
-        let p_res := C_Id (fst p_tr.(res)) (snd p_tr.(res)) in
-        let t1_assgn := τ_ASSGN τ c t1_res in
-        let t2_assgn := τ_ASSGN τ c t2_res in
-        let decl := (c,τ) :: p_tr.(decls) ++ t1_tr.(decls) ++ t2_tr.(decls) in
-        let code := 
-            <{
-                p_code;
-                if (p_res) <{ t1_code ; t1_assgn}> 
-                else <{t2_code ; t2_assgn }>
-            }> in
-        mkSTR gmp_statement (mkTR gmp_statement code t2_tr.(tr).(tenv gmp_statement) nil) decl  (c,C_Int)
 
-    | T_Call fname args as call =>  
-        match f.(lfuns) fname with 
-        | None => (* shoudn't happen *)
-            ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) nil  ("",C_Int))
+| tr_term , _, _ , _ , _ ,T_Cond p t1 t2 =>
+    c <- fresh_variable ;;
+    let τ := 𝚪 t_inf.(oracle) t_inf.(i_op) (T_Cond p t1 t2) t_inf.(t_env) in
+
+    p_tr <- translate_fsl tr_pred f bindings t_inf e p ;;
+
+    t1_tr <- translate_fsl tr_term f bindings t_inf p_tr.(tr).(tenv gmp_statement) t1  ;; 
+    let t1_code := t1_tr.(tr).(chunk gmp_statement) in
+    let t1_res := C_Id (fst t1_tr.(res)) (snd t1_tr.(res))  in
+    t2_tr <- translate_fsl tr_term f bindings t_inf t1_tr.(tr).(tenv gmp_statement) t2 ;;;
+    let t2_code := t2_tr.(tr).(chunk gmp_statement) in
+    let t2_res := C_Id (fst t2_tr.(res)) (snd t2_tr.(res)) in
+    let p_code  := p_tr.(tr).(chunk gmp_statement) in 
+    let p_res := C_Id (fst p_tr.(res)) (snd p_tr.(res)) in
+    let t1_assgn := τ_ASSGN τ c t1_res in
+    let t2_assgn := τ_ASSGN τ c t2_res in
+    let decl := (c,τ) :: p_tr.(decls) ++ t1_tr.(decls) ++ t2_tr.(decls) in
+    let code := 
+        <{
+            p_code;
+            if (p_res) <{ t1_code ; t1_assgn}> 
+            else <{t2_code ; t2_assgn }>
+        }> in
+    mkSTR gmp_statement (mkTR gmp_statement code t2_tr.(tr).(tenv gmp_statement) nil) decl  (c,C_Int)
+
+
+| tr_term , _, _ , _ , _ , T_Call fname args with f.(lfuns) fname =>  
+    {
+        (* shouldn't happen *)
+        | None =>  ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) nil  ("",C_Int))
+
         | Some (params,_) =>
 
-            let rtype :=  𝚪 t_inf.(oracle) t_inf.(i_op) call t_inf.(t_env) in 
+            let rtype :=  𝚪 t_inf.(oracle) t_inf.(i_op) (T_Call fname args) t_inf.(t_env) in 
             
             (* value returned by the function call *)
             c <- fresh_variable ;;
 
             (* for each pair of function argument and parameter *)
-            let f_res := fold_left2 ( fun done arg param => 
+            let f_res := fold_left2_in  args params ( fun done arg param => 
+
+
                 done <- done ;;
 
                 (* get current declarations, translation and bindings environment *)
@@ -380,9 +447,7 @@ match fuel with | O => ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) 
                 
 
                 (* translate the argument *)
-                (* fixme : doesn't detect decreasing *)
-                t_tr <- translate_term f bindings t_inf curr_tr.(tenv) arg n ;;
-                (* let t_tr := mkSTR gmp_statement (mkTR _ Skip e nil) ([]:var_list ) (c,C_Int) in   *)
+                t_tr <- translate_fsl tr_term f bindings t_inf curr_tr.(tenv) (proj1_sig arg) ;;
 
                 let new_tr := curr_tr 
                     <| tenv := t_tr.(tr).(tenv) |> (* pass the updated env *)
@@ -392,17 +457,17 @@ match fuel with | O => ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) 
 
                 (* building the fresh binding env for parameters *)
                 v <- fresh_variable ;;;
-                let interval := t_inf.(oracle) arg t_inf.(t_env)  in
+                let interval := t_inf.(oracle) (proj1_sig arg) t_inf.(t_env)  in
 
                 (* collect and append  *)
                 ( 
                     curr_decls ++ t_tr.(decls), (* the new fresh variables from the translation of the argument *)
                     curr_args_ids ++ [C_Id (fst t_tr.(res)) (snd t_tr.(res))], (* the variable used to represent the argument *)
                     new_tr, (* the updated function translation  *)
-                    binds{param\(v,interval)} (* the updated bindings *)
+                    binds{(proj1_sig param)\(v,interval)} (* the updated bindings *)
                 )
 
-            ) (ret ([(c,rtype)], ([] : list _c_exp), mkTR gmp_statement Skip e [], ⊥)) args params  in
+            ) (ret ([(c,rtype)], ([] : list _c_exp), mkTR gmp_statement Skip e [], ⊥))  in
 
             
             f_res <- f_res ;;
@@ -414,16 +479,16 @@ match fuel with | O => ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) 
 
             (* get specialized function name, env and globals  *)
             gf <- match e (fname,t_inf.(t_env)) with
-            (* function already exists for current binders, no generation required, 
-                env is the same as the current one 
-                no new globals 
-            *)
-            | Some name => ret (name,e,[]) 
-            | None => (* no function specialized for those binders, generate a new one *)
-                new_f <- function_generation f binds t_inf last_env fname n ;;;
-                (* one new global : the function declaration itself *)
-                (new_f.(chunk), new_f.(tenv), new_f.(glob))
-            end ;;;
+                (* function already exists for current binders, no generation required, 
+                    env is the same as the current one 
+                    no new globals 
+                *)
+                | Some name => ret (name,e,[]) 
+                | None => (* no function specialized for those binders, generate a new one *)
+                    new_f <- translate_fsl f_gen f binds t_inf last_env fname ;;;
+                    (* one new global : the function declaration itself *)
+                    (new_f.(chunk), new_f.(tenv), new_f.(glob))
+                end ;;;
 
             let '(gf_name,gf_env,gf_globs) := gf in  
             
@@ -440,18 +505,15 @@ match fuel with | O => ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) 
                     let firstparam := C_Id (fst res) (snd res) in 
                     PCall gf_name (firstparam :: params_id)
                 | _ => Skip (* not possible *)
-            end in
-
+            end 
+            in
 
 
             mkSTR gmp_statement (mkTR _ code gf_env globs) decls res
-        end
-    end 
-end
-with function_generation (f:@fenv _fsl_statement Empty_set) (bindings:  Γᵥ) (t_inf : type_inf) (env: ψ) (fname: id) (fuel:nat) {struct fuel}
-: @state (@translation_result 𝓥) := 
-match fuel with | O => ret (mkTR _ "fixme" env []) | S n =>
-    match f.(lfuns) fname with
+    }
+
+| f_gen, _,_,_,_,fname with f.(lfuns) fname =>
+    {
     | Some (params,b) => 
         (* get the return type *)
         let rtype := 𝚪 t_inf.(oracle) t_inf.(i_op) b t_inf.(t_env) in
@@ -460,10 +522,7 @@ match fuel with | O => ret (mkTR _ "fixme" env []) | S n =>
         fres <- fresh_fname fname;;
 
         (* process body *)
-
-        (* fixme : cannot guess decreasing argument of fix*)
-        tr_b <- translate_term f bindings t_inf env b n ;;
-        (* tr_b <- ret (mkSTR gmp_statement (mkTR _ Skip env nil) ([]:var_list ) ("",C_Int)) ;;  *)
+        tr_b <- translate_fsl tr_term f bindings t_inf e b ;;
 
         (* global declarations generated by the body , appended before function declaration  *)
         let globals := tr_b.(tr).(glob) in
@@ -510,9 +569,7 @@ match fuel with | O => ret (mkTR _ "fixme" env []) | S n =>
         (* build the body *)
         (* reprocess body with original ψ + new f entry *)
 
-        (* fixme : Cannot guess decreasing argument of fix. *)
-        tr_b <- translate_term f bindings t_inf (upd_binding env) b n;;;
-        (* tr_b <- ret (mkSTR gmp_statement (mkTR _ Skip env nil) ([]:var_list ) ("",C_Int)) ;;; *)
+        tr_b <- translate_fsl tr_term f bindings t_inf (upd_binding e) b ;;;
 
         let '(body_res_id,body_res_ty) as bres := tr_b.(res) in 
         (* body epilogue *)
@@ -535,10 +592,29 @@ match fuel with | O => ret (mkTR _ "fixme" env []) | S n =>
         let gen_f := signature bdecls body in
         mkTR _ fres new_env (globals++[GFun gen_f]) (* function declarations is put with the other globals *)
 
-    | None => ret (mkTR _ "fixme" env [])
-    end 
-end
+    | None => ret (mkTR _ "fixme" e [])
+    }
 .
+
+Hypothesis fixme :forall b, (term_size b < 0)%nat.
+
+Solve Obligations with red ;red ; cbn ; auto with arith.
+Next Obligation. red. red. cbn. now apply args_size_lt_in. Qed.
+Next Obligation. red. red. cbn. auto with arith. Qed.
+Next Obligation. red. red. cbn.  now apply args_size_lt_in. Qed.
+Next Obligation. red. red. cbn.  auto with arith. Qed.
+Next Obligation. red. red. cbn. apply fixme. Qed.
+Final Obligation. red. red. cbn. apply fixme. Qed.
+
+
+
+Definition translate_predicate := translate_fsl tr_pred.
+Definition translate_term := translate_fsl tr_term.
+Definition function_generation := translate_fsl f_gen.
+
+
+
+(* Extraction "translation" translate_predicate translate_term function_generation. *)
 
 
 
@@ -569,7 +645,7 @@ Fixpoint c_exp_to_gmp_exp (e:c_exp) : gmp_exp := match e with
 Fixpoint translate_statement (f:fenv) (bindings : Γᵥ) (t_inf : type_inf) (env: ψ) (s : fsl_statement) : @state (@translation_result gmp_statement) := 
     match s with
     | S_Ext (LAssert p)  => 
-        p_tr <- translate_predicate f bindings t_inf env p 100;;;
+        p_tr <- translate_predicate f bindings t_inf env p ;;;
         let d := DECLS p_tr.(decls) in
         let i := INITS p_tr.(decls) in
         let c := p_tr.(tr).(chunk gmp_statement) in

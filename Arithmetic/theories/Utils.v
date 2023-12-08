@@ -91,6 +91,27 @@ Fixpoint fold_left2 {Acc A B : Type} (f : Acc -> A -> B -> Acc) (acc:Acc) (l1 : 
        otherwise computation will be interrupted when one of the list is empty but not the other *)
 end.
 
+Fixpoint fold_left_in {Acc A : Type} (l : list A) (f : Acc -> {x:A| List.In x l}  -> Acc)   (acc_base:Acc) {struct l} : Acc.
+Proof.
+    refine (match l with nil => fun _ => acc_base | cons h t => fun f => _ end f).
+    refine (fold_left_in _ _ t _ (f acc_base (exist _ h _))).
+    - refine (fun acc_new x => f acc_new (exist _ (proj1_sig x) _)). destruct x. simpl. now right.
+    - now constructor.
+Defined.
+
+
+Fixpoint fold_left2_in {Acc A B: Type} (l1: list A) (l2 : list B) (f : Acc -> {x:A| List.In x l1}  -> {x:B| List.In x l2} -> Acc)  (acc_base:Acc) {struct l1} : Acc.
+Proof.
+    refine (match l1,l2 with cons h1 t1,cons h2 t2 => fun f => _  | _,_ => fun _ => acc_base end f).
+    refine (fold_left2_in _ _ _ t1 t2 _ (f acc_base (exist _ h1 _) (exist _ h2 _))).
+    - refine (fun acc_new x1 x2 => f acc_new (exist _ (proj1_sig x1) _) (exist _ (proj1_sig x2) _)).
+        + destruct x1; now right.
+        + destruct x2; now right.
+    - now constructor.
+    - now constructor.
+Defined.
+
+(* Compute fold_left2_in (cons 1 (cons 2 nil)) (cons "a" (cons "b" nil)) (fun acc a b => cons  (proj1_sig a, proj1_sig b) acc) nil. *)
 
 Fact p_map_apply {X T T' : Type } `{EqDec X} : forall env (x :X)  (v : T) (f : option T -> T'),  f (env{x\v} x)  = f (Some v).
 Proof.
@@ -173,20 +194,19 @@ Close Scope Z_scope.
 (* modified from http://poleiro.info/posts/2013-03-31-reading-and-writing-numbers-in-coq.html *)
 Definition string_of_nat (n : nat) : string :=
     let fix aux (time n : nat) (acc : string) : string :=
-    let acc' := String (Ascii.ascii_of_nat ((n mod 10) + 48)) acc in
-    match time with
-      | 0 => acc'
-      | S time' =>
-        match n / 10 with
-          | 0 => acc'
-          | n' => aux time' n' acc'
-        end
-    end in
-    aux n n "".
+        let acc' := String (Ascii.ascii_of_nat ((n mod 10) + 48)) acc in
+        match time with
+        | 0 => acc'
+        | S time' => match n / 10 with
+            | 0 => acc'
+            | n' => aux time' n' acc'
+            end
+        end 
+    in aux n n "".
 
 
 
-    Module CounterMonad.
+Module CounterMonad.
 
     Definition state {T : Type} : Type := nat -> T * nat.
 
@@ -194,9 +214,9 @@ Definition string_of_nat (n : nat) : string :=
     Definition ret {A : Type} (a : A) : state (T:=A) := fun c => (a, c).
     
     Definition bind {A B : Type} (m : state (T:=A)) (f : A -> state (T:=B)) : state (T:=B) :=
-        let f' := fun c => 
-            let (a, c') := m c in f a c' 
-        in f'.
+        fun c => 
+            let (a, c') := m c in 
+            f a c'.
     
     Notation "x <- f ;; c" := (bind f (fun x => c)) (f at next level, at level 61, right associativity) .
     Notation "x <- f ;;; c" := (bind f (fun x => ret c)) (f at next level, at level 61, right associativity) .
@@ -208,4 +228,4 @@ Definition string_of_nat (n : nat) : string :=
     Definition fresh := n <- getTick ;; tick ;;; n.
     Definition exec {A:Type} (m: state (T:=A)) := fst (m 0).
 
-  End CounterMonad.
+End CounterMonad.

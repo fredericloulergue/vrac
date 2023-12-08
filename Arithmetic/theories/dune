@@ -2,5 +2,5 @@
 
 (coq.theory
  (name RAC)
- (theories RecordUpdate)
+ (theories RecordUpdate Equations)
 )

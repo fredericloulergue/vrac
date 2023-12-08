@@ -229,7 +229,7 @@ Definition _determinist_exp_eval {T : Set} (exp_sem : @exp_sem_sig T) : Prop :=
 Fact determinist_exp_eval {T : Set}: 
 forall ext_exp_sem, _determinist_exp_eval ext_exp_sem -> _determinist_exp_eval (@generic_exp_sem T ext_exp_sem).
 Proof.
-    intros ext_exp_sem ext_inj. unfold _determinist_exp_eval. intros e. induction e ; intros ; inversion H ; inversion H0 ; subst ; try easy.
+    intros ext_exp_sem ext_inj. red. intros e. induction e ; intros ; inversion H ; inversion H0 ; subst ; try easy.
     5,6:
         apply IHe1 with (v:=VInt (z ⁱⁿᵗ z_ir)) (v':=VInt (z0 ⁱⁿᵗ z_ir0)) in H11 ; [|assumption] ; injection H11 as eqz ;
         apply IHe2 with (v:=VInt (z' ⁱⁿᵗ z'_ir)) (v':= VInt (z'0 ⁱⁿᵗ z'_ir0)) in H13; [|assumption] ;  injection H13 as eqz' ; subst ; now rewrite H14 in H7.
@@ -248,7 +248,7 @@ Definition determinist_c_exp_eval := determinist_exp_eval Empty_exp_sem _determi
 
 Fact _determinist_gmp_exp_eval :  _determinist_exp_eval _gmp_exp_sem.
 Proof.
-    unfold _determinist_exp_eval. intros e. induction e ; intros ev v H v' H0. inversion H ; inversion H0 ; subst.
+    red. intros e. induction e ; intros ev v H v' H0. inversion H ; inversion H0 ; subst.
     - inversion H ; inversion H0 ; subst ; try easy. rewrite H3 in H8.  repeat f_equal. now injection H8. 
     - inversion H.
     - inversion H.
@@ -325,7 +325,7 @@ Qed.
 
 Fact _weakening_of_c_expression_semantics : _weakening_of_expression_semantics Empty_exp_sem. 
 Proof.
-    unfold _weakening_of_expression_semantics. intros. split ; unfold Empty_exp_sem.
+    red. intros. split.
     - intros [].
     - intro H. apply H with ev... apply refl_env_mem_partial_order.
 Qed.
@@ -522,14 +522,17 @@ Proof with eauto using refl_env_mem_partial_order,env_partial_order_add with rac
         * specialize (Hext_stmt Hext_exp f ev (S_Ext s) ev').
             apply Hext_stmt with ev₀' in H. destruct H as [ev'' [Hrel2 Hderiv]]... easy.
                 
-    - intros H. admit. (* ??? *)
+    - intros H. induction s.
+    (* prednre evx : ev0 + un truc  *)
+        (* * specialize H   with ev₀. destruct H. split ; reflexivity. destruct H. induction s. *)
+        (* *  inversion H0. subst. destruct H. reflexivity. evinductionadmit. ??? *)
         
 Admitted.
 
 
 Fact _weakening_of_c_statements_semantics_1 : _weakening_of_statement_semantics_1 Empty_exp_sem Empty_stmt_sem. 
 Proof.
-    unfold _weakening_of_statement_semantics_1. intros. split; unfold Empty_stmt_sem.
+    red. intros. split.
     - intros [].
     - intro H2. destruct H2 with ev₀.
         + apply refl_env_mem_partial_order.
@@ -546,6 +549,7 @@ Proof with eauto using eq_env_partial_order, eq_mem_partial_order,refl_env_mem_p
         pose proof (fun y => weakening_of_gmp_expression_semantics y ev₀) as weak_exp. 
 
         (* init *)
+        (* pas exists evO', destruct sur (l in evO') *)
         * exists (ev₀' <| env ; vars ::= {{x \ Def (VMpz (Some l))}} |> <| mstate ::= {{l \Defined 0}} |> ). split.
             + split. 
                 ++ apply env_partial_order_add... 
