@@ -144,11 +144,14 @@ Definition comp_var x : id  := (compiler_prefix ++ x)%string.
 Definition is_comp_var := String.prefix compiler_prefix.
 Definition res_f : id := comp_var "res".
 
+
+Definition c_exp := @_c_exp Empty_set.
+
 Definition gmp_exp := @_c_exp _gmp_t.
 
 Inductive _gmp_statement := 
     | Init (name:id) (* mpz allocation *)
-    | Set_i (name:id) (i: gmp_exp) (* assignment from an int *)
+    | Set_i (name:id) (i: c_exp) (* assignment from an int *)
     | Set_s (name:id) (l:string) (* assignment from a string literal *)
     | Set_z (name z:id)(* assignment from a mpz *)
     | Clear (name:id) (* mpz de-allocation *)
@@ -174,9 +177,6 @@ Definition op (x:fsl_binop_int) : id -> id -> id -> _gmp_statement := match x wi
 | FSL_Div => GMP_Div
 end.
 
-Definition c_exp := @_c_exp Empty_set.
-
-
 Definition c_statement := @_c_statement Empty_set Empty_set.
 Definition fsl_statement := @_c_statement _fsl_statement Empty_set.
 Definition gmp_statement := @_c_statement _gmp_statement _gmp_t. 
@@ -193,13 +193,153 @@ Definition rac_pgrm := @_c_program Empty_set _gmp_statement _gmp_t.
 
 
 
-(* ty the function that gives the type of an expression *)
-Definition ty {T : Set } (e: @_c_exp T) : @_c_type T := match e with 
+(* 
+
+    ty the function that gives the type of an expression :
+    - it must recursively evaluate to the same type for binary operators 
+    - if this is not the case, void type is used to notify of an error
+*)
+
+Fact eq_dec_ty {T: Set} (t1 t2 : @_c_type T) {H : EqDec T} :  {t1 = t2}  + {t1 <> t2}. 
+Proof. inversion H. decide equality. Qed.
+
+Fact eq_dec__gmp_t (x y : _gmp_t) : {x = y} + {x <> y}. decide equality.  Qed.
+
+Fact eq_dec_gmp_t (x y : gmp_t) : {x = y} + {x <> y}. decide equality. apply eq_dec__gmp_t. Qed.
+
+
+#[global] Instance eqdec_gmp_t: EqDec gmp_t := {eq_dec := eq_dec_gmp_t}.
+
+
+Fixpoint ty {T : Set} `{EqDec (@_c_type T)} (e: @_c_exp T) : @_c_type T := 
+    match e with 
     | Zm _  => C_Int
-    | C_Id _ ty => ty
-    | BinOpInt _ _ _  => C_Int
-    | BinOpBool _ _ _ => C_Int
+    | C_Id _ t => t
+    | BinOpInt l _ r => 
+        let (l_ty,r_ty) := (ty l, ty r) in if (eq_dec l_ty r_ty) then l_ty else Void 
+    | BinOpBool l _ r => 
+        let (l_ty,r_ty) := (ty l, ty r) in if (eq_dec l_ty r_ty) then l_ty else Void 
+    end
+.
+
+Definition gmp_ty (e:gmp_exp) := match e with
+    | C_Id _ (T_Ext Mpz) => T_Ext Mpz (* gmp type only for a variable of type gmp*)
+    | _ => match ty e with C_Int => C_Int | _ => Void end (* otherwise it must be an int or an error *)
 end.
+
+Fact equiv_gmp_ty_int_ty : forall e,  gmp_ty e = C_Int <-> ty e = C_Int.
+Proof.
+    intros e. split.
+    - intros H. destruct e ; auto.
+        + destruct ty0 ; auto. destruct t; auto. inversion H.
+        + simpl. inversion H. destruct (eq_dec_gmp_t (ty e1) (ty e2)); trivial.
+            now destruct (ty e1).
+        + simpl. inversion H. destruct (eq_dec_gmp_t (ty e1) (ty e2)); trivial.
+            now destruct (ty e1).
+    - intros H. destruct e ; auto.
+        + destruct ty0; auto. destruct t; auto. inversion H.
+        + inversion H. simpl. destruct (eq_dec_gmp_t (ty e1) (ty e2)) ; trivial.
+            now destruct (ty e1).
+        + inversion H. simpl. destruct (eq_dec_gmp_t (ty e1) (ty e2)) ; trivial.
+        now destruct (ty e1).
+Qed.
+
+
+
+(* Definition gmp_int_exp_to_c_exp (H: {e : gmp_exp | (ty e = C_Int)%type}) : c_exp.
+Proof.
+    destruct H as [x H]. induction x.
+    - exact (Zm z).
+    - destruct ty0; try discriminate. exact (C_Id var C_Int).
+    - inversion H. destruct (eq_dec_gmp_t (ty x1) (ty x2)) as [eqt|_]; [|discriminate]. rename H1 into tx1. 
+        assert (tx2 :  ty x2 = C_Int) by congruence. apply IHx1 in tx1 as cx1. apply IHx2 in tx2 as cx2.
+        exact (BinOpInt cx1 op0 cx2).
+    - inversion H. destruct (eq_dec_gmp_t (ty x1) (ty x2)) as [eqt|_]; [|discriminate]. rename H1 into tx1. 
+        assert (tx2 :  ty x2 = C_Int) by congruence. apply IHx1 in tx1 as cx1. apply IHx2 in tx2 as cx2.
+        exact (BinOpBool cx1 op0 cx2).
+Defined.
+*)
+
+Definition gmp_ty_mpz_to_var (e: gmp_exp) : id := match e with
+    | C_Id var t =>  match t with T_Ext Mpz => var | _ => "" end
+    | _ => ""
+end.
+
+Fixpoint c_exp_to_gmp_int_exp (e: c_exp) : gmp_exp := match e with
+| Zm z => Zm z
+| C_Id v t => match t with 
+    | Void => C_Id v Void 
+    | C_Int => C_Id v C_Int
+    | T_Ext False => C_Id v Void 
+    end
+| BinOpInt l op r => let (l',r') := (c_exp_to_gmp_int_exp l,c_exp_to_gmp_int_exp r) in BinOpInt l' op r'
+| BinOpBool l op r => let (l',r') := (c_exp_to_gmp_int_exp l,c_exp_to_gmp_int_exp r) in BinOpBool l' op r'
+end.
+
+(* Fact gmp_int_exp_to_c_exp_equiv (e : gmp_exp | (ty e = C_Int)%type) : 
+    (forall z, proj1_sig e = Zm z -> gmp_int_exp_to_c_exp e = Zm z)
+    /\
+    (forall v , proj1_sig e = C_Id v C_Int -> gmp_int_exp_to_c_exp e =  C_Id v C_Int)
+    /\
+    (forall x1 x2 , proj1_sig e = C_Id v C_Int -> gmp_int_exp_to_c_exp e =  C_Id v C_Int).
+
+Proof.  Require Import Coq.Program.Equality.
+    split.
+    - intros z H. dependent destruction e. simpl in H. subst. reflexivity.
+
+    -intros var H. dependent destruction e. simpl in H. subst. reflexivity. simpl. dependent induction H. 
+    - reflexivity.
+    - destruct ty0; simpl.
+        + reflexivity.
+        + discriminate.
+        + discriminate.
+    - inversion e0. destruct (eq_dec_gmp_t (ty x1) (ty x2)).
+        + specialize IHx1 with H0. assert (ty x2 = C_Int) by congruence.
+            specialize IHx2 with H. 
+               destruct (gmp_int_exp_to_c_exp (exist (fun e2 : gmp_exp => (ty e2 = C_Int)%type) (BinOpInt x1 op0 x2) e0)) eqn:X.
+               * simpl. admit.
+               * simpl. admit.
+               * simpl. f_equal.  apply IHx1. reflexivity. simpl in IHx1. contradict  X. inversion X. simpl. 
+        + subst. *)
+
+
+
+Definition c_t_to_gmp_t (t:@_c_type Empty_set) : gmp_t := match t with
+    | C_Int => C_Int
+    | Void => Void
+    | T_Ext False => Void (* not possible *)
+    end
+.
+
+(* returns C_id void if not convertible *)
+Fixpoint gmp_exp_to_c_exp  (e:gmp_exp) : c_exp := match e with
+    | Zm z => Zm z
+    | C_Id var t =>  match t with C_Int => C_Id var C_Int | _ => C_Id var Void end
+    | BinOpInt le op re => 
+    let (le,re) := (gmp_exp_to_c_exp le,gmp_exp_to_c_exp re) in
+    BinOpInt le op re
+    | BinOpBool le op re => 
+    let (le,re) := (gmp_exp_to_c_exp le,gmp_exp_to_c_exp re) in
+    BinOpBool le op re
+end.
+
+
+Definition c_decl_to_gmp_decl (d:@_c_decl Empty_set) : gmp_decl := 
+    let '(C_Decl t id) := d in C_Decl (c_t_to_gmp_t t) id
+.
+
+Fixpoint c_exp_to_gmp_exp (e:c_exp) : gmp_exp := match e with
+    | Zm z => Zm z
+    | C_Id var t => C_Id var (c_t_to_gmp_t t) 
+    | BinOpInt le op re => 
+        let (le,re) := (c_exp_to_gmp_exp le,c_exp_to_gmp_exp re) in
+        BinOpInt le op re
+    | BinOpBool le op re => 
+        let (le,re) := (c_exp_to_gmp_exp le,c_exp_to_gmp_exp re) in
+        BinOpBool le op re
+    end
+.
+
 
 Declare Scope mini_c_scope.
 Delimit Scope mini_c_scope with c.
@@ -325,7 +465,7 @@ Inductive value :=
 
 Inductive undef := 
     | UInt (n:Int.MI) (* set of undefined values of type int *) 
-    | UMpz (l:option location) (* set of undefined values of type mpz *) 
+    | UMpz (l:location) (* set of undefined values of type mpz *) 
 .
 
 Inductive 𝕍 :=  Def (v : value) :> 𝕍 | Undef (uv : undef) :> 𝕍.
@@ -390,6 +530,16 @@ Fixpoint stmt_vars {T S:Set} (stmt : @_c_statement T S) : list id := match stmt 
 | Return e  => exp_vars e 
 | S_Ext s => nil
 end.
+
+Fact gmp_exp_c_exp_same_exp_vars e : exp_vars (gmp_exp_to_c_exp e) = exp_vars  e.
+Proof. 
+    induction e.
+    - reflexivity.
+    - destruct ty0 ;  reflexivity.
+    - simpl. rewrite IHe1,IHe2. reflexivity.
+    - simpl. rewrite IHe1,IHe2. reflexivity.
+Qed.
+
 
 
 Definition 𝓜 := location ⇀ mpz_val. 
@@ -525,7 +675,222 @@ Inductive param_env_partial_order (var: 𝓥) (env env':Ω) : Prop :=
 
 Definition env_partial_order env env' := forall v, param_env_partial_order v env env'.
 
+Require Import Coq.Logic.FinFun.
+
 Definition mems_partial_order (mem mem':𝓜) : Prop := forall l i, mem l = Some i ->  mem' l = Some i.
+
+
+Definition new_mems_partial_order (mem mem':𝓜) : Prop := 
+    (* mem' can be in relation in mem if its used adresses are the same modulo a mapping of the locations *)
+    exists f, Bijective f /\ forall l i, mem l = Some i <-> mem' (f l) = Some i.
+
+Infix "≅" := new_mems_partial_order. 
+
+
+
+Inductive param_env_mem_partial_order (var: 𝓥) (env env' : Ω * 𝓜) : Prop :=
+| EM_SameInt n: 
+    (fst env) var = Some (Def (VInt n)) -> 
+    (fst env') var = Some (Def (VInt n)) -> 
+    param_env_mem_partial_order var env env'
+
+| EM_SameMpz l mpz :
+    (fst env) var = Some (Def (VMpz (Some l))) /\ (snd env) l = Some mpz -> 
+    (exists l', (fst env') var = Some (Def (VMpz (Some l'))) /\ (snd env') l' = Some mpz) ->
+    param_env_mem_partial_order var env env'
+
+| EM_UndefInt n: 
+    (fst env) var = Some (Undef (UInt n)) -> 
+    (exists n', (fst env') var = Some (Undef (UInt n'))) \/  (exists n, (fst env') var = Some (Def (VInt n))) ->
+    param_env_mem_partial_order var env env'
+
+| EM_UndefMpz l: 
+    (* (snd env) ≅ (snd env') -> *)
+    (fst env) var = Some (Undef (UMpz l)) -> 
+    (exists l', (fst env') var = Some (Undef (UMpz l'))) 
+    \/  (exists l', (fst env') var = Some (Def (VMpz l'))) ->
+    param_env_mem_partial_order var env env'
+
+| EM_ClearedMpz :  
+    (fst env) var = Some (Def (VMpz None)) -> 
+    (fst env') var = Some (Def (VMpz None)) \/  (exists l', (fst env') var = Some (Def (VMpz l'))) ->
+    param_env_mem_partial_order var env env'
+
+| EM_IncoherentEnv l :  (* semantic doesn't let this happen *)
+    (fst env) var = Some (Def (VMpz (Some l))) /\ (snd env) l = None -> 
+    (exists l', (fst env') var = Some (Def (VMpz (Some l')))) -> 
+    param_env_mem_partial_order var env env'
+
+
+| EM_None : (fst env) var = None -> param_env_mem_partial_order var env env'
+.
+
+
+
+Fact env_mem_diff_var e e' : forall x y (vx vx' : 𝕍) l l' n n',
+    x <> y ->
+    (forall v : 𝓥, (fst e).(vars) v <> Some (Def (VMpz (Some l)))) ->
+    (forall v : 𝓥, (fst e').(vars) v <> Some (Def (VMpz (Some l')))) ->
+
+    (forall x, param_env_mem_partial_order x e e') ->
+    param_env_mem_partial_order y
+        ((fst e) <| vars ::= {{x\vx}} |>, (snd e){l\n})%utils
+        ((fst e') <| vars ::= {{x\vx'}} |>, (snd e'){l'\n'})%utils.
+Proof with auto using p_map_not_same_eq.
+    intros x y vx vx' l l' n n' Hdiff Hnoalias1 Hnoalias2 Hrel. destruct e as [env mem].
+    destruct e' as [env' mem'].
+    destruct Hrel with y; simpl in *. 
+    - apply EM_SameInt with n0; apply p_map_not_same_eq...
+    - destruct H. destruct H0. destruct H0.
+        apply EM_SameMpz with l0 mpz; simpl.
+        + split.
+            ++ apply p_map_not_same_eq...
+            ++ destruct (eq_dec l l0).
+                * subst. now destruct Hnoalias1 with y.
+                * apply p_map_not_same_eq...
+
+
+        + exists x0. split.
+            ++ apply p_map_not_same_eq...
+            ++ subst. destruct (eq_dec l' x0).
+                * subst. now destruct Hnoalias2 with y.
+                * apply p_map_not_same_eq...
+
+    - apply EM_UndefInt with n0; simpl.
+        + apply p_map_not_same_eq...
+        + destruct H0 as [[n2 ] | [n2]].
+            * left. exists n2. apply p_map_not_same_eq...
+            * right. exists n2. apply p_map_not_same_eq...
+    - apply EM_UndefMpz with l0; simpl.
+        + apply p_map_not_same_eq...
+        + destruct H0 as [[n2 ] | [n2]].
+            * left. exists n2. apply p_map_not_same_eq...
+            * right. exists n2. apply p_map_not_same_eq...
+    - apply EM_ClearedMpz; simpl.
+        + apply p_map_not_same_eq...
+        + destruct H0 as [ | [n2]].
+            * left. apply p_map_not_same_eq...
+            * right. exists n2. apply p_map_not_same_eq...
+    - destruct H. apply EM_IncoherentEnv with l0; simpl.
+        + split.
+            *  apply p_map_not_same_eq...
+            * destruct (eq_dec l l0).
+                ** subst. now destruct Hnoalias1 with y.  
+                ** apply p_map_not_same_eq...
+        + destruct H0. exists x0. apply p_map_not_same_eq...
+    
+    - apply EM_None. apply p_map_not_same_eq...
+Qed.
+
+
+
+
+
+Definition env_mem_partial_order := fun e e' => forall v, param_env_mem_partial_order v (e.(env),e.(mstate)) (e'.(env),e'.(mstate)).
+
+(* Fact env_mem_partial_order_mpz_add : forall (e e' : Env) l mpz x, 
+    env_mem_partial_order e e' -> 
+    let add := fun f loc => f <| env;vars ::= {{x\Def (VMpz (Some loc))}}%utils |> <| mstate ::= {{loc\mpz}}%utils |> in
+    (forall x, e x <> None -> type_of_value (e x) = type_of_value ((add e l) x)) ->
+    exists l', env_mem_partial_order (add e l) (add e' l') .
+Proof.
+    intros e e' l  mpz x Hrel add Hc.  intros v.
+     destruct Hrel with v ; simpl in *.
+    
+    - simpl. destruct (eq_dec x v).
+        * subst. specialize Hc with v. assert (Hnone : e v <> None) by congruence. apply Hc in Hnone.
+            assert (H1 : p_map_back (v, Def (VMpz (Some l))) (vars (env e)) v = Some (Def (VMpz (Some l)))) by apply p_map_same.
+            rewrite H1,H in Hnone. now simpl in Hnone.
+        * apply EM_SameInt with n; simpl ; apply p_map_not_same_eq; auto.
+
+    - destruct H. destruct H0 as [l'' [H2 H3]]. destruct (eq_dec x v).
+        * subst.  apply EM_SameMpz with l mpz ; simpl.
+            ++ split ; apply p_map_same.
+            ++ exists l. split; apply p_map_same.
+        * apply EM_SameMpz with l0 mpz0; simpl.
+            + split.
+                ++ apply p_map_not_same_eq;eauto. 
+                ++ destruct (eq_dec l l0).
+                    +++ subst. apply p_map_same.
+                    +++ apply p_map_not_same_eq;auto. admit.
+            + exists l'. split.
+                ++ apply p_map_not_same_eq;auto.
+                ++ destruct (eq_dec l l').
+                    +++ subst. apply p_map_same.
+                    +++ apply p_map_not_same_eq;auto. admit.
+    - destruct (eq_dec x v).
+        * subst. specialize Hc with v. assert (Hnone : e v <> None) by congruence. apply Hc     in Hnone.
+            assert (H1 : p_map_back (v, Def (VMpz (Some l))) (vars (env e)) v = Some (Def (VMpz (Some l)))) by apply p_map_same.
+            rewrite H1,H in Hnone. now simpl in Hnone.
+        * apply EM_UndefInt with n; simpl. apply p_map_not_same_eq; auto.
+            destruct H0 as [[n' Hn']| [n' Hn']].
+            ** left. exists n'. now apply p_map_not_same_eq.
+            ** right. exists n'. now apply p_map_not_same_eq.
+
+    - destruct (eq_dec x v).
+        + subst. apply EM_SameMpz with l mpz ; simpl.
+            ++ split ; apply p_map_same.
+            ++ exists l. split; apply p_map_same.
+        + apply EM_UndefMpz with l0; simpl.
+            ++ apply p_map_not_same_eq;auto.
+            ++ destruct H0 as [[l' H0] | [l' H0]].
+                +++ left. exists l'. apply p_map_not_same_eq;auto.
+                +++ right. exists l'. apply p_map_not_same_eq;auto.
+
+    - destruct (eq_dec x v).
+        + subst. apply EM_SameMpz with l mpz ; simpl.
+            ++ split ; apply p_map_same.
+            ++ exists l. split; apply p_map_same.
+    + apply EM_ClearedMpz; simpl.
+        ++ apply p_map_not_same_eq;auto.
+        ++ destruct H0 as [H0 | [l' H0]].
+            +++ left.  apply p_map_not_same_eq;auto.
+            +++ right. exists l'. apply p_map_not_same_eq;auto.
+    
+    - destruct H. destruct (eq_dec x v).
+        + subst. apply EM_SameMpz with l mpz ; simpl.
+            ++ split ; apply p_map_same.
+            ++ exists l. split; apply p_map_same.
+        + destruct (eq_dec l l0).
+            ++ subst. apply EM_SameMpz with l0 mpz ; simpl.
+                +++ split. apply p_map_not_same_eq;auto. apply p_map_same.
+                +++ admit.
+            ++ apply EM_IncoherentEnv with l0; simpl. split.
+                +++ apply p_map_not_same_eq ; auto.
+                +++ apply p_map_not_same_eq;auto.
+    
+    - destruct (eq_dec x v).
+        + subst. apply EM_SameMpz with l mpz; simpl.
+            ++ split ;apply p_map_same.
+            ++ exists l. split; apply p_map_same.
+        + apply EM_None. simpl. apply p_map_not_same_eq;auto.
+Admitted. *)
+
+    (* Fact weakening_of_env_and_mem e e':  
+    env_partial_order e.(env) e'.(env) 
+    -> mems_partial_order e.(mstate) e'.(mstate) 
+    -> env_mem_partial_order e e'.
+Proof.
+    intros He Hm v. destruct He with v ; simpl in *.
+    + simpl in *. apply EM_SameInt with n; auto.
+    + destruct l.
+        ++ destruct (e.(mstate) l) eqn:E.
+            +++ apply EM_SameMpz with (fun x => x) l m ; eauto. split.
+                ++++ unfold Bijective. now exists (fun x => x).  
+                ++++ intros.  split; simpl; auto. intros Hs. destruct Hm with l0 i.
+                    *
+            split destruct l as [ldef |] eqn:X. 
+        ++ destruct (e.(mstate) ldef) eqn:E.
+            +++ apply EM_SameMpz with (fun x => x) ldef m ; simpl ; eauto. split ; trivial.
+                unfold Bijective. now eexists. split; eauto. intros x. subst.
+                    destruct Hm with l0 i.
+                     admit.
+            +++ apply EM_IncoherentEnv with ldef ; auto.
+        ++ apply EM_ClearedMpz ; auto. 
+    + apply EM_UndefInt with n ; trivial. destruct H0 ; eauto.
+    + apply EM_UndefMpz with n ; trivial. destruct H0 ; eauto.
+    + now apply EM_None.
+Qed. *)
 
 Declare Scope env_scope.
 Delimit Scope env_scope with env.
@@ -537,9 +902,11 @@ Delimit Scope env_mem_scope with envmem.
 
 Infix "⊑" := env_partial_order : env_scope.
 
-Infix "⊑" := mems_partial_order : mem_scope.
+Infix "⊑" := new_mems_partial_order : mem_scope.
 
-Infix "⊑" :=  ( fun e e' => (e.(env) ⊑ e'.(env))%env /\ (e.(mstate) ⊑ e'.(mstate))%mem) : env_mem_scope.
+(* Infix "⊑" :=  ( fun e e' => (e.(env) ⊑ e'.(env))%env /\ (e.(mstate) ⊑ e'.(mstate))%mem) : env_mem_scope. *)
+
+Infix "⊑" := env_mem_partial_order : env_mem_scope.
 
 Fact refl_env_partial_order : reflexive Ω env_partial_order.
 Proof.
@@ -582,23 +949,64 @@ Qed.
     reflexivity proved by refl_env_partial_order
     transitivity proved by trans_env_partial_order as Renv.
 
-
 Fact refl_mem_partial_order : reflexive 𝓜 mems_partial_order.
+Proof. easy. Qed.
+
+Fact refl_new_mem_partial_order : reflexive 𝓜 new_mems_partial_order.
 Proof.
-    intros mem l. trivial. 
-Qed.    
+    intros x. unfold mems_partial_order. exists (fun x => x). split.
+    - unfold Bijective. exists (fun x => x). now split.
+    - intros. now split. 
+Qed.
 
 Fact trans_mem_partial_order : transitive 𝓜 mems_partial_order.
-Proof.
-    intros mem mem' mem'' H1 H2 l. destruct (mem l) eqn:L.
+intros mem mem' mem'' H1 H2 l. destruct (mem l) eqn:L.
     - erewrite H2 ; eauto. 
     - discriminate.
 Qed.
 
 
-Fact antisym_mem_partial_order : forall mem mem', 
+Fact trans_new_mem_partial_order : transitive 𝓜 new_mems_partial_order.
+Proof.
+    intros mem mem' mem'' H1 H2. unfold mems_partial_order. destruct H1 as[f [f_bij f_rel]],H2 as [f' [f_bij' f_rel']].
+    exists (fun x => f' (f x)). split. 
+        * clear f_rel f_rel'. unfold Bijective in *. destruct f_bij as [f0 [a b]]. destruct f_bij' as [f'0 [a' b']].
+        exists (fun x => f0 (f'0 x)). split.
+            + intros x. rewrite a'. now rewrite a.
+            + intros x. rewrite <- b'. f_equal. rewrite <- b. reflexivity. 
+        * intros l i.  specialize f_rel with l i. specialize f_rel' with (f l) i. split.
+            + intros H. apply f_rel in H. apply f_rel' in H. assumption.
+            +  intros H. apply f_rel. apply f_rel'. assumption. 
+Qed.
+
+
+Fact antisym_new_mem_partial_order : forall mem mem', 
     mems_partial_order mem mem' /\ mems_partial_order mem' mem -> forall l, mem l = mem' l.
 Proof.
+    (* intros mem mem' [H1 H2] l. destruct (mem l) eqn:ML.
+    - symmetry.  destruct H1 as [f [[f' [a b]] p]]. apply p.
+    destruct H1 as [f [[f' [a b]] p]]. destruct H2 as [f1 [[f1' [a' b']] p']].
+    destruct (mem l) eqn:ML.
+    -  symmetry. rewrite <- (b l). rewrite <- (b' l) in ML. rewrite (p _ m) ; trivial. 
+        rewrite <- (p' (f1' l) m) in ML. admit. admit. 
+     rewrite <- ML. f_equal. rewrite <- a. congruence.
+     congruence. congruence. rewrite <- (p' l).  rewrite <- a.  rewrite <- a in a'. rewrite <- a in b. inversion b. injection b. 
+    - apply <- a in EM. specialize (p l m). specialize (p' l m). symmetry. destruct p',p.
+        + assumption.
+        + rewrite <- EM, <- EM'. apply p'.
+     rewrite eqnL. apply p in eqnL. rewrite eqnL. apply <- p' in eqnL.
+    destruct
+    edestruct p.
+    destruct (mem' l) eqn:Eqnl. 
+        symmetry. apply p in Heqn. apply p' in Heqn. rewrite <- Heqn. destruct l. f_equal. congruence. apply Heqn in p'.
+        erewrite <- p' in Heqn. now apply H1 in Heqn.
+    - destruct (mem' l) eqn:Heqn'. apply H2 in Heqn'.
+        + congruence.
+        + easy. *)
+Admitted.
+
+Fact antisym_mem_partial_order : forall mem mem', 
+    mems_partial_order mem mem' /\ mems_partial_order mem' mem -> forall l, mem l = mem' l.
     intros mem mem' [H1 H2] l. destruct (mem l) eqn:Heqn.
     - now apply H1 in Heqn.
     - destruct (mem' l) eqn:Heqn'. apply H2 in Heqn'.
@@ -611,14 +1019,36 @@ Qed.
     reflexivity proved by refl_mem_partial_order 
     transitivity proved by trans_mem_partial_order as mem.
 
+
+#[global] Add Relation 𝓜 new_mems_partial_order
+    reflexivity proved by refl_new_mem_partial_order 
+    transitivity proved by trans_new_mem_partial_order as new_mem.
+
     
-Fact refl_env_mem_partial_order : forall ev, (ev ⊑ ev)%envmem.
+Fact refl_env_mem_partial_order : reflexive Env env_mem_partial_order.
 Proof.
-    intros. split.
-    - pose refl_env_partial_order as r. now unfold reflexive in r.
-    - pose refl_mem_partial_order as r. now unfold reflexive in r.
+    intros ev var. destruct ev as [e m]. simpl. destruct (e var) as [v|] eqn:V.
+    - destruct v as [val|uval] eqn:Ev ; subst.
+        (* defined int / mpz *)
+        * destruct val as [n|ol] eqn:En ; subst.
+            + now apply EM_SameInt with n.
+            + destruct ol as [l|] eqn:Emem ; subst.
+                ++ destruct (m l) as [mpz|] eqn:Eml ; subst.
+                    +++ apply EM_SameMpz with l mpz ; auto. now exists l.
+                    +++  apply EM_IncoherentEnv with l; simpl; auto. now exists l. 
+                ++  apply EM_ClearedMpz ; trivial. now left.
+        (* undefined int / mpz *)
+        * destruct uval as [un|ul] eqn:Ev ; subst.
+            + apply EM_UndefInt with un; eauto.
+            + apply EM_UndefMpz with ul; eauto.
+    (* not bound *)
+    - now apply EM_None.
 Qed.
 
+
+#[global] Add Relation Env env_mem_partial_order
+    reflexivity proved by refl_env_mem_partial_order
+    (* transitivity proved by admit as REnv. *) as REnv.
 Open Scope utils_scope.
 (* invariants for routine translation *)
 

@@ -26,9 +26,11 @@ Definition mpz_ASSGN v (e: gmp_exp ) : gmp_statement := match ty e with
                     | C_Id x _ => <( set_z(v,x) )>
                     | _ => Skip (* cannot happen *)
                     end
-    | C_Int => <( set_i(v,e) )> : gmp_statement
+    | C_Int => <( set_i(v,(gmp_exp_to_c_exp e)) )> : gmp_statement
     | _ => Skip (* cannot happen  *)
 end.
+
+            
 
 Definition int_ASSGN v (e: gmp_exp) : gmp_statement := match ty e with
     | T_Ext Mpz => match e with
@@ -542,28 +544,7 @@ end
 
 
 
-Definition c_t_to_gmp_t (t:@_c_type Empty_set) : gmp_t := match t with
-    | C_Int => C_Int
-    | Void => Void
-    | T_Ext False => Void (* not possible *)
-    end
-.
 
-Definition c_decl_to_gmp_decl (d:@_c_decl Empty_set) : gmp_decl := 
-    let '(C_Decl t id) := d in C_Decl (c_t_to_gmp_t t) id
-.
-
-Fixpoint c_exp_to_gmp_exp (e:c_exp) : gmp_exp := match e with
-    | Zm z => Zm z
-    | C_Id var t => C_Id var (c_t_to_gmp_t t) 
-    | BinOpInt le op re => 
-        let (le,re) := (c_exp_to_gmp_exp le,c_exp_to_gmp_exp re) in
-        BinOpInt le op re
-    | BinOpBool le op re => 
-        let (le,re) := (c_exp_to_gmp_exp le,c_exp_to_gmp_exp re) in
-        BinOpBool le op re
-    end
-.
 
 (* translation of statements *)
 Fixpoint translate_statement (f:fenv) (bindings : Γᵥ) (t_inf : type_inf) (env: ψ) (s : fsl_statement) : @state (@translation_result gmp_statement) := 

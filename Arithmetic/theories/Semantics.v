@@ -35,7 +35,7 @@ Inductive generic_exp_sem {T:Set} {ext_exp : @exp_sem_sig T} (ev:Env): @_c_exp T
     ev |= e' => VInt (z' ⁱⁿᵗ z'_ir) -> 
     ((◁ op) z z' = false ) ->
     ev |= BinOpBool e op e' => VInt zero
-| C_Ext x v t: 
+(* | C_Ext x v t: 
     (* variable must not be of type int (treated by C_E_Var) *)
     t <> C_Int ->
     
@@ -46,7 +46,7 @@ Inductive generic_exp_sem {T:Set} {ext_exp : @exp_sem_sig T} (ev:Env): @_c_exp T
     (* the external semantic can only add additional constraint, the result is always v *)
     ext_exp ev (C_Id x t) v ->
 
-    ev |= (C_Id x t) => v
+    ev |= (C_Id x t) => v *)
 
 where  "env '|=' e => z" := (generic_exp_sem env e z) : generic_exp_sem_scope.
 
@@ -59,21 +59,23 @@ Delimit Scope c_sem_scope with csem.
 
 Definition c_exp_sem := @generic_exp_sem Empty_set Empty_exp_sem.
 
-Notation "Ω |= e => v"  := (c_exp_sem Ω ⊥ e v) : c_sem_scope.
+Notation "Ω '|=' e => v"  := (c_exp_sem Ω e v) : c_sem_scope.
 
-Inductive _gmp_exp_sem (ev:Env) : gmp_exp -> 𝕍 -> Prop :=
+(* Inductive _gmp_exp_sem (ev:Env) : gmp_exp -> 𝕍 -> Prop :=
 | GMP_E_Var (x:𝓥) (l:location) (z:mpz_val) : 
     ev x = Some (Def l) -> 
     ev.(mstate) l = Some z ->
     _gmp_exp_sem ev (C_Id x Mpz) (VMpz l)
-.
+. 
 
 #[global] Hint Constructors _gmp_exp_sem  : rac_hint.
 
-Declare Scope gmp_exp_sem_scope.
+*)
+
+(* Declare Scope gmp_exp_sem_scope.
 Delimit Scope gmp_exp_sem_scope with gmpesem.
-Definition gmp_exp_sem := @generic_exp_sem _gmp_t _gmp_exp_sem.
-Notation "ev '|=' e => z" := (gmp_exp_sem ev e z) : gmp_exp_sem_scope.
+Definition gmp_exp_sem := @generic_exp_sem gmp_t (fun _ (_:@_c_exp gmp_t) _ => False).
+Notation "ev '|=' e => z" := (gmp_exp_sem ev (e:gmp_exp) z) : gmp_exp_sem_scope. *)
 
 Open Scope mini_c_scope.
 From RecordUpdate Require Import RecordUpdate.
@@ -165,7 +167,7 @@ Notation "ev |= s => ev'"  := (c_stmt_sem ev s ev') : c_sem_scope. *)
          *)
 
 
-Open Scope gmp_exp_sem_scope.
+(* Open Scope gmp_exp_sem_scope. *)
 Open Scope mini_gmp_scope.
 Declare Scope gmp_stmt_sem_scope.
 Delimit Scope gmp_stmt_sem_scope with gmpssem.
@@ -184,7 +186,7 @@ Inductive _gmp_stmt_sem { S T : Set } (f : @fenv S T) (ev:Env) : gmp_statement -
 
     | S_set_i x y z a :  
         ev x = Some (Def (VMpz (Some a))) ->
-        (ev |= y => VInt z)%gmpesem ->
+        (ev |= y => VInt z)%csem ->
         (ev |= <(set_i(x,y))> => ev <| mstate ::= {{a\Defined (z ̇)}} |>) f
 
     | S_set_z x y z (a n : location) :  
@@ -193,8 +195,8 @@ Inductive _gmp_stmt_sem { S T : Set } (f : @fenv S T) (ev:Env) : gmp_statement -
         ev.(mstate) n = Some z ->
         (ev |= <(set_z(x,y))> => ev <| mstate ::= {{a\z}} |>) f 
 
-    | S_get_int x (y:id) z v (ir:Int.inRange z) :
-        (ev |= C_Id y Mpz => VMpz (Some v))%gmpesem ->
+    | S_get_int x y z v (ir:Int.inRange z) :
+        ev y = Some (Def (VMpz (Some v))) ->
         ev.(mstate) v = Some (Defined z) -> 
         (ev |= <(x = get_int(y))> => ev <| env ; vars ::= {{x\VInt (z ⁱⁿᵗ ir) : 𝕍}} |>) f
 
@@ -204,8 +206,8 @@ Inductive _gmp_stmt_sem { S T : Set } (f : @fenv S T) (ev:Env) : gmp_statement -
         (ev |= <(set_s(x,s))> => ev <| mstate ::= {{a\Defined z}} |> ) f
 
     | S_cmp c x (vx vy :location) lx y ly (b:𝕍):
-        (ev |= C_Id x Mpz => vx)%gmpesem ->
-        (ev |= C_Id y Mpz => vy)%gmpesem ->
+        ev x = Some (Def (VMpz (Some vx))) ->
+        ev y = Some (Def (VMpz (Some vy))) ->
         ev.(mstate) vx = Some (Defined lx) ->
         ev.(mstate) vy = Some (Defined ly) ->
         (
@@ -216,9 +218,9 @@ Inductive _gmp_stmt_sem { S T : Set } (f : @fenv S T) (ev:Env) : gmp_statement -
         (ev |= <(c = cmp(x,y))> => ev <| env ; vars ::= {{c\b}} |>) f
     
     | S_op bop r lr x y (vx vy : location) z1 z2 :
-        (ev |= C_Id x Mpz => vx)%gmpesem ->
+        ev x = Some (Def (VMpz (Some vx))) ->
         ev.(mstate) vx = Some (Defined z1) -> 
-        (ev |= C_Id y Mpz =>  vy)%gmpesem ->
+        ev y = Some (Def (VMpz (Some vy))) ->
         ev.(mstate) vy = Some (Defined z2) -> 
         ev r = Some (Def (VMpz (Some lr))) ->
         (ev |= op bop r x y => ev <| mstate ::= {{lr\Defined (⋄ (□ bop) z1 z2) }} |>) f
@@ -230,7 +232,7 @@ where "ev |= s => ev'" := (fun f => _gmp_stmt_sem f ev s ev') : gmp_stmt_sem_sco
 
 
 
-Definition gmp_stmt_sem := @generic_stmt_sem _gmp_statement _gmp_t _gmp_exp_sem _gmp_stmt_sem.
+Definition gmp_stmt_sem := @generic_stmt_sem _gmp_statement _gmp_t (fun _ _ _ => False) _gmp_stmt_sem.
 (*
 Notation "Ω ⋅ M |= s => Ω' ⋅ M'"  := (fun f => gmp_stmt_sem f Ω M s Ω' M') : gmp_sem_scope. 
  *)
@@ -329,16 +331,17 @@ Notation "ev |= s => ev'"  := (fun f => fsl_stmt_sem f ev s ev') : fsl_sem_scope
 
 
 
-(* macro semantic *)
+(* macro semantic, section E *)
 
 
 Declare Scope macro_sem_scope.
+
 Inductive macro_sem (ev:Env) (e:gmp_exp): Z -> Prop :=
-| M_Int x :  
-    gmp_exp_sem ev e (VInt x) ->
+| M_Int x (H : ty e = C_Int): 
+    (ev |= gmp_exp_to_c_exp e => (VInt x))%csem ->
     ev |= e ⇝ x ̇
-| M_Mpz l z : 
-    gmp_exp_sem ev e (VMpz (Some l)) ->
+| M_Mpz l z (H : gmp_ty e = Mpz) : 
+    ev (gmp_ty_mpz_to_var e) = Some (Def (VMpz (Some l))) ->
     ev.(mstate) l = Some (Defined z) ->
     ev |= e ⇝ z
 where "ev '|=' e ⇝ z" := (macro_sem ev e z) : macro_sem_scope.

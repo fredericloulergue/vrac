@@ -36,11 +36,18 @@ Definition p_map_front {X Y : Type} `{EqDec X}  (f: X -> option Y) (xy:X * Y)   
 Definition p_map_back {X Y : Type} `{EqDec X}  (xy:X * Y) (f: X -> option Y)  : X -> option Y :=
     p_map_front f xy.
 
+
 #[global] Hint Unfold p_map_back : rac_hint.
 
 
 Notation "f { xy , .. , xy' }" :=  (p_map_front .. (p_map_front f xy') .. xy ) : utils_scope.
 Notation "'{{' xy , .. , xy' '}}'" := (fun f => p_map_back xy' .. (p_map_back xy f) .. ) : utils_scope. (* fixme: make same as the other*)
+
+
+Fact p_map_single_back_front_eq {X Y : Type} `{EqDec X} : 
+    forall f x (y:Y) z , f{x\y} z = {{x\y}}f z.
+Proof. auto. Qed.
+
 
 Definition p_map_addall_front {X Y: Type} `{EqDec X} env (lx:list X) (ly : list Y) :=
     List.fold_left (fun f xy => f {(fst xy) \ (snd xy)}) (List.combine lx ly) env
@@ -97,8 +104,20 @@ Proof.
     intros env x v f. f_equal. apply p_map_same.
 Qed.
 
-Definition in_domain { X Y : Type} (f: X ⇀ Y) (x:X) := exists y, (f x) = Some y.
-Definition not_in_domain { X Y : Type} (f: X ⇀ Y) (x:X) := forall y, (f x) <> Some y.
+
+Fact p_map_domain {X Y : Type } `{EqDec X} (env : X -> option Y) (z : X) :
+    forall x x' y z, env{x\y} x' = Some z -> x' = x \/ env x' = Some z.
+Proof.
+    intros. destruct (eq_dec x' x).
+        + now left.
+        +  rewrite p_map_not_same in H0 ; auto.
+Qed.
+
+
+Definition in_domain { X Y : Type} (f: X ⇀ Y) (x:X) := exists y, f x = Some y.
+Definition not_in_domain { X Y : Type} (f: X ⇀ Y) (x:X) := forall y, f x <> Some y.
+Definition in_codomain { X Y : Type} (f: X ⇀ Y) (y:Y) := exists x, f x = Some y.
+
 
 
 Notation "'dom' f" := (in_domain f) : utils_scope.
