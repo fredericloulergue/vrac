@@ -95,7 +95,7 @@ Coercion fsl_binop_bool_to_c (x:fsl_binop_bool) : c_binop_bool := match x with
 end.
 Notation "◖" := fsl_binop_bool_to_c : definition_scope.
 
-#[warnings="-uniform-inheritance"] 
+(*#[warnings="-uniform-inheritance"] *)
 Inductive _c_exp {T : Set}  :=
     | Zm (z : Z) :> _c_exp(* machine integer *) (* can only be of type int *)
     | C_Id (var : id) (ty : @_c_type T) (* variable access *) (* can be either int or mpz *)
@@ -105,7 +105,7 @@ Inductive _c_exp {T : Set}  :=
 #[global] Hint Constructors _c_exp  : rac_hint.
 
 
-(* #[warnings="-uniform-inheritance"]  *)
+#[warnings="-uniform-inheritance"]  
 Inductive _c_statement {S T : Set} :=
     | Skip (* empty statement *)
     | Assign (var:id) (e: @_c_exp T) (* assignment *)
