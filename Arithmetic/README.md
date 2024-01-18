@@ -1,4 +1,4 @@
-# M1 TER RAC
+# RAC of Arithmetic Properties
 
 Formalisation et vérification en Coq d'un vérification d'assertions arithmétiques à l'exécution.
 
