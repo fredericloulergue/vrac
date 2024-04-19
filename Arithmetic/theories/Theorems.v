@@ -781,7 +781,7 @@ Proof.
   * intros ev₀' Henv.
     exists (ev₀' <| env ; vars ::= {{x \ Def (VMpz (Some l))}} |> <| mstate ::= {{l \Defined 0}} |> ). split. 
     simpl.
-    ** apply env_partial_order_add.
+    
 
 
 Admitted.
