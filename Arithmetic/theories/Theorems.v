@@ -112,6 +112,14 @@ Proof.
     intros e e' v z Hrel He. destruct Hrel with v; congruence.
 Qed.
 
+Fact eq_env_preserved_partial_order :  forall e e' v z, (e  ≼ e')%env ->  
+    e v = Some (Def z) -> e' v = Some (Def z).
+Proof.
+    intros e e' v z Hrel He. destruct Hrel with v; congruence.
+Qed.
+
+
+
 Fact sym_env_cond : forall (env env' : Ω), 
 (forall v, (dom env - dom env') v ) -> (env ⊑ env')%env -> (env' ⊑ env)%env.
 
@@ -145,6 +153,19 @@ Proof.
     pose proof (eq_env_partial_order {|vars:=v;binds:=l|} {|vars:=v';binds:=l'|} var z Hrel H).
     pose proof (p_map_not_same {| vars := v'; binds := l' |} var var' z' Hneq). congruence.
 Qed.
+
+
+Corollary eq_env_preserved_partial_order_add :  forall (e e' :Ω) v v' z z',  (e ≼  e')%env ->  
+    v <> v' ->
+    e v = Some (Def z) -> (e'{v'\z'}) v = Some (Def z).
+Proof.
+    intros [v l] [v' l'] var var' z z' Hrel Hneq H. 
+    pose proof (eq_env_preserved_partial_order {|vars:=v;binds:=l|} {|vars:=v';binds:=l'|} var z Hrel H).
+    pose proof (p_map_not_same {| vars := v'; binds := l' |} var var' z' Hneq). congruence.
+Qed.
+
+
+
 
 
 Fact eq_mem_partial_order :  
@@ -201,6 +222,59 @@ Proof with auto with rac_hint.
             }
         * now apply Enone.
 Qed.
+
+
+
+
+Fact env_preserved_partial_order_add : forall Ω₀ Ω₀', (Ω₀ ≼ Ω₀')%env -> 
+    (forall var' z, 
+    Ω₀ <| vars ::= fun x => x{var' \ z} |> ≼  Ω₀' <| vars ::= fun x => x{var' \ z} |>
+    )%env.
+Proof with auto with rac_hint.
+    intros [v l][v' l'] H x z var. destruct (string_dec x var) as [Heq|Hneq].
+    - subst. simpl. specialize (H var). destruct z. 
+        + destruct v0.
+            * apply PsameInt with n ;  apply p_map_same.
+            * apply PsameMpz with l0; apply p_map_same.
+        + destruct uv.
+            ++ apply PundefInt with n ; simpl...
+            ++ apply PundefMpz with l0 ; simpl...
+
+    - apply not_eq_sym in Hneq. epose proof (p_map_not_same v var x ?[z] Hneq) as H0. simpl. remember (v var) as res. destruct res as [z'|].
+        * destruct z'.
+            + { 
+                destruct v0.
+                - apply PsameInt with n ; simpl.
+                    + apply H0.
+                    + apply p_map_not_same_eq in H0... epose proof (eq_env_preserved_partial_order_add  _ _ _ _ _ _ H). 
+                        now apply H1.
+                - apply PsameMpz with l0; simpl... epose proof (eq_env_preserved_partial_order_add  _ _ _ _ _ _ H).
+                    symmetry in Heqres. specialize (H1 Hneq Heqres). simpl in H1. apply H1.
+            }
+
+            + {
+                destruct uv.
+                - eapply PundefInt ;subst ;simpl. 
+                    + apply H0.
+                    + destruct H with var ; pose proof (p_map_not_same_eq v' var x z) as Hres; simpl in *; try congruence.
+                        destruct H2.
+                        specialize (Hres  (Some (Undef (UInt n))) Hneq). apply Hres. congruence.
+                        
+                        
+                - eapply PundefMpz ; subst ; simpl.
+                    + apply H0.
+                    + destruct H with var ; pose proof (p_map_not_same_eq v' var x z) as Hres; simpl in * ; try congruence.
+                        destruct H2.
+                        * specialize (Hres  (Some (Undef (UMpz l0))) Hneq).   apply Hres. congruence.
+        
+            }
+        * now apply Pnone.
+Qed.
+
+
+
+
+
 
 Fact mems_partial_order_add : forall M₀ M₀', mems_partial_order M₀ M₀' -> 
     (forall l mi, mems_partial_order ((M₀) {l \ mi}) ((M₀') {l \ mi})).
@@ -700,6 +774,16 @@ forall (f : @fenv S T) ev₀ s ev₁ ,
     exists ev₁' , (ev₁ ≼ ev₁')%envmem /\ _gmp_stmt_sem f ev₀' s ev₁').
 
 Proof.
+
+
+  intros f  ev₀ s ev₁. intro Hderiv.
+  induction Hderiv.
+  * intros ev₀' Henv.
+    exists (ev₀' <| env ; vars ::= {{x \ Def (VMpz (Some l))}} |> <| mstate ::= {{l \Defined 0}} |> ). split. 
+    simpl.
+    ** apply env_partial_order_add.
+
+
 Admitted.
 
 
