@@ -692,10 +692,18 @@ Proof.
 Qed.
 
 
-Lemma _weakening_of_gmp_statements_semantics_1 : 
-    _weakening_of_statement_semantics_1 _gmp_exp_sem _gmp_stmt_sem
-.
-Proof with eauto using eq_env_partial_order, eq_mem_partial_order,refl_env_mem_partial_order with rac_hint ; try easy.
+Lemma _weakening_of_gmp_statements_semantics_1  {S T : Set} :
+
+forall (f : @fenv S T) ev₀ s ev₁ ,
+    _gmp_stmt_sem f ev₀ s ev₁ ->
+    ( forall ev₀', (ev₀ ≼  ev₀')%envmem ->
+    exists ev₁' , (ev₁ ≼ ev₁')%envmem /\ _gmp_stmt_sem f ev₀' s ev₁').
+
+Proof.
+Admitted.
+
+
+(*Proof with eauto using eq_env_partial_order, eq_mem_partial_order,refl_env_mem_partial_order with rac_hint ; try easy.
     intros Hweak f ev₀ s ev₁. 
     intro Hderiv. induction Hderiv; intros ev₀' [Henv Hmem] ;
         pose proof (fun y => weakening_of_gmp_expression_semantics y ev₀) as weak_exp. 
@@ -758,7 +766,7 @@ Proof with eauto using eq_env_partial_order, eq_mem_partial_order,refl_env_mem_p
         destruct H as [ev₁' [Hrel Hderiv ]]... induction Hderiv.
         + admit. (* non sense ? *)*)
 Admitted.
-
+*)
 
 (* Terence proof
 Proof with eauto using eq_env_partial_order, eq_mem_partial_order,refl_env_mem_partial_order with rac_hint ; try easy.
@@ -823,10 +831,10 @@ Proof with eauto using eq_env_partial_order, eq_mem_partial_order,refl_env_mem_p
         destruct H as [ev₁' [Hrel Hderiv ]]... induction Hderiv.
         + admit. (* non sense ? *)
 Admitted.
-*)
+ *)
 
-Definition weakening_of_gmp_statements_semantics_1 := 
-    weakening_of_statement_semantics_1 _gmp_exp_sem _gmp_stmt_sem _weakening_of_gmp_statements_semantics_1.
+
+
 
 
 (* 2 *)
