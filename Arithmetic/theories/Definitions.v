@@ -520,12 +520,46 @@ Inductive param_env_partial_order (var: 𝓥) (env env':Ω) : Prop :=
 | Enone : env var = None -> param_env_partial_order var env env'
 .
 
+
+
+
+
+
+Inductive param_env_preserved_partial_order (var: 𝓥) (env env':Ω) : Prop :=
+| PsameInt n : 
+    env var = Some (Def (VInt n))
+    ->  env' var = Some (Def (VInt n))
+    -> param_env_preserved_partial_order var env env'
+| PsameMpz l : 
+    env var = Some (Def (VMpz l))
+    -> env' var = Some (Def (VMpz l))
+    -> param_env_preserved_partial_order var env env'
+| PundefInt n: env var = Some (Undef (UInt n))
+    -> env' var = Some (Undef (UInt n))
+    -> param_env_preserved_partial_order var env env'
+| PundefMpz n : env var = Some (Undef (UMpz n))
+    -> env' var = Some (Undef (UMpz n))
+    -> param_env_preserved_partial_order var env env'
+| Pnone : env var = None -> param_env_preserved_partial_order var env env'
+.
+
+
+
+
+
 #[global] Hint Constructors param_env_partial_order : rac_hint.
+
+#[global] Hint Constructors param_env_preserved_partial_order : rac_hint.
 
 
 Definition env_partial_order env env' := forall v, param_env_partial_order v env env'.
 
 Definition mems_partial_order (mem mem':𝓜) : Prop := forall l i, mem l = Some i ->  mem' l = Some i.
+
+Definition env_preserved_partial_order env env' := forall v, param_env_preserved_partial_order v env env'.
+
+
+
 
 Declare Scope env_scope.
 Delimit Scope env_scope with env.
@@ -540,6 +574,16 @@ Infix "⊑" := env_partial_order : env_scope.
 Infix "⊑" := mems_partial_order : mem_scope.
 
 Infix "⊑" :=  ( fun e e' => (e.(env) ⊑ e'.(env))%env /\ (e.(mstate) ⊑ e'.(mstate))%mem) : env_mem_scope.
+
+
+Infix "≼" := env_preserved_partial_order : env_scope.
+
+
+Infix "≼" :=  ( fun e e' => (e.(env) ≼ e'.(env))%env /\ (e.(mstate) ⊑ e'.(mstate))%mem) : env_mem_scope.
+
+
+
+
 
 Fact refl_env_partial_order : reflexive Ω env_partial_order.
 Proof.
