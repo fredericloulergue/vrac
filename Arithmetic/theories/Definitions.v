@@ -584,6 +584,30 @@ Infix "≼" :=  ( fun e e' => (e.(env) ≼ e'.(env))%env /\ (e.(mstate) ⊑ e'.(
 
 
 
+Fact refl_env_preserved_partial_order : reflexive  Ω env_preserved_partial_order.
+Proof.
+  intros [v l] var.
+  destruct (v var) as  [val |] eqn:res.
+  induction val.
+  * destruct v0.
+    ** apply PsameInt with n. simpl. assumption. 
+       simpl. assumption.
+    ** apply PsameMpz with l0. simpl.  assumption. simpl. assumption.
+  * destruct uv. 
+    ** apply PundefInt with n. simpl. assumption. simpl. assumption.
+    ** apply PundefMpz with l0. simpl. assumption. simpl. assumption. 
+  * apply Pnone. simpl. assumption. 
+Qed.
+
+
+
+
+
+
+
+
+
+
 
 Fact refl_env_partial_order : reflexive Ω env_partial_order.
 Proof.
@@ -598,6 +622,21 @@ Proof.
 Qed.
 
 
+
+
+
+Fact trans_env_preserved_partial_order: transitive Ω env_preserved_partial_order.
+Proof.
+  intros [v l] [v' l'] [v'' l''] H1 H2 var.
+  destruct H1 with var; specialize (H2 var).
+  * apply PsameInt with n. assumption. inversion H2; congruence.
+  * apply PsameMpz with l0.  assumption. inversion H2; congruence.
+  * apply PundefInt with n. assumption. inversion H2; congruence.
+  * apply PundefMpz with n. assumption. inversion H2; congruence.
+  * apply Pnone. simpl. assumption.
+Qed.
+    
+
 Fact trans_env_partial_order : transitive Ω env_partial_order.
 Proof.
     intros  [v l] [v' l'] [v'' l'']  H1 H2 var. destruct H1 with var ; specialize (H2 var).
@@ -609,6 +648,20 @@ Proof.
     * apply EundefMpz with n. easy. inversion H2; destruct H0; try congruence || (destruct H0 ; congruence). right. now exists l0.
     * now apply Enone.
 Qed.
+
+
+Fact antisym_env_preserved_partial_order : forall env env',
+    env_preserved_partial_order env' env /\ env_preserved_partial_order env env' -> forall v, env v = env' v.
+
+Proof.
+  intros env env' [H1 H2] v. specialize (H1 v). inversion H1 ; try congruence.
+  destruct H1. congruence. congruence. 
+  congruence.    congruence. destruct H2 with v. congruence.
+  congruence.     
+  congruence.
+  congruence.  congruence.
+Qed.
+
 
 Fact antisym_env_partial_order : forall env env',
     env_partial_order env' env /\ env_partial_order env env' -> forall v, env v = env' v.
@@ -625,6 +678,12 @@ Qed.
 #[global] Add Relation Ω env_partial_order
     reflexivity proved by refl_env_partial_order
     transitivity proved by trans_env_partial_order as Renv.
+
+
+#[global] Add Relation Ω env_preserved_partial_order
+    reflexivity proved by refl_env_preserved_partial_order
+    transitivity proved by trans_env_preserved_partial_order as Renvpreserved.
+
 
 
 Fact refl_mem_partial_order : reflexive 𝓜 mems_partial_order.
@@ -662,6 +721,19 @@ Proof.
     - pose refl_env_partial_order as r. now unfold reflexive in r.
     - pose refl_mem_partial_order as r. now unfold reflexive in r.
 Qed.
+
+
+Fact refl_env_preserved_mem_partial_order : forall ev, (ev ≼ ev)%envmem.
+Proof.
+    intros. split.
+    - pose refl_env_preserved_partial_order as r. now unfold reflexive in r.
+    - pose refl_mem_partial_order as r. now unfold reflexive in r.
+Qed.
+
+
+
+
+
 
 Open Scope utils_scope.
 (* invariants for routine translation *)
