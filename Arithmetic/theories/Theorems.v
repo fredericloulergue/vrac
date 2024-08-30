@@ -54,7 +54,7 @@ Proof with auto with rac_hint.
             * subst. rewrite p_map_same in Hl... discriminate.
             * rewrite p_map_not_same in Hl... destruct Hnoalias with v v' l' l'...
     - assert (type_of_value (Some b) = Some C_Int). {
-        destruct H3 as [sup [inf eq]]. destruct (Z.lt_trichotomy lx ly) as [Hinf | [Heq | Hsup]].
+        destruct H3 as [sup [inf eq]]. destruct (Z.lt_trichotomy zx zy) as [Hinf | [Heq | Hsup]].
         - apply inf in Hinf. now subst.
         - apply eq in Heq. now subst.
         - apply Z.lt_gt in Hsup.  apply sup in Hsup. now subst. 
@@ -110,6 +110,13 @@ Fact eq_env_partial_order :  forall e e' v z, (e ⊑ e')%env ->
     e v = Some (Def z) -> e' v = Some (Def z).
 Proof.
     intros e e' v z Hrel He. destruct Hrel with v; congruence.
+Qed.
+
+
+Fact eq_int_env_mem_partial_order :  forall e e' v n, (e ⊑ e')%envmem -> 
+    e v = Some (Def (VInt n)) -> e' v = Some (Def (VInt n)).
+Proof.
+    intros e e' v z [He Hm] Hsome. destruct (He v); congruence.  
 Qed.
 
 Fact sym_env_cond : forall (env env' : Ω), 
@@ -230,31 +237,20 @@ Fact determinist_exp_eval {T : Set}:
 forall ext_exp_sem, _determinist_exp_eval ext_exp_sem -> _determinist_exp_eval (@generic_exp_sem T ext_exp_sem).
 Proof.
     intros ext_exp_sem ext_inj. unfold _determinist_exp_eval. intros e. induction e ; intros ; inversion H ; inversion H0 ; subst ; try easy.
-    5,6:
+    4,5:
         apply IHe1 with (v:=VInt (z ⁱⁿᵗ z_ir)) (v':=VInt (z0 ⁱⁿᵗ z_ir0)) in H11 ; [|assumption] ; injection H11 as eqz ;
         apply IHe2 with (v:=VInt (z' ⁱⁿᵗ z'_ir)) (v':= VInt (z'0 ⁱⁿᵗ z'_ir0)) in H13; [|assumption] ;  injection H13 as eqz' ; subst ; now rewrite H14 in H7.
     - f_equal. f_equal. now apply Int.mi_eq. 
     - congruence.
-    - destruct ty. easy. 1,2: apply ext_inj in H6 ; now apply H6 in H12.
     - f_equal. f_equal. apply Int.mi_eq. simpl. f_equal.
         + apply IHe1 with (v:=VInt (z ⁱⁿᵗ z_ir)) (v':= VInt (z0 ⁱⁿᵗ z_ir0)) in H13; [|assumption]. now injection H13. 
         + apply IHe2 with (v:=VInt (z' ⁱⁿᵗ z'_ir)) (v':=VInt (z'0 ⁱⁿᵗ z'_ir0)) in H14; [|assumption]. now injection H14.
 Qed.
 
-Fact _determinist_c_exp_eval : _determinist_exp_eval Empty_exp_sem.
+Fact _determinist_c_exp_eval {T} : _determinist_exp_eval (@Empty_exp_sem T).
 Proof. easy. Qed.
 
-Definition determinist_c_exp_eval := determinist_exp_eval Empty_exp_sem _determinist_c_exp_eval.
-
-Fact _determinist_gmp_exp_eval :  _determinist_exp_eval _gmp_exp_sem.
-Proof.
-    unfold _determinist_exp_eval. intros e. induction e ; intros ev v H v' H0. inversion H ; inversion H0 ; subst.
-    - inversion H ; inversion H0 ; subst ; try easy. rewrite H3 in H8.  repeat f_equal. now injection H8. 
-    - inversion H.
-    - inversion H.
-Qed.
-
-Definition determinist_gmp_exp_eval := determinist_exp_eval _gmp_exp_sem _determinist_gmp_exp_eval.
+Definition determinist_c_exp_eval {T}:= determinist_exp_eval (@Empty_exp_sem T) _determinist_c_exp_eval.
 
 Fact Forall2_same_zargs { T : Set} : forall ev eargs zargs zargs0  exp_sem, 
     _determinist_exp_eval exp_sem
@@ -299,53 +295,37 @@ Proof with auto.
     - inversion H0. subst. unfold _determinist_stmt_eval in Hds. eapply Hds... apply H. apply H2.
 Qed.
 
-Fact _determinist_c_stmt_eval : _determinist_stmt_eval Empty_exp_sem Empty_stmt_sem. easy. Qed.
+Fact _determinist_c_stmt_eval {S T} : @_determinist_stmt_eval S T Empty_exp_sem Empty_stmt_sem. easy. Qed.
 
-Definition determinist_c_stmt_eval := determinist_stmt_eval Empty_exp_sem Empty_stmt_sem _determinist_c_stmt_eval.
+Definition determinist_c_stmt_eval {S T} := determinist_stmt_eval Empty_exp_sem Empty_stmt_sem (@_determinist_c_stmt_eval S T).
 
 
-Definition _weakening_of_expression_semantics {T : Set} (exp_sem : @exp_sem_sig T) : Prop := 
+Definition _weakening_of_expression_semantics {T} (exp_sem : @exp_sem_sig T) : Prop := 
     forall e ev (x:𝕍), 
     exp_sem ev e x <-> (forall ev',  (ev ⊑ ev')%envmem -> exp_sem ev' e x).
 
 
-Lemma weakening_of_expression_semantics {T : Set} : 
+Lemma weakening_of_expression_semantics {T} : 
     forall exp_sem, 
     (_weakening_of_expression_semantics exp_sem )
     ->
     _weakening_of_expression_semantics (@generic_exp_sem T exp_sem)
 .
 Proof with (eauto using refl_env_mem_partial_order with rac_hint).
-    split...
-    - intro Hderiv. induction Hderiv; intros...
-        + constructor. eapply eq_env_partial_order... easy.
-        + unfold _weakening_of_expression_semantics in H. eapply  H in H2...
-            constructor... inversion H3. apply eq_env_partial_order with ev... 
+    split...  intro Hderiv. induction Hderiv; intros...
+        constructor. eapply eq_env_partial_order... easy.
 Qed.
 
-Fact _weakening_of_c_expression_semantics : _weakening_of_expression_semantics Empty_exp_sem. 
+Fact _weakening_of_c_expression_semantics {T} : _weakening_of_expression_semantics (@Empty_exp_sem T). 
 Proof.
     unfold _weakening_of_expression_semantics. intros. split ; unfold Empty_exp_sem.
     - intros [].
     - intro H. apply H with ev... apply refl_env_mem_partial_order.
 Qed.
 
-Definition weakening_of_c_expression_semantics := 
-    weakening_of_expression_semantics Empty_exp_sem _weakening_of_c_expression_semantics.
+Definition weakening_of_c_expression_semantics  {T} := 
+    weakening_of_expression_semantics (@Empty_exp_sem T) _weakening_of_c_expression_semantics.
 
-Lemma _weakening_of_gmp_expression_semantics : 
-    _weakening_of_expression_semantics _gmp_exp_sem
-.
-Proof with (eauto with rac_hint; try easy).
-    split.
-    - intro H. inversion H. subst. intros. apply GMP_E_Var with z; destruct H2 as [relEnv memEnv]. 
-        + eapply eq_env_partial_order...
-        + eapply eq_mem_partial_order... 
-    - intros. specialize H with ev. now apply H.
-Qed.
-
-Definition weakening_of_gmp_expression_semantics := 
-    weakening_of_expression_semantics _gmp_exp_sem _weakening_of_gmp_expression_semantics.
 
 Definition _untouched_var_same_eval_exp {T : Set} (exp_sem : @exp_sem_sig T) := 
     forall (ev:Env) (e: @_c_exp T) v x,
@@ -381,26 +361,7 @@ Proof with eauto with rac_hint.
         + apply IHHderiv2...
         + apply IHHderiv1...
         + apply IHHderiv2... 
-    -  split.
-        + constructor... apply p_map_not_same_eq... apply Hext...
-        + intros l z' Hmem. constructor... edestruct Hext... now simpl. 
 Qed.
-
-Fact _untouched_var_same_eval_exp_gmp : @_untouched_var_same_eval_exp _gmp_t _gmp_exp_sem.
-Proof.
-    intros ev e v x Hnotin Hderiv. inversion Hderiv. subst. simpl in Hnotin.
-    apply Decidable.not_or_iff in Hnotin as [Hdiff _]. split...
-    - econstructor. 
-        * now apply p_map_not_same_eq.
-        * apply H0.
-    - intros l' z' Hnoalias Hmem. apply GMP_E_Var with z.
-        * apply H.
-        * destruct (eq_dec l' l).
-            + edestruct Hnoalias with x0 v l l' ; eauto with rac_hint.
-            + subst. apply p_map_not_same_eq; auto.
-Qed.
-
-Definition untouched_var_same_eval_exp_gmp := untouched_var_same_eval_exp _gmp_exp_sem _untouched_var_same_eval_exp_gmp.
 
 
 Definition _untouched_var_same_eval_stmt {S T : Set} (exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) := 
@@ -444,10 +405,17 @@ Qed.
 
 
 
+
 Definition _weakening_of_statement_semantics_1  {S T : Set} (exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) := 
+    (*
+    should be in both directions according to the article but right to left does not work :
+    We will see if the 'bad' direction is used in the proof 
+    If this is the cast, one direction is trying to add to have a new env_01 = ev_0 + a and a new env_02 = ev_0 + b so that 
+        (ev0 + a) inter ev0 + b) = ev1
+    *)  
     _weakening_of_expression_semantics exp_sem ->
     forall (f : @fenv S T) ev₀ s ev₁,
-    stmt_sem f ev₀ s ev₁ <->
+    stmt_sem f ev₀ s ev₁ ->
     ( forall ev₀', (ev₀  ⊑ ev₀')%envmem ->
     exists ev₁' , (ev₁  ⊑ ev₁')%envmem /\ stmt_sem f ev₀' s ev₁').
     
@@ -460,8 +428,7 @@ Lemma weakening_of_statement_semantics_1 {S T : Set} :
 Proof with eauto using refl_env_mem_partial_order,env_partial_order_add with rac_hint.
     intros exp_sem stmt_sem Hext_stmt Hext_exp f ev₀ s ev₁. 
     pose proof (weakening_of_expression_semantics exp_sem Hext_exp) as exp_weak.
-    split.
-    - intro Hderiv. induction Hderiv ; intros ev₀' [Henv Hmem].
+    intro Hderiv. induction Hderiv ; intros ev₀' [Henv Hmem].
         (* skip *)
         * exists ev₀'... 
         
@@ -520,31 +487,20 @@ Proof with eauto using refl_env_mem_partial_order,env_partial_order_add with rac
 
         (* other cases *)
         * specialize (Hext_stmt Hext_exp f ev (S_Ext s) ev').
-            apply Hext_stmt with ev₀' in H. destruct H as [ev'' [Hrel2 Hderiv]]... easy.
-                
-    - intros H. admit. (* ??? *)
-        
-Admitted.
-
-
-Fact _weakening_of_c_statements_semantics_1 : _weakening_of_statement_semantics_1 Empty_exp_sem Empty_stmt_sem. 
-Proof.
-    unfold _weakening_of_statement_semantics_1. intros. split; unfold Empty_stmt_sem.
-    - intros [].
-    - intro H2. destruct H2 with ev₀.
-        + apply refl_env_mem_partial_order.
-        + destruct H0 as [_  []]. 
+            apply Hext_stmt with ev₀' in H. destruct H as [ev'' [Hrel2 Hderiv]]... easy.                 
 Qed.
 
 
+Fact _weakening_of_c_statements_semantics_1 {S T} : _weakening_of_statement_semantics_1 (@Empty_exp_sem T) (@Empty_stmt_sem S T). 
+Proof. easy. Qed.
+
+
 Lemma _weakening_of_gmp_statements_semantics_1 : 
-    _weakening_of_statement_semantics_1 _gmp_exp_sem _gmp_stmt_sem
+    _weakening_of_statement_semantics_1 Empty_exp_sem _gmp_stmt_sem
 .
 Proof with eauto using eq_env_partial_order, eq_mem_partial_order,refl_env_mem_partial_order with rac_hint ; try easy.
-    intros Hweak f ev₀ s ev₁. split.
-    - intro Hderiv. induction Hderiv; intros ev₀' [Henv Hmem] ;
-        pose proof (fun y => weakening_of_gmp_expression_semantics y ev₀) as weak_exp. 
-
+    intros Hweak f ev₀ s ev₁.
+    - intro Hderiv. induction Hderiv; intros ev₀' [Henv Hmem]; epose proof (fun y => weakening_of_c_expression_semantics y ev₀) as weak_exp.
         (* init *)
         * exists (ev₀' <| env ; vars ::= {{x \ Def (VMpz (Some l))}} |> <| mstate ::= {{l \Defined 0}} |> ). split.
             + split. 
@@ -568,43 +524,39 @@ Proof with eauto using eq_env_partial_order, eq_mem_partial_order,refl_env_mem_p
                 ++ apply mems_partial_order_add...
             + constructor... 
 
+        (* set_i *)
         * exists (ev₀' <| mstate ::= {{a \ Defined (z) ̇}} |>). split.
-            + split... intro n. apply (mems_partial_order_add ev₀ ev₀' Hmem a z ̇). 
-            + apply S_set_i. eapply eq_env_partial_order... apply weak_exp...
+            + split... intro n. apply (mems_partial_order_add ev₀ ev₀' Hmem a z ̇).  
+            + apply S_set_i. eapply eq_env_partial_order... apply weak_exp...   
 
+        (* set_z *)
         * exists (ev₀' <| mstate ::= {{a \ z}} |>). split.
-            + split... intro n0.  apply (mems_partial_order_add ev₀ ev₀' Hmem a). 
-            + apply S_set_z with n.
-                ++ eapply eq_env_partial_order...
-                ++ eapply eq_env_partial_order...
-                ++ apply (eq_mem_partial_order ev₀ ev₀')...
+            + split... intro n0.  apply (mems_partial_order_add ev₀ ev₀' Hmem a).
+            + apply S_set_z with n...
 
-        * inversion H0. subst. eexists (ev₀' <| env ; vars ::= fun e =>  e{x \ Def (VInt (z ⁱⁿᵗ ir))} |>)... split.
+        (* get_int *)
+        *  eexists (ev₀' <| env ; vars ::= fun e =>  e{x \ Def (VInt (zy ⁱⁿᵗ ir))} |>)...  split.
             + split... simpl. pose proof env_partial_order_add...
-            + apply S_get_int with v... apply weak_exp...
+            + apply S_get_int with ly...
         
-        * exists (ev₀' <| mstate ::= {{a \ Defined z}} |>). split. 
-            + split... apply (mems_partial_order_add ev₀ ev₀' Hmem a z). 
+        (* set_s *)
+        * exists (ev₀' <| mstate ::= {{lx \ Defined zx}} |>). split.
+            + split... apply (mems_partial_order_add ev₀ ev₀' Hmem lx zx). 
             + constructor...
 
-        * inversion H. subst. inversion H8. inversion H0. subst. 
-            eexists (ev₀' <| env ; vars ::= fun e => e{c \ b} |>). split.
-            ** split... simpl. pose env_partial_order_add...
-            ** inversion H13. subst. apply S_cmp with vx vy lx ly...
-                + constructor... 
-                + constructor...
+        (* cmp *)
+        *  eexists (ev₀' <| env ; vars ::= fun e => e{c \ b} |>). split.
+            + split... simpl. pose env_partial_order_add...
+            + apply S_cmp with lx ly zx zy...        
         
-        * eexists (ev₀' <| mstate ::= {{lr \Defined (⋄ bop z1 z2)}} |>). split.
-            ** split... intro n. apply mems_partial_order_add...
-            **  apply S_op with vx vy ; try apply weak_exp...
-    
-    - intro H. specialize (H ev₀ (refl_env_mem_partial_order ev₀))...
-        destruct H as [ev₁' [Hrel Hderiv ]]... induction Hderiv.
-        + admit. (* non sense ? *)
+        (* op *)
+        * eexists (ev₀' <| mstate ::= {{lr \Defined (⋄ bop zx zy)}} |>). split.
+            + split... intro n. apply mems_partial_order_add...   
+            + apply S_op with lx ly ; try apply weak_exp...  
 Admitted.
 
 Definition weakening_of_gmp_statements_semantics_1 := 
-    weakening_of_statement_semantics_1 _gmp_exp_sem _gmp_stmt_sem _weakening_of_gmp_statements_semantics_1.
+    weakening_of_statement_semantics_1 Empty_exp_sem _gmp_stmt_sem _weakening_of_gmp_statements_semantics_1.
 
 
 (* 2 *)
@@ -727,9 +679,6 @@ Proof with auto.
                 intros Hine. apply He2. apply List.in_app_iff...
             * intros x v Hdom. specialize Hmem with x v. apply Hmem in Hdom as [Hm1 Hm2]. simpl in Hm2. split...
                 intro Hin. apply Hm2. apply List.in_app_iff...
-    - constructor...
-        + destruct Henv with x. simpl in H3. destruct H3. now left.
-        + destruct Henv with x. simpl in H3. destruct H3. now left. 
 Qed.
 
 Definition _weakening_of_statement_semantics_3  {S T : Set} (stmt_sem : @stmt_sem_sig S T) := 
@@ -861,12 +810,6 @@ Admitted. *)
 
 (* Proofs of the semantics of the macros *)
 
-Fact Mpz_exp_is_var : forall e, exists x, ty e = Mpz -> e = C_Id x Mpz.
-Proof. 
-    intros. destruct e ; try now exists "z".
-    exists var. intro H. unfold Definitions.ty in H. now rewrite H.
-Qed.
-
 Open Scope macro_sem_scope.
 
 Corollary same_eval_macro :  forall (ev : Env) v l e z z', 
@@ -878,14 +821,24 @@ Corollary same_eval_macro :  forall (ev : Env) v l e z z',
 
 Proof.
     intros. inversion H2.
-    * constructor. apply untouched_var_same_eval_exp_gmp with v ; assumption.
-    * apply M_Mpz with l0 ; subst.
-        + apply untouched_var_same_eval_exp_gmp with v ; assumption.
-        + inversion H3. inversion H9. subst. simpl in H0. apply Decidable.not_or_iff in H0 as [Hdiff _].
-            destruct (eq_dec l l0).
-            ++ subst. destruct H with v x l0 l0 ; congruence.
-            ++ apply p_map_not_same_eq ; congruence.
+   *  subst. constructor 1;auto. apply untouched_var_same_eval_exp with v ; auto.
+        - easy.
+        - now rewrite gmp_exp_c_exp_same_exp_vars. 
+
+    * subst. pose proof (mpz_exp_is_var e). apply H6 in H3 as [var].  subst. simpl in *.
+    apply M_Mpz with l0; subst.
+    + now simpl.
+    + apply Decidable.not_or_iff in H0 as [Hdiff _].
+        destruct (eq_dec l l0).
+        ++ subst. destruct H with v var l0 l0 ; congruence.
+        ++ now simpl.
+    + apply Decidable.not_or_iff in H0 as [Hdiff _].
+        destruct (eq_dec l l0).
+        ++ subst. destruct H with v var l0 l0 ; congruence.
+        ++  simpl. apply p_map_not_same_eq;auto.
 Qed.
+
+
 
 Lemma semantics_of_the_mpz_assgn_macro :
     forall f e z (ev : Env) v (y:location),
@@ -893,16 +846,22 @@ Lemma semantics_of_the_mpz_assgn_macro :
     ev v = Some (Def (VMpz y)) ->
     gmp_stmt_sem f ev (mpz_ASSGN v e) (ev <| mstate ::= {{y\Defined z}} |>)
 .
+(* implies either set_i or set_z, everything else is not possible *)
 Proof.
     intros. 
-    unfold mpz_ASSGN. destruct (ty e) eqn:TY.
-    - inversion H ; constructor.
+    unfold mpz_ASSGN. destruct (ty e) eqn:TY.  
+    - inversion H ; constructor. 
         * now apply S_set_i.
-        * inversion H1. inversion H8. now subst. 
-    - unfold ty in TY. destruct e; try easy. inversion H ;inversion H1 ; now subst.
-    - destruct t ; destruct e ; try easy; destruct ty ; try easy ; destruct t ; try easy ;
-        inversion H ; inversion H1 ; try easy. inversion H8. subst. 
-        constructor.  now apply S_set_z with l.
+        * now rewrite H1 in TY. 
+    - inversion H.
+        * now rewrite H1 in TY.
+        * now rewrite H1 in TY. 
+    -  inversion H.
+        * now rewrite H1 in TY.
+        * rewrite TY in H1. subst. inversion H1. destruct e; simpl in TY ; subst; try discriminate.
+            + constructor.  apply S_set_z with l;auto. 
+            +  destruct (ty e1); try congruence. destruct (ty e2); congruence.
+            +  destruct (ty e1); try congruence. destruct (ty e2); congruence.
 Qed.
 
 Lemma semantics_of_the_int_assgn_macro :
@@ -912,16 +871,24 @@ Lemma semantics_of_the_int_assgn_macro :
     type_of_value (ev v) = Some C_Int ->
     gmp_stmt_sem f ev (int_ASSGN v e) (ev <| env ; vars ::= {{v\VInt (z ⁱⁿᵗ ir) : 𝕍}} |>)
 .
+(* implies either set_i or S_Assign, everything else is not possible *)
 Proof with eauto with rac_hint.
     intros f e z ir ev v Hnotcomp H H0. 
     unfold int_ASSGN.
     destruct (ty e)  eqn:EqTY.
-    - constructor... inversion H ; subst.
-        +  now rewrite (x_of_z_to_z_is_x x ir). 
-        + inversion H1. subst. now inversion t.
-    - inversion H ; inversion H1 ; subst ; try easy. inversion H8. now subst. 
-    - inversion H ; inversion H1 ; subst ; try easy. simpl in EqTY. subst.
-        destruct t ; try easy. constructor...
+    -  constructor... inversion H ; subst.
+        + apply ty_int_gmp_c_exp_equiv ;[assumption|]. now rewrite x_of_z_to_z_is_x.
+        +  now rewrite H1 in EqTY.
+    - inversion H.
+        * now rewrite H1 in EqTY.
+        * now rewrite H1 in EqTY. 
+    - inversion H. subst.
+        + now rewrite H1 in EqTY.
+        + subst. destruct t. 
+            * now rewrite EqTY in H1.
+            * destruct e; simpl in EqTY ;try discriminate.
+                2,3:  destruct (ty e1); try congruence; destruct (ty e2); congruence.
+                constructor. subst. simpl in H2. apply S_get_int with l; auto.
 Qed.
 
 Lemma semantics_of_the_Z_assgn_macro_tint :
@@ -993,51 +960,55 @@ Proof with try easy ; auto with rac_hint ; unshelve eauto using Z.ltb_irrefl,Z.g
         - apply semantics_of_the_mpz_assgn_macro...
         - eapply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |> <| mstate ::= {{l2\Defined z2}} |> ).
             + apply semantics_of_the_mpz_assgn_macro... inversion H1 ; subst. 
-                * constructor. eapply untouched_var_same_eval_exp_gmp...
-                * inversion H2. subst.   assert (Hdiffxv1: x <> v1). 
-                    { simpl in Hv1NotIne2. now apply Decidable.not_or_iff in Hv1NotIne2 as [Hv1NotIne2 _]. }
-                    econstructor. eapply untouched_var_same_eval_exp_gmp... 
-                    assert (Hdiffll1: l <> l1)... apply p_map_not_same_eq... 
+                * constructor... eapply untouched_var_same_eval_exp...
+                    now rewrite gmp_exp_c_exp_same_exp_vars.
+                *  econstructor... 
+                    assert (Hdiffll1: l <> l1) by admit. apply p_map_not_same_eq... 
 
             + constructor. replace 
                 (_ <| env; vars ::= _ |><| mstate := _ |>)
                 with (ev <| mstate := ev.(mstate) {l2 \Defined z2, l1 \Defined z1} |><| env; vars ::= {{c \Def a}} |> ) by reflexivity.
-                apply S_cmp with (vx:=l1) (vy:=l2) (lx:=z1) (ly:=z2) ; simpl...
-                * constructor... constructor 1 with z1...  apply p_map_not_same_eq...
-                * constructor... constructor 1 with z2...  apply p_map_same...
-                * apply p_map_not_same_eq...
+                apply S_cmp with (lx:=l1) (ly:=l2) (zx:=z1) (zy:=z2) ; simpl... apply p_map_not_same_eq...
     }
     unfold CMP. destruct (ty e1) eqn:T1, (ty e2) eqn:T2 ; try apply NotInt ; clear NotInt.
     
     (* both ty(e1) = int and ty(e2) = int *)
-    inversion H0 ; inversion H1 ; try 
-    match goal with 
-    | Contra :  (_ |= _ => Def (VMpz _))%gmpesem |- _ => 
-        inversion Contra ; match goal with 
-        | Contra : _gmp_exp_sem _ _ _ |- _ => inversion Contra ; now subst
-        end
-    end.
+    inversion H0 ; inversion H1 ; idtac; try  match goal with 
+        | mpz : ty ?e = (gmp_t_ext Mpz), int : ty ?e = C_Int  |- _ => now rewrite mpz in int end.
+
 
     exists ev.(mstate). intros Hvdiff. clear Hvdiff (* not needed *). destruct (Z.lt_trichotomy z1 z2) as [inf' | [ eq' | sup']].
         
     (* z1 < z2 *)
-    * assert (cmp := inf'). apply <- inf in inf'. clear eq inf sup. subst.
-        destruct x,x0. subst. apply S_IfTrue with (VInt one).
-        + split... apply C_E_BinOpTrue with x x0 i i0... apply Z.ltb_lt. apply cmp.
+    * assert (cmp := inf'). apply <- inf in inf'. clear eq inf sup. subst. 
+        destruct x,x0. simpl in *.  apply S_IfTrue with (VInt one).
+        + split ; [| easy]. apply C_E_BinOpTrue with x x0 i i0. 
+            ++ now apply ty_int_gmp_c_exp_equiv.
+            ++ now apply ty_int_gmp_c_exp_equiv.
+            ++ apply Z.ltb_lt. apply cmp.
         + inversion inf'. constructor...  apply (C_E_BinOpInt ev 0 1 0 1) with zeroinRange oneinRange...
 
     (* z1 = z2 *)
     * assert (cmp := eq'). rewrite <- eq in eq'. clear eq inf sup. subst.
-        destruct x,x0. apply Int.mi_eq in cmp. injection cmp as cmp. inversion eq'. subst. repeat constructor... 
+        destruct x,x0. apply Int.mi_eq in cmp. injection cmp as cmp. inversion eq'. subst. simpl in *. constructor.
+        + econstructor... apply ty_int_gmp_c_exp_equiv... apply ty_int_gmp_c_exp_equiv...
+        + constructor. econstructor...  apply ty_int_gmp_c_exp_equiv... apply ty_int_gmp_c_exp_equiv... constructor...
+
 
     (* z1 > z2 *)
     * assert (cmp := sup').  apply Z.lt_gt in sup'. apply <- sup in sup'.  clear inf eq sup. subst.
         destruct x, x0. subst. constructor ; simpl in *.
-        + eapply C_E_BinOpFalse... apply Z.ltb_ge. unfold Z.le. now rewrite cmp.  
+        + apply C_E_BinOpFalse with x x0 i i0.
+            ++ apply ty_int_gmp_c_exp_equiv...
+            ++ apply ty_int_gmp_c_exp_equiv...
+            ++ apply Z.ltb_ge. auto with zarith. 
         + inversion sup'. subst. apply S_IfTrue with (VInt one).
-            ++  subst. split... apply C_E_BinOpTrue with x x0 i i0... now apply Z.gtb_lt.
+            ++  subst. split; [|easy]. apply C_E_BinOpTrue with x x0 i i0.
+                +++ apply ty_int_gmp_c_exp_equiv...
+                +++ apply ty_int_gmp_c_exp_equiv...
+                +++ now apply Z.gtb_lt.
             ++  constructor...
-Qed.
+Admitted.
 
 
 
@@ -1083,34 +1054,25 @@ Proof with eauto with rac_hint.
     - apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |> <| mstate ::= {{l2\Defined z2}} |> ). 
         + apply semantics_of_the_mpz_assgn_macro... apply same_eval_macro with v1...
         + apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |> <| mstate ::= {{l2\Defined z2}}  |> <| mstate ::= {{lr\Defined zr}} |>).
-            * constructor. apply S_op with l1 l2...
-                ** constructor... easy. apply GMP_E_Var with z1... destruct (eq_dec l1 l2).
-                    *** subst. edestruct Hnoalias...
-                    *** apply p_map_not_same_eq... autounfold with rac_hint. simpl...
-                ** destruct (eq_dec l1 l2).
-                    *** subst. edestruct Hnoalias...
-                    *** apply p_map_not_same_eq...  autounfold with rac_hint. simpl...
-                ** constructor... easy. constructor 1 with z2. simpl... autounfold with rac_hint. simpl...
-                ** simpl...
+            * constructor. apply S_op with l1 l2...  
+                ** simpl.  apply p_map_not_same_eq...
+                ** simpl. apply p_map_same. 
             * replace (ev <| env; vars ::= _ |> <| mstate :=  _ |>)
             with (ev <| mstate := ev.(mstate) {lr \Defined zr, l2 \Defined z2, l1 \ Defined z1} |> 
                     <| env; vars ::= {{c \Def (VInt ((zr ⁱⁿᵗ) ir))}} |>
             ) by reflexivity.
             apply semantics_of_the_int_assgn_macro...  apply M_Mpz with lr ; simpl...
-                constructor... easy. constructor 1 with zr ; simpl...
     }
     
     unfold binop_ASSGN. destruct (ty e1) eqn:T1, (ty e2) eqn:T2 ; try apply NotInt. clear NotInt.
-    exists ev.(mstate). intros. inversion H0 ; inversion H1; try 
-    match goal with 
-    | Contra :  ( _ |= _ => Def (VMpz _))%gmpesem |- _ => 
-        inversion Contra ; match goal with 
-        | Contra : _gmp_exp_sem _ _ _ |- _ => inversion Contra ; now subst
-        end
-    end.
-    - subst. constructor... destruct x,x0. econstructor...
+    exists ev.(mstate). intros. inversion H0 ; inversion H1;  inversion H0 ; inversion H1 ; 
+    try  match goal with 
+    | mpz : ty ?e = (gmp_t_ext Mpz), int : ty ?e = C_Int  |- _ => now rewrite mpz in int end.
+    (* both ty(e1) = int and ty(e2) = int *)
+   subst. constructor... destruct x,x0. econstructor... simpl in *.
+        + eapply ty_int_gmp_c_exp_equiv in H5...
+        + eapply ty_int_gmp_c_exp_equiv in H8...
 Qed.
-
 
 
 Lemma semantics_of_the_binop_macro_mpz :
@@ -1141,10 +1103,7 @@ Proof with eauto using p_map_same with rac_hint.
                     <| mstate ::= {{l2 \Defined z2}} |>
                     <| mstate ::= {{y \Defined zr}} |> 
             ) by reflexivity.
-        apply S_op with l1 l2 ; simpl...
-            + constructor... easy. apply GMP_E_Var with z1... simpl. apply p_map_not_same_eq...
-            + simpl. apply p_map_not_same_eq...
-            + constructor... easy. constructor 1 with z2... simpl...
+        apply S_op with l1 l2 ; simpl...  apply p_map_not_same_eq...
 Qed.
 
 (* Preservation of the semantics *)

@@ -144,11 +144,15 @@ Definition comp_var x : id  := (compiler_prefix ++ x)%string.
 Definition is_comp_var := String.prefix compiler_prefix.
 Definition res_f : id := comp_var "res".
 
+Definition c_exp := @_c_exp Empty_set.
+
+
+(* a gmp expression is a regular c_expression where a variable can additionally be of type String or Mpz *)
 Definition gmp_exp := @_c_exp _gmp_t.
 
 Inductive _gmp_statement := 
     | Init (name:id) (* mpz allocation *)
-    | Set_i (name:id) (i: gmp_exp) (* assignment from an int *)
+    | Set_i (name:id) (i: c_exp) (* assignment from an int *)
     | Set_s (name:id) (l:string) (* assignment from a string literal *)
     | Set_z (name z:id)(* assignment from a mpz *)
     | Clear (name:id) (* mpz de-allocation *)
@@ -174,8 +178,6 @@ Definition op (x:fsl_binop_int) : id -> id -> id -> _gmp_statement := match x wi
 | FSL_Div => GMP_Div
 end.
 
-Definition c_exp := @_c_exp Empty_set.
-
 
 Definition c_statement := @_c_statement Empty_set Empty_set.
 Definition fsl_statement := @_c_statement _fsl_statement Empty_set.
@@ -193,13 +195,95 @@ Definition rac_pgrm := @_c_program Empty_set _gmp_statement _gmp_t.
 
 
 
-(* ty the function that gives the type of an expression *)
-Definition ty {T : Set } (e: @_c_exp T) : @_c_type T := match e with 
+(* 
+    ty the function that gives the type of an expression :
+    - it must recursively evaluate to the same type for binary operators 
+    - if this is not the case, void type is used to notify of an error
+*)
+
+Fact eq_dec_ty {T: Set} (t1 t2 : @_c_type T) {H : EqDec T} : {t1 = t2} + {t1 <> t2}.
+Proof. inversion H. decide equality. Qed.
+
+Fact eq_dec__gmp_t (x y : _gmp_t) : {x = y} + {x <> y}. decide equality.  Qed.
+
+Fact eq_dec_gmp_t (x y : gmp_t) : {x = y} + {x <> y}. decide equality. apply eq_dec__gmp_t. Qed.
+
+#[global] Instance eqdec_gmp_t: EqDec gmp_t := {eq_dec := eq_dec_gmp_t}.
+
+Fixpoint ty {T : Set} `{EqDec (@_c_type T)} (e: @_c_exp T) : @_c_type T := 
+    match e with 
     | Zm _  => C_Int
-    | C_Id _ ty => ty
-    | BinOpInt _ _ _  => C_Int
-    | BinOpBool _ _ _ => C_Int
+    | C_Id _ t => t
+    | BinOpInt l _ r  | BinOpBool l _ r => 
+        match (ty l, ty r) with
+        | (C_Int,C_Int) => C_Int
+        | _ => Void
+        end
+    end
+.
+
+Fact mpz_exp_is_var : forall (e:_c_exp), ty e = T_Ext Mpz ->  exists x, (e = C_Id x (T_Ext Mpz))%type.
+Proof. 
+    intros. destruct e eqn:E.
+    3,4: simpl in H ; destruct (ty _c1); try congruence; destruct (ty _c2); congruence.  
+    - now exists "". 
+    - exists var. unfold ty in H. now rewrite H. 
+Qed.
+
+
+(* returns empty string if not an mpz var *)
+Definition gmp_ty_mpz_to_var (e: gmp_exp) : id := match e with
+    | C_Id var t =>  match t with T_Ext Mpz => var | _ => "" end
+    | _ => ""
 end.
+
+Fixpoint c_exp_to_gmp_int_exp (e: c_exp) : gmp_exp := match e with
+| Zm z => Zm z
+| C_Id v t => match t with 
+    | Void => C_Id v Void 
+    | C_Int => C_Id v C_Int
+    | T_Ext False => C_Id v Void 
+    end
+| BinOpInt l op r => let (l',r') := (c_exp_to_gmp_int_exp l,c_exp_to_gmp_int_exp r) in BinOpInt l' op r'
+| BinOpBool l op r => let (l',r') := (c_exp_to_gmp_int_exp l,c_exp_to_gmp_int_exp r) in BinOpBool l' op r'
+end.
+
+
+Definition c_t_to_gmp_t (t:@_c_type Empty_set) : gmp_t := match t with
+    | C_Int => C_Int
+    | Void => Void
+    | T_Ext False => Void (* not possible *)
+    end
+.
+
+(* returns C_id void if not convertible *)
+Fixpoint gmp_exp_to_c_exp  (e:gmp_exp) : c_exp := match e with
+    | Zm z => Zm z
+    | C_Id var t =>  match t with C_Int => C_Id var C_Int | _ => C_Id var Void end
+    | BinOpInt le op re => 
+    let (le,re) := (gmp_exp_to_c_exp le,gmp_exp_to_c_exp re) in
+    BinOpInt le op re
+    | BinOpBool le op re => 
+    let (le,re) := (gmp_exp_to_c_exp le,gmp_exp_to_c_exp re) in
+    BinOpBool le op re
+end.
+
+
+Definition c_decl_to_gmp_decl (d:@_c_decl Empty_set) : gmp_decl := 
+    let '(C_Decl t id) := d in C_Decl (c_t_to_gmp_t t) id
+.
+
+Fixpoint c_exp_to_gmp_exp (e:c_exp) : gmp_exp := match e with
+    | Zm z => Zm z
+    | C_Id var t => C_Id var (c_t_to_gmp_t t) 
+    | BinOpInt le op re => 
+        let (le,re) := (c_exp_to_gmp_exp le,c_exp_to_gmp_exp re) in
+        BinOpInt le op re
+    | BinOpBool le op re => 
+        let (le,re) := (c_exp_to_gmp_exp le,c_exp_to_gmp_exp re) in
+        BinOpBool le op re
+    end
+.
 
 Declare Scope mini_c_scope.
 Delimit Scope mini_c_scope with c.
@@ -390,6 +474,16 @@ Fixpoint stmt_vars {T S:Set} (stmt : @_c_statement T S) : list id := match stmt 
 | Return e  => exp_vars e 
 | S_Ext s => nil
 end.
+
+
+Fact gmp_exp_c_exp_same_exp_vars e : exp_vars (gmp_exp_to_c_exp e) = exp_vars  e.
+Proof. 
+    induction e.
+    - reflexivity.
+    - destruct ty0 ;  reflexivity.
+    - simpl. rewrite IHe1,IHe2. reflexivity.
+    - simpl. rewrite IHe1,IHe2. reflexivity.
+Qed.
 
 
 Definition 𝓜 := location ⇀ mpz_val. 
