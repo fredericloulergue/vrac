@@ -1,15 +1,11 @@
-Require Import RAC.Definitions.
-Require Import RAC.Notations.
-Require Import RAC.Utils.
-Require Import RAC.Semantics.
-Require Import RAC.Translation.
-Require Import ZArith.ZArith.
-Require Import String.
-From Coq Require Import Lists.List.
+From RAC Require Import Utils Environnement Translation.
+From RAC.Languages Require Import Syntax.
+From Coq Require Import ZArith.ZArith Lists.List String.
 Import ListNotations.
 Open Scope string_scope.
 Open Scope list_scope.
 Open Scope Z_scope.
+Open Scope utils_scope.
 
 
 Definition two := VInt (2 ⁱⁿᵗ eq_refl).

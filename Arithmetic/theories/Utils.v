@@ -1,9 +1,6 @@
-From RAC Require Import Notations.
-From Coq Require Import ZArith.ZArith.
-From Coq Require Import Setoids.Setoid.
-From Coq Require Import Eqdep_dec. 
-From Coq Require Import Logic.FinFun.
-From Coq Require Import Strings.String.
+From RAC Require Export Notations.
+From Coq Require Import Strings.String ZArith.ZArith Setoids.Setoid Eqdep_dec Logic.FinFun.
+
 Open Scope string_scope.
 Open Scope Z_scope.
 Open Scope utils_scope.
@@ -21,6 +18,8 @@ Notation "'ℤ'" := Z (at level 99) : type_scope.
 
 Class EqDec X := {eq_dec : forall (x y : X), {x = y} + {x <> y} }.
 
+
+
 Fact dec_neq_out_neq_in {X T : Type } `{EqDec X}: forall (f : X -> T) (x x' : X)  , f x <> f x' -> x <> x'.
 Proof.
     intros. destruct H as [eq_dec]; destruct (eq_dec x x') ; subst ; easy.
@@ -28,7 +27,8 @@ Qed.
 
 
 #[global] Instance z_eq_dec : EqDec Z := {eq_dec := Z.eq_dec}.
-
+#[global] Instance eqdec_v : EqDec 𝓥 := {eq_dec := string_dec}.
+#[global] Instance eqdec_l : EqDec 𝔏 := {eq_dec := string_dec}.
 
 Definition p_map_front {X Y : Type} `{EqDec X}  (f: X -> option Y) (xy:X * Y)   : X -> option Y :=
     fun i => if eq_dec (fst xy) i then Some (snd xy) else f i.
@@ -176,6 +176,16 @@ Module MachineInteger(B:Bounds).
         - destruct x,y. simpl in EQ. subst. f_equal. unfold inRange in *. now pose proof (Eqdep_dec.UIP_dec Bool.bool_dec).
     Qed.
 
+    Definition to_mi x (H: inRange x) : MI := exist inRange x H.
+
+    Definition of_mi (mi: MI) : Z := proj1_sig mi.
+
+
+    Fact x_of_mi_to_mi_x : forall x irx, (to_mi (of_mi x) irx) = x.
+    Proof.
+        intros. unfold to_mi, of_mi. destruct x. simpl. f_equal. unfold inRange in *. 
+        simpl in *.  apply (Eqdep_dec.UIP_dec Bool.bool_dec).
+    Qed.
 End MachineInteger.
 
 
@@ -223,3 +233,5 @@ Definition string_of_nat (n : nat) : string :=
     Definition exec {A:Type} (m: state (T:=A)) := fst (m 0).
 
   End CounterMonad.
+
+Close Scope utils_scope.

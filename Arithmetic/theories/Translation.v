@@ -1,8 +1,6 @@
-Require Import RAC.Definitions.
-Require Import RAC.Notations.
-Require Import RAC.Utils.
-Require Import String.
-Require Import BinaryString.
+From RAC Require Import Utils Environnement Macros.
+From RAC.Languages Require Import Syntax Semantics.
+From Coq Require Import String BinaryString.
 Open Scope string_scope.
 Open Scope mini_c_scope.
 Require Import List.
@@ -16,80 +14,6 @@ From RecordUpdate Require Import RecordUpdate.
 Import RecordSetNotations.
 
 Open Scope mini_gmp_scope.
-
-
-(* macro definitions *)
-
-
-Definition mpz_ASSGN v (e: gmp_exp ) : gmp_statement := match ty e with
-    | T_Ext Mpz => match e with
-                    | C_Id x _ => <( set_z(v,x) )>
-                    | _ => Skip (* cannot happen *)
-                    end
-    | C_Int => <( set_i(v,(gmp_exp_to_c_exp e)) )> : gmp_statement
-    | _ => Skip (* cannot happen  *)
-end.
-
-Definition int_ASSGN v (e: gmp_exp) : gmp_statement := match ty e with
-    | T_Ext Mpz => match e with
-                    | C_Id x _ => <( v = get_int(x) )>
-                    | _ => Skip (* cannot happen *)
-                    end
-    
-    | C_Int =>  <{ v = e }>
-    | _ => Skip
-end.
-
-Definition τ_ASSGN (t:gmp_t) := match t with
-    | T_Ext Mpz => mpz_ASSGN
-    | C_Int => int_ASSGN
-    | _ => int_ASSGN (* cannot happen  *)
-    end.
-
-Definition Z_ASSGN (τz:gmp_t) v (z:Z) : gmp_statement := match τz with
-    | C_Int => <{ v = z }>
-    | T_Ext Mpz => <( set_s(v, (BinaryString.of_Z z) ) )>
-    | _ => Skip (* cannot happen  *)
-end.
-
-
-
-
-Definition CMP c (e₁ e₂ : gmp_exp) v₁ v₂ : gmp_statement := match ty e₁, ty e₂ with
-    |  C_Int,C_Int => 
-        <{ 
-            if (e₁ < e₂) c = 0-1
-            else if (e₁ > e₂) c = 1
-            else c = 0
-        }>
-    | _,_ => 
-        let a1 := mpz_ASSGN v₁ e₁ in 
-        let a2 := mpz_ASSGN v₂ e₂ in
-        let cmp : gmp_statement := <( c = cmp(v₁,v₂) )> in
-        <{ a1 ; a2 ; cmp }>
-end
-.
-
-
-Definition binop_ASSGN (fsl_op:fsl_binop_int) (v:𝓥 ⨉ gmp_t) e₁ e₂ (r:id) v₁ v₂ : gmp_statement := 
-    let (c,τ) := v in
-    match τ,(ty e₁),(ty e₂) with
-    | C_Int,C_Int,C_Int =>  let res := BinOpInt e₁ (□ fsl_op) e₂ in <{ c = res }>
-    | _,_,_ => 
-        let s1 :=  mpz_ASSGN v₁ e₁ in
-        let s2 :=  mpz_ASSGN v₂ e₂ in
-        let s3 : gmp_statement := match τ with
-            | C_Int => 
-                let op : gmp_statement  := <( (op fsl_op r v₁ v₂) )> in
-                let r : gmp_exp := (C_Id r (T_Ext Mpz)) in 
-                <{op  ; <( (int_ASSGN c r) )> }>                    
-            | T_Ext Mpz => op fsl_op c v₁ v₂
-            | _ => Skip
-            end
-        in <{s1;s2;s3}>
-
-    end
-    .
 
 
 Definition var_list := (𝓥 ⨉ gmp_t) ⃰.
