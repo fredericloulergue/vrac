@@ -25,4 +25,3 @@ Reserved Notation "env '|=' e ⇝ z" (at level 70).
 Reserved Notation "e ⊑ e'" ( e  constr, e'  constr, at level 99).
 Reserved Notation "( e , m ) ⊑ ( e' , m' )".
 Reserved Notation "e ⊑ e'" (at level 99).
-

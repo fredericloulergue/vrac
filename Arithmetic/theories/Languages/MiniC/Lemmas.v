@@ -1,7 +1,7 @@
 From RAC Require Import Utils Environnement.
 From RAC.Languages Require Import Syntax MiniC.Semantics.
 From RecordUpdate Require Import RecordUpdate.
-From Coq Require Import Strings.String.
+From Coq Require Import Strings.String Logic.FinFun. 
 
 Fact untouched_var_same_eval_exp {T : Set} : forall exp_sem, 
     _untouched_var_same_eval_exp exp_sem ->
@@ -98,19 +98,26 @@ Fact determinist_stmt_eval {S T : Set}:
 Proof with auto. 
     intros ext_exp_sem ext_stmt_sem Hds Hde f s ev ev' Hderiv. induction Hderiv ; intros.
     - inversion H... 
-    - inversion H3 ; subst... repeat f_equal.  apply determinist_exp_eval in H2... apply H2 in H10. now subst.
-    - inversion H1 ; subst...  apply determinist_exp_eval in H6... destruct H. apply H6 in H. now symmetry in H.
-    - inversion H1 ; subst... apply determinist_exp_eval in H... destruct H6. apply H in H2. now symmetry in H2. 
+    - inversion H2 ; subst... repeat f_equal.  apply determinist_exp_eval in H8... specialize (H8 z). apply H8 in H1. now inversion H1.
+    - inversion H1 ; subst...  apply determinist_exp_eval in H6... destruct H as [H []]. apply H6 in H. now inversion H.
+    - inversion H1 ; subst... apply determinist_exp_eval in H... destruct H6 as [H2 []]. apply H in H2. now inversion H2.
     - inversion H0... 
     - inversion H1 ; subst... apply IHHderiv in H4. subst. apply IHHderiv0 in H6. now subst. 
     - inversion H5 ; subst. 
        (* same args, same body *) 
             rewrite H10 in H0. injection H0 as H0. subst.
             (* same args eval *) 
-            assert (zargs = zargs0) by auto using (@Forall2_same_zargs T ev eargs zargs zargs0 ext_exp_sem). 
+            assert (zargs = zargs0). {
+                pose proof (@Forall2_same_zargs T ev eargs vargs vargs0 ext_exp_sem Hde H1 H11) as H0. unfold vargs,vargs0 in H0.
+                apply list_map_id_eq in H0. assumption. unfold Injective. intros x y H7. now inversion H7. 
+            }
             subst. apply IHHderiv in H12. subst. rewrite H4 in H15. injection H15 as H15. now subst.
     - inversion H3.  subst.  rewrite H7 in H0. injection H0 as Eq1. subst. 
-            assert (zargs = zargs0) by eauto using (@Forall2_same_zargs T _ eargs zargs zargs0 ext_exp_sem). subst. 
+             assert (zargs = zargs0). {
+                pose proof (@Forall2_same_zargs T ev eargs vargs vargs0 ext_exp_sem Hde H1 H8) as H0. unfold vargs,vargs0 in H0.
+                apply list_map_id_eq in H0. assumption. unfold Injective. intros x y Heq. now inversion Heq. 
+             }
+             subst.
             apply IHHderiv in H10. now subst.
     - inversion H0 ; subst... apply determinist_exp_eval in H... apply H in H2. injection H2 as H2. now subst.
     - inversion H1...
@@ -128,7 +135,7 @@ Lemma weakening_of_expression_semantics {T} :
 .
 Proof with (eauto using refl_env_mem_partial_order with rac_hint).
     split...  intro Hderiv. induction Hderiv; intros...
-        constructor. eapply eq_env_partial_order... easy.
+        constructor. eapply eq_int_env_mem_partial_order...
 Qed.
 
 Fact _weakening_of_c_expression_semantics {T} : _weakening_of_expression_semantics (@Empty_exp_sem T). 
@@ -146,69 +153,79 @@ Lemma weakening_of_statement_semantics_1 {S T : Set} :
     _weakening_of_statement_semantics_1 exp_sem stmt_sem 
     -> _weakening_of_statement_semantics_1 exp_sem (@generic_stmt_sem S T exp_sem stmt_sem)
 .
-Proof with eauto using refl_env_mem_partial_order,env_partial_order_add with rac_hint.
+Proof with eauto using refl_env_mem_partial_order, env_partial_order_add with rac_hint.
     intros exp_sem stmt_sem Hext_stmt Hext_exp f ev₀ s ev₁. 
     pose proof (weakening_of_expression_semantics exp_sem Hext_exp) as exp_weak.
-    intro Hderiv. induction Hderiv ; intros ev₀' [Henv Hmem].
+    intro Hderiv. induction Hderiv ; intros ev₀' sub Henvmem.
         (* skip *)
-        * exists ev₀'... 
+        * exists ev₀'. split...
         
         (* assign *) 
-        * exists (ev₀' <| env ; vars ::= {{x \ z}} |>). split. 
-            + split... simpl. apply env_partial_order_add... 
+        * exists (ev₀' <| env ; vars ::= {{x \induced sub z}} |>). split. 
+            + simpl. pose proof (env_partial_order_add ev ev₀' sub) as H3. simpl in *. now  destruct H3 with x z.
             + apply S_Assign...
-                *** now apply env_same_ty with ev. 
-                *** rewrite (exp_weak e) in H2. specialize (H2 ev₀'). apply H2...
-
+                ** apply env_same_ty with ev...
+                     *** now exists sub.
+                     *** congruence.
+                ** rewrite (exp_weak e) in H1. specialize (H1 ev₀'). destruct H1... now exists sub.
 
         (* if true *)
-        * destruct H. destruct (IHHderiv ev₀') as [ev_s [[Henv2 Hmem2] Hderiv2]]... exists ev_s. intros . split...
-            apply S_IfTrue with z. split...
-            rewrite  (exp_weak e) in H... apply Hderiv2...
+        * destruct H. destruct (IHHderiv ev₀' sub) as [ev_s [Henvmem2 Hderiv2]]...
+            exists ev_s. split...
+            apply S_IfTrue with z... split... 
+            rewrite  (exp_weak e) in H. apply H. now exists sub.
+
         (* if false *)
-        * destruct (IHHderiv ev₀') as [ev_s [[Henv2 Hmem2] Hderiv2]]... exists ev_s. split...
+        * destruct (IHHderiv ev₀' sub) as [ev_s [Henvmem2 Hderiv2]]... exists ev_s. split...
             apply S_IfFalse...
-            rewrite  (exp_weak e) in H... 
+            rewrite  (exp_weak e) in H. apply H. now exists sub. 
 
 
          (* while *)
-        * destruct (IHHderiv ev₀') as [ev_s [[Henv2 Hmem2] Hderiv2]]... 
+        * destruct (IHHderiv ev₀' sub) as [ev_s [Henvmem2 Hderiv2]]...
 
 
         (* c seq *)
-        * destruct IHHderiv with ev₀' as [I1ev [I1Hrel I1Hderiv]]...
-            destruct IHHderiv0 with I1ev as [I2ev [I2Hrel I2Hderiv]]... 
+        * destruct (IHHderiv ev₀' sub) as [I1ev [I1Hrel I1Hderiv]]... 
+            destruct (IHHderiv0 I1ev sub) as [I2ev [I2Hrel I2Hderiv]]... 
 
         (* f call *)
-         * edestruct IHHderiv as [e_s [Hrel Hderiv2]].
-            + now split.
-            + eexists (ev₀' <| env; vars ::= {{c \Def z}} |> <| mstate := ev' |>). split.
-                ++ split... apply env_partial_order_add... easy. 
-                ++ eapply S_FCall... 
-                    +++ epose proof (List.Forall2_impl (R1:=generic_exp_sem ev) (generic_exp_sem ev₀')) as Hforall. destruct Hforall with eargs zargs...
-                        intros...
-                    apply exp_weak with ev...
+         * destruct (IHHderiv (empty_env <| env; vars ::= p_map_addall_back xargs vargs |>) sub) as [b_ev' [H5 Hsem]]; subst vargs.
+            +  apply same_int_any_sub. 
+                ++ apply List.Forall2_length in H1. pose proof (List.map_length  (fun x : Int.MI => Def (VInt x)) zargs) as H5.
+                    rewrite H5 in H1. congruence. 
+                ++ apply empty_env_mem_refl_any_sub. 
+            + eexists (ev₀' <| env; vars ::= {{c \Def z}} |> <| mstate := b_ev' |>). split.
+                ++ apply env_mem_partial_order_add_mem... now pose proof (env_partial_order_add ev ev₀' _ Henvmem c z).
+                ++  apply S_FCall with b xargs zargs...
+                    +++ epose proof (List.Forall2_impl (R1:=generic_exp_sem ev) (generic_exp_sem ev₀')) as Hforall.
+                            apply Hforall... intros. apply exp_weak with ev... now exists sub.
+                    +++ apply eq_int_env_mem_partial_order with b_ev... now exists sub. 
+   
         (* p call *)
-        *  edestruct IHHderiv as [ev_s [Hrel Hderiv2]].
-            + now split... 
-            + eexists (_ <| mstate := _ |>)... simpl. split.
-                ++ destruct Hrel. split...
-                ++ eapply S_PCall ...
-                    +++ epose proof (List.Forall2_impl (R1:=generic_exp_sem ev) (generic_exp_sem ev₀')) as Hforall. destruct Hforall with eargs zargs...
-                        intros. apply exp_weak with ev...
+         * destruct (IHHderiv (empty_env <| env; vars ::= p_map_addall_back xargs vargs |>) sub) as [b_ev' [H5 Hsem]]; subst vargs.
+            +  apply same_int_any_sub. 
+                ++ apply List.Forall2_length in H1. pose proof (List.map_length  (fun x : Int.MI => Def (VInt x)) zargs) as H5.
+                    rewrite H5 in H1. congruence. 
+                ++ apply empty_env_mem_refl_any_sub. 
+            + exists (ev₀' <| mstate := b_ev' |>). split.
+                ++ apply env_mem_partial_order_add_mem...
+                ++  apply S_PCall with b xargs zargs...
+                    +++ epose proof (List.Forall2_impl (R1:=generic_exp_sem ev) (generic_exp_sem ev₀')) as Hforall.
+                            apply Hforall... intros. apply exp_weak with ev... now exists sub.
 
         (* return *)
         * exists (ev₀' <| env ; vars ::= {{res_f \Def z}} |>). split.
-            + split... apply env_partial_order_add...
-            + apply S_Return... apply (exp_weak e ev z)...
+            + now pose proof (env_partial_order_add ev ev₀' sub Henvmem).
+            + apply S_Return... apply (exp_weak e ev z)... now exists sub.
 
         (* assert *)
         * exists ev₀'. split... apply S_PAssert with z...
-            apply (exp_weak e ev z)...
+            apply (exp_weak e ev z)... now exists sub.
 
         (* other cases *)
         * specialize (Hext_stmt Hext_exp f ev (S_Ext s) ev').
-            apply Hext_stmt with ev₀' in H. destruct H as [ev'' [Hrel2 Hderiv]]... easy.                 
+            eapply Hext_stmt in H... destruct H as [ev'' [Hrel2 Hderiv]]...                  
 Qed.
 
 Fact _weakening_of_c_statements_semantics_1 {S T} : _weakening_of_statement_semantics_1 (@Empty_exp_sem T) (@Empty_stmt_sem S T). 
@@ -222,10 +239,11 @@ Lemma weakening_of_statement_semantics_2 {S T : Set} :
 Proof with auto with rac_hint.
     intros exp_sem stmt_sem ext_stmt_weak f ev₀ ev₀' s ev₁ ext_exp_deter ext_exp_weak  [Hderiv1 Hrel].
     pose proof (weakening_of_expression_semantics exp_sem ext_exp_weak) as exp_weak.
+    unfold _weakening_of_statement_semantics_2 in ext_stmt_weak. generalize dependent ev₀'.
     unfold _weakening_of_expression_semantics in exp_weak.
     unfold _weakening_of_statement_semantics_2 in ext_stmt_weak.
     
-    induction Hderiv1 ; intros ev₁' Hderiv2 ; inversion Hderiv2 ; subst ; try easy...
+    induction Hderiv1 ; intros ev₀' Hrel ev₁' Hderiv2 ; inversion Hderiv2 ; subst ; try easy...
     
     (* assign *)
     - split... simpl. intros v [Hnotin Hnotcompvar].  assert (HH: type_of_value (ev x) <> None) by congruence. apply type_of_value_env in HH.
@@ -233,11 +251,11 @@ Proof with auto with rac_hint.
 
     (* if false *)
     - apply IHHderiv1... destruct H. specialize (exp_weak e ev z). rewrite exp_weak in H. specialize (H ev₀' Hrel). 
-            apply determinist_exp_eval in H. apply H in H5. now subst. assumption.
+            apply determinist_exp_eval in H. apply H in H5. inversion H5. now subst. assumption.
 
     (* if true *)
     -  destruct H5. specialize (exp_weak e ev (VInt zero)). rewrite exp_weak in H. specialize (H ev₀' Hrel).
-            apply determinist_exp_eval in H. apply H in H1. now subst. assumption.
+            apply determinist_exp_eval in H. apply H in H1. inversion H1. now subst. assumption.
 
     (* seq *)
     - admit.
@@ -316,7 +334,7 @@ Proof with auto with rac_hint.
     (* skip *)
     - exists ev₀'. constructor.
     (* assign *)
-    - destruct Henv with x. simpl in H4. destruct H4...  
+    - destruct Henv with x. simpl in H3. destruct H3...  
     (* if true *)
     - destruct IHHderiv as [ev'' Hx]...
         + intro v. destruct Henv with v. split... intros Hin. apply H2.

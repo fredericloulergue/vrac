@@ -12,12 +12,10 @@ Declare Scope gmp_stmt_sem_scope.
 Delimit Scope gmp_stmt_sem_scope with gmpssem.
 
 
-(* Definition undef_type (u:undef) := match u with UMpz _ => Mpz | UInt _ => C_Int end. *)
-
 Inductive _gmp_stmt_sem { S T : Set } (f : @fenv S T) (ev:Env) : gmp_statement -> Env -> Prop := 
-    | S_init x (l:location):
+    | S_init x (l:location) u:
         (forall v, ev v <> Some (Def (VMpz (Some l)))) ->
-        (exists n, ev x = Some (Undef (UMpz n)))%type ->
+        ev x = Some (Undef (UMpz u)) ->
         (ev |= <(init(x))> => ev <| env ; vars ::= {{x\Def (VMpz (Some l))}} |> <| mstate ::= {{l\Defined 0}} |>) f
     
     | S_clear x a u:   
@@ -32,8 +30,8 @@ Inductive _gmp_stmt_sem { S T : Set } (f : @fenv S T) (ev:Env) : gmp_statement -
     | S_set_z x y z (a n : location) :  
         ev x = Some (Def (VMpz a)) ->
         ev y = Some (Def (VMpz n)) ->
-        ev.(mstate) n = Some z ->
-        (ev |= <(set_z(x,y))> => ev <| mstate ::= {{a\z}} |>) f 
+        ev.(mstate) n = Some (Defined z) ->
+        (ev |= <(set_z(x,y))> => ev <| mstate ::= {{a\Defined z}} |>) f 
 
     | S_get_int x y ly zy (ir:Int.inRange zy) :
         ev y = Some (Def (VMpz (Some ly))) ->
@@ -68,8 +66,6 @@ Inductive _gmp_stmt_sem { S T : Set } (f : @fenv S T) (ev:Env) : gmp_statement -
 where "ev |= s => ev'" := (fun f => _gmp_stmt_sem f ev s ev') : gmp_stmt_sem_scope.
 
 #[global] Hint Constructors _gmp_stmt_sem  : rac_hint.
-
-
 
 
 Definition gmp_stmt_sem := @generic_stmt_sem _gmp_statement _gmp_t Empty_exp_sem _gmp_stmt_sem.

@@ -266,7 +266,7 @@ Proof with try easy ; auto with rac_hint ; unshelve eauto using Z.ltb_irrefl,Z.g
         
     (* z1 < z2 *)
     * assert (cmp := inf'). apply <- inf in inf'. clear eq inf sup. subst. 
-        destruct x,x0. simpl in *.  apply S_IfTrue with (VInt one).
+        destruct x,x0. simpl in *.  apply S_IfTrue with one.
         + split ; [| easy]. apply C_E_BinOpTrue with x x0 i i0. 
             ++ now apply ty_int_gmp_c_exp_equiv.
             ++ now apply ty_int_gmp_c_exp_equiv.
@@ -287,7 +287,7 @@ Proof with try easy ; auto with rac_hint ; unshelve eauto using Z.ltb_irrefl,Z.g
             ++ apply ty_int_gmp_c_exp_equiv...
             ++ apply ty_int_gmp_c_exp_equiv...
             ++ apply Z.ltb_ge. auto with zarith. 
-        + inversion sup'. subst. apply S_IfTrue with (VInt one).
+        + inversion sup'. subst. apply S_IfTrue with one.
             ++  subst. split; [|easy]. apply C_E_BinOpTrue with x x0 i i0.
                 +++ apply ty_int_gmp_c_exp_equiv...
                 +++ apply ty_int_gmp_c_exp_equiv...

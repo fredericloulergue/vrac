@@ -87,6 +87,8 @@ Delimit Scope fsl_sem_scope with fslsem.
 
 (* Notation "Ω '|=' t => v" := (fsl_term_sem Ω t v) : fsl_sem_scope. *)
 
+(* in the article, logical assert is part of mini-c but because we make mini_c extendable,
+ the logical assert is now in fsl semantics *)
 Inductive _fsl_assert_sem  (f : fenv ) (ev:Env) : fsl_statement -> Env -> Prop :=
 | FSL_Assert (p:𝔅) : 
     fsl_pred_sem f ev p BTrue ->

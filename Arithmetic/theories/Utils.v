@@ -16,24 +16,24 @@ Infix "⇀" := partial_function : type_scope.
 Notation "⊥" := empty_p : type_scope.
 Notation "'ℤ'" := Z (at level 99) : type_scope.
 
-Class EqDec X := {eq_dec : forall (x y : X), {x = y} + {x <> y} }.
+Class EqDecC X := {eq_dec : EqDec X }.
 
 
 
-Fact dec_neq_out_neq_in {X T : Type } `{EqDec X}: forall (f : X -> T) (x x' : X)  , f x <> f x' -> x <> x'.
+Fact dec_neq_out_neq_in {X T : Type } `{EqDecC X}: forall (f : X -> T) (x x' : X)  , f x <> f x' -> x <> x'.
 Proof.
     intros. destruct H as [eq_dec]; destruct (eq_dec x x') ; subst ; easy.
 Qed.
 
 
-#[global] Instance z_eq_dec : EqDec Z := {eq_dec := Z.eq_dec}.
-#[global] Instance eqdec_v : EqDec 𝓥 := {eq_dec := string_dec}.
-#[global] Instance eqdec_l : EqDec 𝔏 := {eq_dec := string_dec}.
+#[global] Instance z_eq_dec : EqDecC Z := {eq_dec := Z.eq_dec}.
+#[global] Instance eqdec_v : EqDecC 𝓥 := {eq_dec := string_dec}.
+#[global] Instance eqdec_l : EqDecC 𝔏 := {eq_dec := string_dec}.
 
-Definition p_map_front {X Y : Type} `{EqDec X}  (f: X -> option Y) (xy:X * Y)   : X -> option Y :=
+Definition p_map_front {X Y : Type} `{EqDecC X}  (f: X -> option Y) (xy:X * Y)   : X -> option Y :=
     fun i => if eq_dec (fst xy) i then Some (snd xy) else f i.
 
-Definition p_map_back {X Y : Type} `{EqDec X}  (xy:X * Y) (f: X -> option Y)  : X -> option Y :=
+Definition p_map_back {X Y : Type} `{EqDecC X}  (xy:X * Y) (f: X -> option Y)  : X -> option Y :=
     p_map_front f xy.
 
 #[global] Hint Unfold p_map_back : rac_hint.
@@ -42,23 +42,23 @@ Definition p_map_back {X Y : Type} `{EqDec X}  (xy:X * Y) (f: X -> option Y)  : 
 Notation "f { xy , .. , xy' }" :=  (p_map_front .. (p_map_front f xy') .. xy ) : utils_scope.
 Notation "'{{' xy , .. , xy' '}}'" := (fun f => p_map_back xy' .. (p_map_back xy f) .. ) : utils_scope. (* fixme: make same as the other*)
 
-Fact p_map_single_back_front_eq {X Y : Type} `{EqDec X} : 
+Fact p_map_single_back_front_eq {X Y : Type} `{EqDecC X} : 
     forall f x (y:Y) z , f{x\y} z = {{x\y}}f z.
 Proof. auto. Qed.
 
 
-Definition p_map_addall_front {X Y: Type} `{EqDec X} env (lx:list X) (ly : list Y) :=
+Definition p_map_addall_front {X Y: Type} `{EqDecC X} env (lx:list X) (ly : list Y) :=
     List.fold_left (fun f xy => f {(fst xy) \ (snd xy)}) (List.combine lx ly) env
 .
 
-Definition p_map_addall_back {X Y: Type} `{EqDec X} (lx:list X) (ly : list Y) env :=
+Definition p_map_addall_back {X Y: Type} `{EqDecC X} (lx:list X) (ly : list Y) env :=
     p_map_addall_front env lx ly
 .
 
 #[global] Hint Unfold p_map_addall_back : rac_hint.
 
 
-Fact p_map_not_same {X T : Type } `{EqDec X}: forall f (x x' : X) (v : T), x <> x' -> f{x'\v} x = f x.
+Fact p_map_not_same {X T : Type } `{EqDecC X}: forall f (x x' : X) (v : T), x <> x' -> f{x'\v} x = f x.
 Proof.
     intros. unfold p_map_front. simpl. destruct eq_dec.
     - now destruct H0. 
@@ -68,7 +68,7 @@ Qed.
 #[global] Hint Resolve p_map_not_same : rac_hint.
 
 
-Corollary p_map_not_same_eq {X T : Type } `{EqDec X}: forall f (x x' : X) (v : T) (res : option T), x <> x' -> f{x'\v} x = res <-> f x = res.
+Corollary p_map_not_same_eq {X T : Type } `{EqDecC X}: forall f (x x' : X) (v : T) (res : option T), x <> x' -> f{x'\v} x = res <-> f x = res.
 Proof.
     split. 
     - intro H1. now rewrite p_map_not_same in H1.
@@ -80,7 +80,7 @@ Qed.
 #[global] Hint Resolve p_map_not_same_eq : rac_hint.
 
 
-Fact p_map_same {X T : Type } `{EqDec X}: forall f (x : X) (v : T), f{x\v} x = Some v.
+Fact p_map_same {X T : Type } `{EqDecC X}: forall f (x : X) (v : T), f{x\v} x = Some v.
 Proof.
     intros. unfold p_map_front. simpl. now destruct eq_dec.
 Qed.
@@ -97,12 +97,12 @@ Fixpoint fold_left2 {Acc A B : Type} (f : Acc -> A -> B -> Acc) (acc:Acc) (l1 : 
 end.
 
 
-Fact p_map_apply {X T T' : Type } `{EqDec X} : forall env (x :X)  (v : T) (f : option T -> T'),  f (env{x\v} x)  = f (Some v).
+Fact p_map_apply {X T T' : Type } `{EqDecC X} : forall env (x :X)  (v : T) (f : option T -> T'),  f (env{x\v} x)  = f (Some v).
 Proof.
     intros env x v f. f_equal. apply p_map_same.
 Qed.
 
-Fact p_map_domain {X Y : Type } `{EqDec X} (env : X -> option Y) (z : X) :
+Fact p_map_domain {X Y : Type } `{EqDecC X} (env : X -> option Y) (z : X) :
     forall x x' y z, env{x\y} x' = Some z -> x' = x \/ env x' = Some z.
 Proof.
     intros. destruct (eq_dec x' x).
@@ -111,9 +111,37 @@ Proof.
 Qed.
 
 
+Fact list_map_id_eq {A B} (f : A -> B): forall x x', 
+    Injective f ->
+    List.map f x = List.map f x' <-> x  = x'.
+Proof.
+    split; intros; subst; auto. generalize dependent x'. induction x.
+    -  simpl. intros x'. destruct x'; [trivial|].  intros. simpl in H0. inversion H0.
+    - intros. destruct x'; simpl in *; [inversion H0|]. inversion H0. f_equal; auto. 
+Qed. 
+
+
+
+Lemma bijective_injective {A B : Type} (f : A -> B) :
+    Bijective f -> Injective f.
+Proof.
+    intros [g [H H']] x y e.
+    rewrite <- (H x), <- (H y).
+    now rewrite e.
+Qed.
+
+Lemma bijective_surjective {A B : Type} (f : A -> B) :
+    Bijective f -> Surjective f.
+Proof.
+    intros [g [H H']] y. now exists (g y).
+Qed.
+
+
 Definition in_domain { X Y : Type} (f: X ⇀ Y) (x:X) := exists y, f x = Some y.
-Definition not_in_domain { X Y : Type} (f: X ⇀ Y) (x:X) := forall y, f x <> Some y.
+Definition not_in_domain { X Y : Type} (f: X ⇀ Y) (x:X) := f x = None.
 Definition in_codomain { X Y : Type} (f: X ⇀ Y) (y:Y) := exists x, f x = Some y.
+Definition not_in_codomain { X Y : Type} (f: X ⇀ Y) (y:Y) := forall x, f x <> Some y.
+
 
 Notation "'dom' f" := (in_domain f) : utils_scope.
 
@@ -145,7 +173,7 @@ Infix "+" := add_domain : utils_scope.
 Fact not_in_diff {X Y : Type} : forall (x y:X) (f : (X ⇀ Y)), f y <> None -> x ∉ f -> y <> x.
 Proof.
     intros x y f H H0 Hnot. subst. destruct (f x) eqn:F.
-    * now destruct H0 with y.
+    * destruct H0. auto.
     * contradiction.
 Qed.
 

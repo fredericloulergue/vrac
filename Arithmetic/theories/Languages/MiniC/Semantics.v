@@ -72,18 +72,15 @@ Open Scope mini_c_scope.
 (* extensible statement semantic *)
 Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt_sem_sig S T} (f : @fenv S T) (ev:Env) : @_c_statement S T -> Env -> Prop := 
     | S_skip  :  (ev |= <{ skip }> => ev) f
-    | S_Assign x z (e : @_c_exp T) : 
+    | S_Assign x (z: Int.MI) (e : @_c_exp T) : 
         (* must not be a compiler variable i.e. function return value *)
         is_comp_var x = false ->
 
         type_of_value (ev x) = Some C_Int ->
-        (* value returned must be of same type*)
-        type_of_value (Some z) = Some C_Int ->
-
         @generic_exp_sem T ext_exp ev e z -> 
-        (ev |= <{x = e}> => (ev <| env ; vars ::= {{x\z}} |>)) f
+        (ev |= <{x = e}> => (ev <| env ; vars ::= {{x\Def z}} |>)) f
 
-    | S_IfTrue ev' z e s s' :
+    | S_IfTrue ev' (z : Int.MI) e s s' :
         @generic_exp_sem T ext_exp ev e z /\ ~ (z = VInt zero) ->
         (ev  |= s => ev') f ->
         (ev  |= <{ if e s else s'}> => ev') f
@@ -102,28 +99,29 @@ Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt
         (ev' |= s' => ev'') f ->
         (ev |= <{ s ; s' }> =>  ev'') f
 
-    | S_FCall fname (b: @_c_statement S T) ev' c xargs eargs (zargs : 𝕍 ⃰ ) z : 
+    | S_FCall fname (b: @_c_statement S T) b_ev c xargs eargs (zargs : Int.MI ⃰ ) z : 
+        let vargs := List.map (fun x => Def (VInt x)) zargs in 
         List.length xargs = List.length eargs ->
         f.(funs) fname = Some (xargs,b) ->
-        List.Forall2 (@generic_exp_sem T ext_exp ev) eargs zargs ->
-        (empty_env <| env ; vars ::= p_map_addall_back xargs zargs |> |= b => ev') f -> 
+        List.Forall2 (@generic_exp_sem T ext_exp ev) eargs vargs ->
+        (empty_env <| env ; vars ::= p_map_addall_back xargs vargs |> |= b => b_ev) f -> 
         ~ List.In res_f (stmt_vars b) -> 
-        ev' res_f = Some (Def z) -> (* must be a defined value *)
-        (ev |= (FCall c fname eargs) => ev <| env ; vars ::= {{c\Def z}} |> <| mstate := ev' |>) f
+        b_ev res_f = Some (Def (VInt z)) -> (* must be a defined integer value *)
+        (ev |= (FCall c fname eargs) => ev <| env ; vars ::= {{c\Def z}} |> <| mstate := b_ev |>) f
 
-    | S_PCall p b ev' xargs eargs zargs : 
+    | S_PCall p b ev' xargs eargs (zargs : Int.MI ⃰ ) : 
+        let vargs := List.map (fun x => Def (VInt x)) zargs  in 
         List.length xargs = List.length eargs ->
         f.(procs) p = Some (xargs,b) ->
-        List.Forall2 (@generic_exp_sem T ext_exp ev) eargs zargs ->
-        (empty_env <| env ; vars ::= p_map_addall_back xargs zargs |> |= b => ev') f -> 
+        List.Forall2 (@generic_exp_sem T ext_exp ev) eargs vargs ->
+        (empty_env <| env ; vars ::= p_map_addall_back xargs vargs |> |= b => ev') f -> 
         (ev |= PCall p eargs => ev <| mstate := ev' |>) f
 
-    | S_Return e z : 
-        (* not allowed to return an unassigned value *)
-        @generic_exp_sem T ext_exp ev e (Def z) ->
-        (ev |= <{ return e }> => ev <| env ; vars ::= {{res_f\Def z}} |>) f
+    | S_Return e (z: Int.MI) : 
+        @generic_exp_sem T ext_exp ev e (Def (VInt z)) ->
+        (ev |= <{ return e }> => ev <| env ; vars ::= {{res_f\Def (VInt z)}} |>) f
 
-    | S_PAssert  e z :
+    | S_PAssert e (z: Int.MI) :
         @generic_exp_sem T ext_exp ev e z -> z <> VInt zero ->
         (ev |= <{ assert e }> => ev) f
 
@@ -205,8 +203,9 @@ Definition _weakening_of_statement_semantics_1  {S T : Set} (exp_sem : @exp_sem_
     _weakening_of_expression_semantics exp_sem ->
     forall (f : @fenv S T) ev₀ s ev₁,
     stmt_sem f ev₀ s ev₁ ->
-    ( forall ev₀', (ev₀  ⊑ ev₀')%envmem ->
-    exists ev₁' , (ev₁  ⊑ ev₁')%envmem /\ stmt_sem f ev₀' s ev₁').
+    ( forall ev₀' sub, env_mem_partial_order ev₀ ev₀' sub ->
+        exists ev₁', 
+        env_mem_partial_order ev₁ ev₁' sub /\ stmt_sem f ev₀' s ev₁').
 
 
 Definition _weakening_of_statement_semantics_2  {S T : Set} (exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) := 
