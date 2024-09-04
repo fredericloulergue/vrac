@@ -41,16 +41,21 @@ Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
         * exists (ev₀' <| env ; vars ::= {{x \ Def (VMpz (Some (proj1_sig sub l)))}} |> <| mstate ::= {{proj1_sig sub l \Defined 0}} |> ). split.
             + now apply mpz_add.
             + apply S_init with u.
-                ++ intros v Hcontra.
-                    (* the fact v is not bound to mpz location l by Ω₀ doesn't mean 
-                        that v will also not be bound to mpz location l' by Ω₀' 
-                    *) 
-                    admit.
-                ++ (* the semantic of ⊑ only ensures a defined mpz must stay the same, 
-                        but here, x points to an undefined mpz value so it can be either stay like so or
-                        be defined 
-                    *)
-                    admit.
+                ++  clear eq_defined  env_add mpz_add weak_exp H0. destruct Henvmem as [Henv Hmem]. intros v. pose proof (H v) as Hv.
+                     assert (Hrel: (ev₀ ⊑ ev₀')%envmem) by (now exists sub). 
+                        destruct (ev₀ v) as [V|] eqn:X.
+                        +++ destruct V eqn:VEqn. 
+                            ++++ destruct v0 eqn:v0Eqn.
+                                +++++ intros contra. pose proof (eq_int_env_mem_partial_order ev₀ ev₀' v n Hrel X). congruence.
+                                +++++ destruct l0 as [l1|] eqn:loEqn. 
+                                    ** assert (l1 <> l). { intros contra.  apply Hv. now repeat f_equal. } clear H. 
+                                        assert (ev₀' v = Some (Def (VMpz (Some (proj1_sig sub l1))))). {now apply (eq_mpz v (Some l1)). }
+                                        intros contra. rewrite H in contra. inversion contra.
+                                        destruct sub as [sub Hbij]. apply H0. simpl in *. pose proof (bijective_injective sub Hbij). now apply H1 in H2.
+                                    **  apply eq_mpz in X. intro contra. simpl in X. rewrite X in contra. now inversion contra.
+                            ++++ pose proof (eq_undef_env_mem_partial_order ev₀ ev₀' v uv Hrel X). congruence.
+                        +++  clear Hv. intros contra. admit.
+                ++ destruct Henvmem as [e m]. destruct e with x; [|congruence]. rewrite H0 in H1.  inversion H1. now subst. 
         (* clear *)
         * exists (ev₀' <| env ; vars ::= {{x\Def (VMpz None)}} |><| mstate ::= {{(proj1_sig sub) a \ Undefined u}} |>). split.
             + now apply mpz_add.

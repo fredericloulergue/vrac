@@ -138,27 +138,11 @@ Qed.
 
 
 Inductive param_env_partial_order (env env':Ω) (var: 𝓥) (f:σ) : Prop :=
-| EsameInt n : 
-    env var = Some (Def (VInt n))
-    ->  env' var = Some (Def (VInt n))
+| EPreserve (v: 𝕍) : 
+    env var = Some v
+    ->  env' var = Some (induced f v)
     -> param_env_partial_order env env' var f
-| EsameMpz (l:location) : 
-    (* if the mpz is not a null pointer, we must have a corresponding adress *)
-    env var = Some (Def (VMpz l)) ->
-    env' var = Some (Def (VMpz (proj1_sig f l)))
-    -> param_env_partial_order env env' var f
-| ENullPtr : 
-    (* if the mpz is a null pointer, it must stay null *)
-    env var = Some (Def (VMpz None)) ->
-    env' var = Some (Def (VMpz None))
-    -> param_env_partial_order env env' var f
-| EundefInt u : env var = Some (Undef (UInt u))
-    -> (exists u', env' var = Some (Undef (UInt u'))) \/  (exists n, env' var = Some (Def (VInt n)))
-    -> param_env_partial_order env env' var f
-| EundefMpz u: env var = Some (Undef (UMpz u))
-    -> (exists u, env' var = Some (Undef (UMpz u))) \/  (exists l, env' var = Some (Def (VMpz l)))
-    -> param_env_partial_order env env' var f
-| Enone : env var = None -> param_env_partial_order env env' var f
+| EEnrich : env var = None -> param_env_partial_order env env' var f
 .
 
 #[global] Hint Constructors param_env_partial_order : rac_hint.
@@ -207,17 +191,9 @@ From Coq Require Import Setoid.
 
 Fact _refl_env_partial_order : reflexive Ω (fun e e' => env_partial_order e e' (exist _ _ id_bijective)).
 
-Proof.
-    intros [v l] var. destruct (v var) as [val |] eqn:res. induction val.
-    - destruct v0.
-        * now apply EsameInt with n.
-        * destruct l0 as [l0|].
-            ** now apply EsameMpz with l0. 
-            ** now apply ENullPtr.
-    - destruct uv.
-        * apply EundefInt with u; eauto.
-        * apply EundefMpz with u; eauto.
-    - apply Enone ; auto.
+Proof with eauto with rac_hint.
+    intros [v l].  intros var. destruct (v var) as [val |] eqn:res. induction val as [[n | [l0|]]|]...
+    apply EEnrich...
 Qed.
 
 Corollary refl_env_partial_order :  reflexive Ω (fun e e' => e ⊑ e')%env.
@@ -230,21 +206,15 @@ Fact _trans_env_partial_order : forall (x y z:Ω) f1 f2,
     env_partial_order y z f2 -> 
     env_partial_order x z (exist _ _ (bijective_comp_bijective f1 f2)).
 Proof.
-    intros  e e' e''  sub1 sub2 Hrel1 Hrel2 var. destruct Hrel1 with var ; specialize (Hrel2 var).
-    * apply EsameInt with n. easy. inversion Hrel2 ; congruence.
-    * apply EsameMpz with l ; inversion Hrel2; simpl in * ; try congruence.
-        ** rewrite H0 in H1. inversion H1. now subst.
-        ** now rewrite H1 in H0. 
-    * apply ENullPtr;[easy|]. inversion Hrel2; simpl in *; try congruence. now  rewrite H0 in H1.
-    * apply EundefInt with u.
-        + assumption.
-        + inversion Hrel2 ; destruct H0 ; eauto ; try congruence ; try (destruct H0 ; congruence).
-    * apply EundefMpz with u;[easy|].  inversion Hrel2; destruct H0; try congruence || (destruct H0 ; congruence) ;simpl in *.
-        + right. now exists (proj1_sig sub2 l).
-        + destruct H0. right. now  exists None.
-    * now apply Enone.
+    intros  e e' e''  f1 f2 H1 H2. 
+    intros var. destruct H1 with var ; specialize (H2 var).
+    - eapply EPreserve with v; [trivial|]. destruct v; simpl in *.
+        * destruct v ;inversion H2; simpl in *; try congruence.
+            + rewrite H3 in H0.  inversion H0. now subst.
+            +  destruct l; rewrite H3 in H0; inversion H0; now subst.
+        * inversion H2 ;simpl in * ; rewrite H3 in H0 ; inversion H0 ; now subst.
+    - now eapply EEnrich.
 Qed.
-
 
 Fact trans_env_partial_order : transitive Ω (fun e e' => e ⊑ e')%env.
 Proof.
@@ -383,7 +353,8 @@ Qed.
 Fact eq_int_env_mem_partial_order :  forall e e' v n, (e ⊑ e')%envmem -> 
     e v = Some (Def (VInt n)) -> e' v = Some (Def (VInt n)).
 Proof.
-    intros e e' v z [f [He Hm]] Hsome. destruct (He v); congruence.  
+    intros e e' v z [f [He Hm]] Hsome. destruct (He v);[|congruence]. destruct v0; [|congruence]. 
+    destruct v0; simpl in *; congruence. 
 Qed.
 
 
@@ -393,8 +364,13 @@ Fact eq_mpz_env_mem_partial_order :  forall e e' sub,
     forall v mpz, e v = Some (Def (VMpz mpz)) -> e' v = Some (induced sub (VMpz mpz)).
 Proof.
     intros e e' sub [He Hm] v l Hsome. destruct (He v); try congruence.
-    - rewrite Hsome in H. now inversion H.
-    - destruct l;  simpl ; rewrite Hsome in H; now inversion H.
+Qed.
+
+
+Fact eq_undef_env_mem_partial_order :  forall e e' v n, (e ⊑ e')%envmem -> 
+    e v = Some (Undef n) -> e' v = Some (Undef n).
+Proof.
+    intros e e' v z [f [He Hm]] Hsome. destruct (He v);[|congruence]. destruct v0; simpl in *; congruence. 
 Qed.
 
 Fact eq_defined_mpz_mem_partial_order : forall e e' sub, 
@@ -474,50 +450,17 @@ Fact env_partial_order_add : forall Ω₀ Ω₀' sub,
     (forall var' z, 
     env_mem_partial_order (Ω₀ <| env; vars ::= {{var' \ z}} |>) (Ω₀' <| env ; vars ::= {{var' \ induced sub z}} |>) sub
     )%envmem.
-Proof with eauto with rac_hint.
-    intros [v l][v' l'] sub H x z.  split.
+Proof with auto with rac_hint.
+   intros [v l][v' l'] sub [Henv Hmem] x z.  split.
     - intros var. destruct (string_dec x var) as [Heq|Hneq].
-        -- subst. simpl. destruct z. 
-            + destruct v0.
-                * apply EsameInt with n ;  apply p_map_same.
-                * destruct l0 eqn:L0.
-                    ++ apply EsameMpz with l1; apply p_map_same.
-                    ++ apply ENullPtr; simpl; now apply p_map_same.
-            + destruct uv.
-                ++ apply EundefInt with u; autounfold with rac_hint; simpl...
-                ++ apply EundefMpz with u; autounfold with rac_hint; simpl...
+        -- subst. simpl. apply EPreserve with z; now apply p_map_same.
 
-        -- apply not_eq_sym in Hneq. epose proof (p_map_not_same v var x ?[z] Hneq) as H0. simpl. remember (v var) as res. destruct res as [z'|] eqn:RES.
-            * destruct z' eqn:Z.
-                + { 
-                    destruct v0.
-                    - apply EsameInt with n ; simpl.
-                        + apply H0.
-                        + autounfold with rac_hint. apply p_map_not_same_eq...  apply (eq_int_env_mem_partial_order (mkEnv v l) (mkEnv v' l') var n)... now exists sub.
-                    - destruct l0.
-                        + apply EsameMpz with l0; simpl...
-                            autounfold with rac_hint. apply p_map_not_same_eq...
-                            now apply (eq_mpz_env_mem_partial_order  (mkEnv v l) (mkEnv v' l') sub H var (Some l0)).
-                        + apply ENullPtr... simpl.  apply p_map_not_same_eq...
-                         now apply (eq_mpz_env_mem_partial_order  (mkEnv v l) (mkEnv v' l') sub H var None).
-                }
-
-                + {
-                    destruct uv.
-                    - apply EundefInt with u;subst ;simpl. 
-                        + apply H0.
-                        + destruct H. specialize (H var). simpl in *. destruct H; try congruence. destruct H2 as [[n H2]|[n H2]].
-                            ++ left. exists n. now apply p_map_not_same_eq.
-                            ++ right. exists n. now apply p_map_not_same_eq.
-                    - apply EundefMpz with u; subst ; simpl.
-                        + apply H0.
-                        + destruct H. specialize (H var). simpl in *. destruct H; try congruence. destruct H2 as [[n H2]|[n H2]].
-                            ++ left. exists n. now apply p_map_not_same_eq.
-                            ++ right. exists n. now apply p_map_not_same_eq.
-                }
-            * now apply Enone.
-
-    - intros loc. intros mpz Hloc. simpl in *. destruct  H as [_ H]. specialize (H loc mpz). now destruct H. 
+        --  simpl. remember (v var) as res. 
+            destruct res as [z'|] eqn:RES.
+            * apply EPreserve with z'; [now apply p_map_not_same_eq|]. apply p_map_not_same_eq; [auto|].
+                simpl in *. destruct Henv with var; simpl in * ; try congruence.  rewrite <- Heqres in H. now inversion H. 
+            * apply EEnrich. now apply p_map_not_same_eq.
+    - intros loc. intros mpz Hloc. simpl in *. specialize (Hmem loc mpz). now destruct Hmem. 
 Qed.
 
 
