@@ -75,18 +75,31 @@ Fixpoint exp_vars {T:Set} (exp : @_c_exp T) : list id := match exp with
 | BinOpInt le _ re | BinOpBool le _ re => exp_vars le ++ exp_vars re
 end.
 
-Fixpoint stmt_vars {T S:Set} (stmt : @_c_statement T S) : list id := match stmt with 
+Fixpoint stmt_vars {T S:Set} (stmt : @_c_statement T S) (ext_stmt_vars: T -> list id) : list id := match stmt with 
 | Skip => nil 
 | Assign var e => var::exp_vars e
 | FCall var f args => var::List.flat_map exp_vars args
 | PCall f args => List.flat_map exp_vars args
-| Seq s1 s2 =>  stmt_vars s1 ++ stmt_vars s2
-| If cond then_ else_ =>  exp_vars cond ++ stmt_vars then_ ++ stmt_vars else_
-| While cond s => exp_vars cond ++ stmt_vars s 
-| PAssert e => exp_vars e
-| Return e  => exp_vars e 
-| S_Ext s => nil
+| Seq s1 s2 =>  stmt_vars s1 ext_stmt_vars ++ stmt_vars s2 ext_stmt_vars
+| If cond then_ else_ =>  exp_vars cond ++ stmt_vars then_ ext_stmt_vars ++ stmt_vars else_ ext_stmt_vars
+| While cond s => exp_vars cond ++ stmt_vars s ext_stmt_vars
+| PAssert e | Return e => exp_vars e
+| S_Ext s => ext_stmt_vars s
 end.
+
+Definition Empty_ext_stmt_vars {T} : T -> list id := fun _ => nil.
+
+
+Definition c_stmt_vars s := stmt_vars (T:=Empty_set) (S:=Empty_set) s Empty_ext_stmt_vars.
+
+Definition _gmp_stmt_vars (stmt:_gmp_statement) : list id := match stmt with 
+| Init z | Set_s z _  | Clear z  => z::nil
+| Set_i z e  => z::exp_vars e
+| Set_z z1 z2 | Coerc z1 z2 => z1::z2::nil
+| GMP_Add l r res | GMP_Sub l r res | GMP_Mul l r res | GMP_Div l r res | Comp res l r => l::r::res::nil
+end.
+
+Definition gmp_stmt_vars s := stmt_vars (T:=_gmp_statement) (S:=_gmp_t) s _gmp_stmt_vars.
 
 
 (****************** Convertion ********************)

@@ -152,19 +152,51 @@ Notation "x ∈ E" := (in_domain E x) (at level 99) : utils_scope.
 Notation "x ∉ E" := (not_in_domain E x) (at level 99) : utils_scope.
 
 
-Definition domain_incl { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) := forall (x:X), (dom1 x -> dom2 x).
-Infix "⊂" := domain_incl (at level 99) : utils_scope.
-#[global] Hint Unfold domain_incl : rac_hint.
 
-Definition eq_domain { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) := (dom1 ⊂ dom2) /\ (dom2 ⊂ dom1).
-Infix "=" := eq_domain : utils_scope.
-#[global] Hint Unfold eq_domain : rac_hint.
+Fact not_in_equiv { X Y : Type} (f: X ⇀ Y) (x:X) : (x ∉ f) <-> ~(x ∈ f).
+Proof. 
+    split; intros H.
+    -intros contra. inversion H.  inversion contra. now rewrite H0 in H1.
+    -destruct (f x) eqn:Fx.
+        +  exfalso.  apply H. now exists y.
+        + assumption.
+Qed. 
 
 
-Definition sub_domain { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) (x:X) := dom1 x /\ ~ dom2 x.
-Infix "-" := sub_domain : utils_scope.
-#[global] Hint Unfold sub_domain : rac_hint.
 
+Fact in_domain_dec { X Y : Type} (f: X ⇀ Y) (x:X) : Decidable.decidable (x ∈ f). 
+Proof. 
+    destruct (f x) eqn:Fx.
+    -  left. now exists y.
+    - right.  intros contra. destruct contra. now rewrite H in Fx.
+Qed. 
+
+
+
+
+Definition domain_incl_prop { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) := forall (x:X), (dom1 x -> dom2 x).
+Infix "⊂" := domain_incl_prop (at level 99) : utils_scope.
+#[global] Hint Unfold domain_incl_prop : rac_hint.
+
+Definition eq_domain_prop { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) := (dom1 ⊂ dom2) /\ (dom2 ⊂ dom1).
+Infix "=" := eq_domain_prop : utils_scope.
+#[global] Hint Unfold eq_domain_prop : rac_hint.
+
+
+Definition sub_domain_prop { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) (x:X) := dom1 x /\ ~ dom2 x.
+Infix "-" := sub_domain_prop : utils_scope.
+#[global] Hint Unfold sub_domain_prop : rac_hint.
+
+
+Fact not_in_sub_domain_prop { X : Type} (x: X) (dom1: X -> Prop) (dom2: X -> Prop): 
+    Decidable.decidable (dom1 x) -> 
+    Decidable.decidable (dom2 x) -> 
+    ~ ((dom1 - dom2) x) -> dom2 x \/ ~ dom1 x.
+Proof.
+    intros Hdec1 Hdec2 H. autounfold with rac_hint in H. apply Decidable.not_and in H;[|trivial]. destruct H.
+    - now right.
+    - apply Decidable.not_not in H;[|trivial]. now left.
+Qed.
 
 Definition add_domain { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) (x:X) := dom1 x \/ dom2 x.
 Infix "+" := add_domain : utils_scope.

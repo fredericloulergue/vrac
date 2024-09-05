@@ -74,7 +74,8 @@ Inductive _fsl_routine : Set :=
 Definition fsl_routine := @_c_routine _fsl_routine _fsl_statement Empty_set.
 
 
-Definition op (x:fsl_binop_int) : id -> id -> id -> _gmp_statement := match x with
+Definition fsl_to_gmp_op (x:fsl_binop_int) :  id -> id -> id -> _gmp_statement  :=
+match x with
 | FSL_Add => GMP_Add
 | FSL_Sub => GMP_Sub
 | FSL_Mul => GMP_Mul

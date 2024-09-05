@@ -92,7 +92,7 @@ Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
 Admitted.
 
 Definition weakening_of_gmp_statements_semantics_1 := 
-    weakening_of_statement_semantics_1 Empty_exp_sem _gmp_stmt_sem _weakening_of_gmp_statements_semantics_1.
+    weakening_of_statement_semantics_1 Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars _weakening_of_gmp_statements_semantics_1.
 
 Lemma _weakening_of_gmp_statements_semantics_2 : 
     _weakening_of_statement_semantics_2 Empty_exp_sem _gmp_stmt_sem
@@ -100,10 +100,14 @@ Lemma _weakening_of_gmp_statements_semantics_2 :
 Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
     intros  exp_sem stmt_sem f ev₀ ev₀' s ev₁ [Hderiv1 Hrel].
     generalize dependent ev₀'.
-    induction Hderiv1;  intros ev₀' Henvmem.
-    - admit.      
+    induction Hderiv1;  intros ev [sub Henvmem] ev' Hderiv.
+    - admit.     
     - admit.  
-    - admit.  
+    - inversion Hderiv; subst; [|destruct bop; simpl in H1; discriminate]. split...
+        intros l v Hnotsomel. destruct (eq_dec a0 l).
+        +  subst. exfalso. admit. 
+        +  symmetry. now apply p_map_not_same.
+
     - admit.  
     - admit.  
     - admit.  
@@ -112,25 +116,38 @@ Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
 Admitted.
 
 Definition weakening_of_gmp_statements_semantics_2 := 
-    weakening_of_statement_semantics_2 Empty_exp_sem _gmp_stmt_sem _weakening_of_gmp_statements_semantics_2.
+    weakening_of_statement_semantics_2 Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars _weakening_of_gmp_statements_semantics_2.
 
 
 
 Lemma _weakening_of_gmp_statements_semantics_3 : 
-    _weakening_of_statement_semantics_3  _gmp_stmt_sem
+    _weakening_of_statement_semantics_3 _gmp_stmt_sem _gmp_stmt_vars
 .
 Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
     intros Hweak ev s ev1 Hderiv. 
     induction Hderiv; intros ev' [sub Hrel] [Henv Hmem].
-    - admit.      
+    - exists (ev' <| env ; vars ::= {{x \ Def (VMpz (Some (proj1_sig sub l)))}} |> <| mstate ::= {{proj1_sig sub l \Defined 0}} |> ).
+        apply S_init with u.
+        + admit.
+        + destruct Hrel. specialize (H1 x). destruct H1; try congruence.
+            * destruct H3 as [[u' H3]|[ u' H3]]; congruence. 
+            * destruct H3 as [[u' H3]|[ u' H3]]; [|congruence]. admit. (* relation allows to not have the same umpz *) 
+            * admit. (* same issue with undef *)
+    
     - exists (ev' <| env ; vars ::= {{x\Def (VMpz None)}} |><| mstate ::= {{(proj1_sig sub) a \ Undefined u}} |>). apply S_clear.
-        admit.
+        assert (~(dom ev - dom ev')%utils x). {
+            intros contra. apply Henv in contra. apply contra. simpl. auto.
+        }
+        apply not_in_sub_domain_prop in H0;[|apply in_domain_dec| apply in_domain_dec]. destruct H0.
+        * admit. (* same issue as for c *)
+        * exfalso. apply H0. now exists a.
 
     - exists (ev' <| mstate ::= {{(proj1_sig sub) a \ Defined (z) ̇}} |>). apply S_set_i.
-        * admit.
-        * eapply weakening_of_c_expression_semantics_3...  split.
-            + intros v Hdom. now inversion Hdom.
-            + intros l Hdom. now inversion Hdom.
+        * admit. (* same issue as for c *)
+        * apply weakening_of_c_expression_semantics_3 with ev; [assumption|now exists sub|]. split.
+            + intros v Hdom. apply Henv in Hdom. simpl in Hdom.  
+                apply Decidable.not_or in Hdom. now destruct Hdom.
+            + intros l Hdom. apply Hmem in Hdom as [l' Hdom]. simpl in Hdom.  exists l'. destruct Hdom. split... 
     - admit.  
     - admit.  
     - admit.  
@@ -142,4 +159,4 @@ Admitted.
 
 
 Definition weakening_of_gmp_statements_semantics_3 := 
-    weakening_of_statement_semantics_3 Empty_exp_sem _gmp_stmt_sem weakening_of_empty_expression_semantics_3 _weakening_of_gmp_statements_semantics_3.
+    weakening_of_statement_semantics_3 Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars weakening_of_empty_expression_semantics_3 _weakening_of_gmp_statements_semantics_3.

@@ -70,7 +70,7 @@ Open Scope utils_scope.
 Open Scope mini_c_scope.
 
 (* extensible statement semantic *)
-Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt_sem_sig S T} (f : @fenv S T) (ev:Env) : @_c_statement S T -> Env -> Prop := 
+Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt_sem_sig S T} {ext_stmt_vars:  S -> list id} (f : @fenv S T) (ev:Env) : @_c_statement S T -> Env -> Prop := 
     | S_skip  :  (ev |= <{ skip }> => ev) f
     | S_Assign x (z: Int.MI) (e : @_c_exp T) : 
         (* must not be a compiler variable i.e. function return value *)
@@ -105,7 +105,7 @@ Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt
         f.(funs) fname = Some (xargs,b) ->
         List.Forall2 (@generic_exp_sem T ext_exp ev) eargs vargs ->
         (empty_env <| env ; vars ::= p_map_addall_back xargs vargs |> |= b => b_ev) f -> 
-        ~ List.In res_f (stmt_vars b) -> 
+        ~ List.In res_f (stmt_vars b ext_stmt_vars) -> 
         b_ev res_f = Some (Def (VInt z)) -> (* must be a defined integer value *)
         (ev |= (FCall c fname eargs) => ev <| env ; vars ::= {{c\Def z}} |> <| mstate := b_ev |>) f
 
@@ -165,10 +165,10 @@ Definition _untouched_var_same_eval_exp {T : Set} (exp_sem : @exp_sem_sig T) :=
 
 
 
-Definition _untouched_var_same_eval_stmt {S T : Set} (exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) := 
+Definition _untouched_var_same_eval_stmt {S T : Set} (exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) (ext_stmt_vars : S -> list id) := 
     forall f ev ev' (s: @_c_statement S T) x, 
     stmt_sem f ev s ev' ->
-    ~ List.In x (stmt_vars s) /\ is_comp_var x = false -> 
+    ~ List.In x (stmt_vars s ext_stmt_vars) /\ is_comp_var x = false -> 
     ev x = ev' x
 .
 
@@ -245,16 +245,16 @@ Qed.
 
 (* required to prove _weakening_of_statement_semantics_3 *)
 Definition _weakening_of_expression_semantics_3 {T : Set} (exp_sem : @exp_sem_sig T) := 
-    forall ev e z ev₀,
+    forall ev e z,
     exp_sem ev e z ->
-    forall ev₀', (ev₀' ⊑ ev₀)%envmem ->
+    forall ev', (ev' ⊑ ev)%envmem ->
     (
-        (forall v, (dom ev₀ - dom ev₀') v -> ~ List.In v (exp_vars e))
+        (forall v, (dom ev - dom ev') v -> ~ List.In v (exp_vars e))
         /\
-        (forall x, (dom ev₀.(mstate) - dom ev₀'.(mstate)) x -> (exists v, ev₀ v = Some (Def (VMpz x)) /\ ~ List.In v (exp_vars e)))
+        (forall x, (dom ev.(mstate) - dom ev'.(mstate)) x -> (exists v, ev v = Some (Def (VMpz x)) /\ ~ List.In v (exp_vars e)))
     ) ->
 
-    exp_sem  ev₀' e z
+    exp_sem  ev' e z
 .
 
 
@@ -265,21 +265,21 @@ Qed.
 
 
 
-Definition _weakening_of_statement_semantics_3  {S T : Set} (stmt_sem : @stmt_sem_sig S T) := 
+Definition _weakening_of_statement_semantics_3  {S T : Set} (stmt_sem : @stmt_sem_sig S T) (ext_stmt_vars: S -> list id) := 
     forall f ev₀  s ev₁,
     stmt_sem f ev₀ s ev₁ -> 
 
     forall ev₀', (ev₀' ⊑ ev₀)%envmem ->
     (
-        (forall v, (dom ev₀ - dom ev₀') v -> ~ List.In v (stmt_vars s))
+        (forall v, (dom ev₀ - dom ev₀') v -> ~ List.In v (stmt_vars s ext_stmt_vars))
         /\
-        (forall x, (dom ev₀.(mstate) - dom ev₀'.(mstate)) x -> (exists v, ev₀ v = Some (Def (VMpz x)) /\ ~ List.In v (stmt_vars s)))
+        (forall x, (dom ev₀.(mstate) - dom ev₀'.(mstate)) x -> (exists v, ev₀ v = Some (Def (VMpz x)) /\ ~ List.In v (stmt_vars s ext_stmt_vars)))
     ) ->
 
     exists ev₁', stmt_sem f ev₀' s ev₁'
     .
 
-Fact weakening_of_empty_statement_semantics_3 {S T}: _weakening_of_statement_semantics_3 (@Empty_stmt_sem S T).
+Fact weakening_of_empty_statement_semantics_3 {S T}: _weakening_of_statement_semantics_3 (@Empty_stmt_sem S T) (fun x => nil).
 Proof. 
     unfold _weakening_of_expression_semantics. intros f. intros. now exists ev₀'.
 Qed.

@@ -61,14 +61,14 @@ Inductive _gmp_stmt_sem { S T : Set } (f : @fenv S T) (ev:Env) : gmp_statement -
         ev.(mstate) lx = Some (Defined zx) ->
         ev.(mstate) ly = Some (Defined zy) ->
         ev r = Some (Def (VMpz (Some lr))) -> (* not in paper *)
-        (ev |= op bop r x y => ev <| mstate ::= {{lr\Defined (⋄ (□ bop) zx zy) }} |>) f
+        (ev |= fsl_to_gmp_op bop r x y => ev <| mstate ::= {{lr\Defined (⋄ (□ bop) zx zy) }} |>) f
 
 where "ev |= s => ev'" := (fun f => _gmp_stmt_sem f ev s ev') : gmp_stmt_sem_scope.
 
 #[global] Hint Constructors _gmp_stmt_sem  : rac_hint.
 
 
-Definition gmp_stmt_sem := @generic_stmt_sem _gmp_statement _gmp_t Empty_exp_sem _gmp_stmt_sem.
+Definition gmp_stmt_sem := @generic_stmt_sem _gmp_statement _gmp_t Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars.
 (*
 Notation "Ω ⋅ M |= s => Ω' ⋅ M'"  := (fun f => gmp_stmt_sem f Ω M s Ω' M') : gmp_sem_scope. 
  *)

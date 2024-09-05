@@ -69,10 +69,10 @@ Definition binop_ASSGN (fsl_op:fsl_binop_int) (v:𝓥 ⨉ gmp_t) e₁ e₂ (r:id
         let s2 :=  mpz_ASSGN v₂ e₂ in
         let s3 : gmp_statement := match τ with
             | C_Int => 
-                let op : gmp_statement  := <( (op fsl_op r v₁ v₂) )> in
+                let op : gmp_statement  := <( (fsl_to_gmp_op fsl_op r v₁ v₂) )> in
                 let r : gmp_exp := (C_Id r (T_Ext Mpz)) in 
                 <{op  ; <( (int_ASSGN c r) )> }>                    
-            | T_Ext Mpz => op fsl_op c v₁ v₂
+            | T_Ext Mpz => fsl_to_gmp_op fsl_op c v₁ v₂
             | _ => Skip
             end
         in <{s1;s2;s3}>
@@ -330,7 +330,7 @@ Proof with eauto with rac_hint.
         gmp_stmt_sem f ev <{
             (mpz_ASSGN v1 e1);
             (mpz_ASSGN v2 e2);
-            (S_Ext (MiniFSL.Syntax.op op r v1 v2));
+            (S_Ext (fsl_to_gmp_op op r v1 v2));
             (int_ASSGN c (C_Id r Mpz))
         }> (ev <| env ; vars ::= fun e => e{c \VInt (zr ⁱⁿᵗ ir) : 𝕍} |> <| mstate := M |> )
     ). {
