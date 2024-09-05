@@ -30,8 +30,8 @@ Lemma _weakening_of_gmp_statements_semantics_1 :
     _weakening_of_statement_semantics_1 Empty_exp_sem _gmp_stmt_sem
 .
 Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
-    intros Hweak f ev₀ s ev₁.
-    - intro Hderiv. induction Hderiv; intros ev₀' sub Henvmem; 
+    intros _ f ev₀ s ev₁ Hderiv. 
+    induction Hderiv; intros ev₀' sub Henvmem; 
         epose proof (fun y => weakening_of_c_expression_semantics y ev₀) as weak_exp;
         pose proof (eq_defined_mpz_mem_partial_order ev₀ ev₀' sub Henvmem) as eq_defined ;
         pose proof (eq_mpz_env_mem_partial_order ev₀ ev₀' sub Henvmem) as  eq_mpz ;
@@ -94,3 +94,52 @@ Admitted.
 Definition weakening_of_gmp_statements_semantics_1 := 
     weakening_of_statement_semantics_1 Empty_exp_sem _gmp_stmt_sem _weakening_of_gmp_statements_semantics_1.
 
+Lemma _weakening_of_gmp_statements_semantics_2 : 
+    _weakening_of_statement_semantics_2 Empty_exp_sem _gmp_stmt_sem
+.
+Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
+    intros  exp_sem stmt_sem f ev₀ ev₀' s ev₁ [Hderiv1 Hrel].
+    generalize dependent ev₀'.
+    induction Hderiv1;  intros ev₀' Henvmem.
+    - admit.      
+    - admit.  
+    - admit.  
+    - admit.  
+    - admit.  
+    - admit.  
+    - admit.  
+    - admit.
+Admitted.
+
+Definition weakening_of_gmp_statements_semantics_2 := 
+    weakening_of_statement_semantics_2 Empty_exp_sem _gmp_stmt_sem _weakening_of_gmp_statements_semantics_2.
+
+
+
+Lemma _weakening_of_gmp_statements_semantics_3 : 
+    _weakening_of_statement_semantics_3  _gmp_stmt_sem
+.
+Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
+    intros Hweak ev s ev1 Hderiv. 
+    induction Hderiv; intros ev' [sub Hrel] [Henv Hmem].
+    - admit.      
+    - exists (ev' <| env ; vars ::= {{x\Def (VMpz None)}} |><| mstate ::= {{(proj1_sig sub) a \ Undefined u}} |>). apply S_clear.
+        admit.
+
+    - exists (ev' <| mstate ::= {{(proj1_sig sub) a \ Defined (z) ̇}} |>). apply S_set_i.
+        * admit.
+        * eapply weakening_of_c_expression_semantics_3...  split.
+            + intros v Hdom. now inversion Hdom.
+            + intros l Hdom. now inversion Hdom.
+    - admit.  
+    - admit.  
+    - admit.  
+    - admit.  
+    - admit.
+Admitted.
+
+
+
+
+Definition weakening_of_gmp_statements_semantics_3 := 
+    weakening_of_statement_semantics_3 Empty_exp_sem _gmp_stmt_sem weakening_of_empty_expression_semantics_3 _weakening_of_gmp_statements_semantics_3.

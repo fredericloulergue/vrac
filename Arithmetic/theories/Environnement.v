@@ -580,7 +580,7 @@ Proof.
     destruct v; simpl; [|trivial]. destruct v; simpl; [trivial|]. now destruct l. 
 Qed.
 
-Fact env_same_ty : forall  (Ω Ω' : Env) v t, (Ω ⊑ Ω')%envmem -> t <> None -> type_of_value (Ω v) = t -> type_of_value (Ω' v) = t.
+Fact env_same_ty : forall  (Ω Ω' : Env) v t, ((Ω ⊑ Ω')%envmem \/ (Ω' ⊑ Ω)%envmem) -> t <> None -> type_of_value (Ω v) = t <-> type_of_value (Ω' v) = t.
 Proof.
     (* intros. 
     match goal with | IncRel : (_ ⊑ _)%env |- _ =>  destruct IncRel with v ; subst end ;

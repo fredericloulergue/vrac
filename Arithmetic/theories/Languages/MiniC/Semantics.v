@@ -193,6 +193,15 @@ Definition _weakening_of_expression_semantics {T} (exp_sem : @exp_sem_sig T) : P
     exp_sem ev e x <-> (forall ev',  (ev ⊑ ev')%envmem -> exp_sem ev' e x).
 
 
+Fact weakening_of_empty_expression_semantics {T} : _weakening_of_expression_semantics (@Empty_exp_sem T). 
+Proof.
+    unfold _weakening_of_expression_semantics. intros. split ; unfold Empty_exp_sem.
+    - intros [].
+    - intro H. apply H with ev... apply refl_env_mem_partial_order.
+Qed.
+
+
+
 Definition _weakening_of_statement_semantics_1  {S T : Set} (exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) := 
     (*
     should be in both directions according to the article but right to left does not work :
@@ -207,12 +216,16 @@ Definition _weakening_of_statement_semantics_1  {S T : Set} (exp_sem : @exp_sem_
         exists ev₁', 
         env_mem_partial_order ev₁ ev₁' sub /\ stmt_sem f ev₀' s ev₁').
 
+Fact weakening_of_empty_statement_semantics_1 {S T}: _weakening_of_statement_semantics_1 (@Empty_exp_sem T) (@Empty_stmt_sem S T).
+Proof. 
+    easy. 
+Qed.
+
 
 Definition _weakening_of_statement_semantics_2  {S T : Set} (exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) := 
-    
-    forall (f: @fenv S T) ev₀ ev₀' s ev₁,
     _determinist_exp_eval exp_sem ->
     _weakening_of_expression_semantics exp_sem ->
+    forall (f: @fenv S T) ev₀ ev₀' s ev₁,
     stmt_sem f ev₀ s ev₁ /\ (ev₀ ⊑ ev₀')%envmem  ->
     (
         forall ev₁',
@@ -224,29 +237,49 @@ Definition _weakening_of_statement_semantics_2  {S T : Set} (exp_sem : @exp_sem_
     ).
 
 
+Fact weakening_of_empty_statement_semantics_2 {S T}: _weakening_of_statement_semantics_2 (@Empty_exp_sem T) (@Empty_stmt_sem S T).
+Proof. 
+    easy. 
+Qed.
+
+
+(* required to prove _weakening_of_statement_semantics_3 *)
 Definition _weakening_of_expression_semantics_3 {T : Set} (exp_sem : @exp_sem_sig T) := 
     forall ev e z ev₀,
     exp_sem ev e z ->
     forall ev₀', (ev₀' ⊑ ev₀)%envmem ->
     (
-        (forall v, (dom ev₀ - dom ev₀') v /\ ~ List.In v (exp_vars e))
+        (forall v, (dom ev₀ - dom ev₀') v -> ~ List.In v (exp_vars e))
         /\
-        (forall x v, (dom ev₀.(mstate) - dom ev₀'.(mstate)) x ->  ev₀ v = Some (Def (VMpz x)) /\ ~ List.In v (exp_vars e))
+        (forall x, (dom ev₀.(mstate) - dom ev₀'.(mstate)) x -> (exists v, ev₀ v = Some (Def (VMpz x)) /\ ~ List.In v (exp_vars e)))
     ) ->
 
     exp_sem  ev₀' e z
 .
 
+
+Fact weakening_of_empty_expression_semantics_3 {T}: _weakening_of_expression_semantics_3 (@Empty_exp_sem T).
+Proof. 
+    easy.
+Qed.
+
+
+
 Definition _weakening_of_statement_semantics_3  {S T : Set} (stmt_sem : @stmt_sem_sig S T) := 
     forall f ev₀  s ev₁,
     stmt_sem f ev₀ s ev₁ -> 
-    (
-        forall ev₀', (ev₀' ⊑ ev₀)%envmem ->
-        (
-            (forall v, (dom ev₀ - dom ev₀') v /\ ~ List.In v (stmt_vars s))
-            /\
-            (forall x v, (dom ev₀.(mstate) - dom ev₀'.(mstate)) x -> ev₀ v = Some (Def (VMpz x)) /\ ~ List.In v (stmt_vars s))
-        ) ->
 
-        exists ev₁', stmt_sem f ev₀' s ev₁'
-    ).
+    forall ev₀', (ev₀' ⊑ ev₀)%envmem ->
+    (
+        (forall v, (dom ev₀ - dom ev₀') v -> ~ List.In v (stmt_vars s))
+        /\
+        (forall x, (dom ev₀.(mstate) - dom ev₀'.(mstate)) x -> (exists v, ev₀ v = Some (Def (VMpz x)) /\ ~ List.In v (stmt_vars s)))
+    ) ->
+
+    exists ev₁', stmt_sem f ev₀' s ev₁'
+    .
+
+Fact weakening_of_empty_statement_semantics_3 {S T}: _weakening_of_statement_semantics_3 (@Empty_stmt_sem S T).
+Proof. 
+    unfold _weakening_of_expression_semantics. intros f. intros. now exists ev₀'.
+Qed.

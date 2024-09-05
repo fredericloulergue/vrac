@@ -127,6 +127,7 @@ Qed.
 Fact _determinist_c_stmt_eval {S T} : @_determinist_stmt_eval S T Empty_exp_sem Empty_stmt_sem. easy. Qed.
 Definition determinist_c_stmt_eval {S T} := determinist_stmt_eval Empty_exp_sem Empty_stmt_sem (@_determinist_c_stmt_eval S T).
 
+
 Lemma weakening_of_expression_semantics {T} : 
     forall exp_sem, 
     (_weakening_of_expression_semantics exp_sem )
@@ -138,15 +139,10 @@ Proof with (eauto using refl_env_mem_partial_order with rac_hint).
         constructor. eapply eq_int_env_mem_partial_order...
 Qed.
 
-Fact _weakening_of_c_expression_semantics {T} : _weakening_of_expression_semantics (@Empty_exp_sem T). 
-Proof.
-    unfold _weakening_of_expression_semantics. intros. split ; unfold Empty_exp_sem.
-    - intros [].
-    - intro H. apply H with ev... apply refl_env_mem_partial_order.
-Qed.
 
-Definition weakening_of_c_expression_semantics  {T} := 
-weakening_of_expression_semantics (@Empty_exp_sem T) _weakening_of_c_expression_semantics.
+Definition weakening_of_c_expression_semantics {T} := weakening_of_expression_semantics (@Empty_exp_sem T) weakening_of_empty_expression_semantics. 
+
+
 
 Lemma weakening_of_statement_semantics_1 {S T : Set} : 
     forall exp_sem stmt_sem, 
@@ -165,7 +161,7 @@ Proof with eauto using refl_env_mem_partial_order, env_partial_order_add with ra
             + simpl. pose proof (env_partial_order_add ev ev₀' sub) as H3. simpl in *. now  destruct H3 with x z.
             + apply S_Assign...
                 ** apply env_same_ty with ev...
-                     *** now exists sub.
+                    *** right. now exists sub.
                      *** congruence.
                 ** rewrite (exp_weak e) in H1. specialize (H1 ev₀'). destruct H1... now exists sub.
 
@@ -228,8 +224,7 @@ Proof with eauto using refl_env_mem_partial_order, env_partial_order_add with ra
             eapply Hext_stmt in H... destruct H as [ev'' [Hrel2 Hderiv]]...                  
 Qed.
 
-Fact _weakening_of_c_statements_semantics_1 {S T} : _weakening_of_statement_semantics_1 (@Empty_exp_sem T) (@Empty_stmt_sem S T). 
-Proof. easy. Qed.
+Definition weakening_of_c_statements_semantics_1 {S T} := weakening_of_statement_semantics_1 (@Empty_exp_sem T) (@Empty_stmt_sem S T) weakening_of_empty_statement_semantics_1. 
 
 Lemma weakening_of_statement_semantics_2 {S T : Set} : 
     forall exp_sem stmt_sem, 
@@ -237,12 +232,11 @@ Lemma weakening_of_statement_semantics_2 {S T : Set} :
     -> _weakening_of_statement_semantics_2 exp_sem (@generic_stmt_sem S T exp_sem stmt_sem)
 .
 Proof with auto with rac_hint.
-    intros exp_sem stmt_sem ext_stmt_weak f ev₀ ev₀' s ev₁ ext_exp_deter ext_exp_weak  [Hderiv1 Hrel].
-    pose proof (weakening_of_expression_semantics exp_sem ext_exp_weak) as exp_weak.
-    unfold _weakening_of_statement_semantics_2 in ext_stmt_weak. generalize dependent ev₀'.
-    unfold _weakening_of_expression_semantics in exp_weak.
-    unfold _weakening_of_statement_semantics_2 in ext_stmt_weak.
-    
+    intros  exp_sem stmt_sem Hext_stmt Hdeter Hext_exp  f ev₀ ev₀' s ev₁  [Hderiv1 Hrel]. 
+    pose proof (weakening_of_expression_semantics exp_sem Hext_exp) as exp_weak.
+    unfold _weakening_of_statement_semantics_2 in Hext_stmt. 
+    unfold _weakening_of_expression_semantics in Hext_exp.    
+    generalize dependent ev₀'.
     induction Hderiv1 ; intros ev₀' Hrel ev₁' Hderiv2 ; inversion Hderiv2 ; subst ; try easy...
     
     (* assign *)
@@ -273,116 +267,62 @@ Proof with auto with rac_hint.
         +  symmetry. apply p_map_not_same...
             
     (* assert *)
-    - eapply ext_stmt_weak with (ev₀:=ev) (ev₁:=ev')  in H1...
+    - eapply Hext_stmt with (ev₀:=ev) (ev₁:=ev')  in H1...
 Admitted.
 
-Fact weakening_of_expression_semantics_3 {S T : Set} : forall exp_sem, 
-    _weakening_of_expression_semantics exp_sem
+
+Definition weakening_of_c_statements_semantics_2 {S T} := weakening_of_statement_semantics_2 (@Empty_exp_sem T) (@Empty_stmt_sem S T) weakening_of_empty_statement_semantics_2. 
+
+
+Fact weakening_of_expression_semantics_3 {T : Set} : forall exp_sem, 
+    _weakening_of_expression_semantics_3 exp_sem
     -> _weakening_of_expression_semantics_3 (@generic_exp_sem T exp_sem)
 .
 Proof with auto.
     intros exp Hweak ev e v ev1 Hderiv ev2 Hrel [Henv Hmem]. induction Hderiv.
     - constructor.
-    - constructor. destruct Henv with x. simpl in H1. destruct H1. now left.
-    - econstructor.
-        + apply IHHderiv1.
-            * intros v. specialize Henv with v as [He1 He2]. simpl in He2. split...
-                intros Hine. apply He2. apply List.in_app_iff...
-            * intros x v Hdom. specialize Hmem with x v. apply Hmem in Hdom as [Hm1 Hm2]. simpl in Hm2. split...
-                intro Hin. apply Hm2. apply List.in_app_iff... 
-        + apply IHHderiv2.
-            * intros v. specialize Henv with v as [He1 He2]. simpl in He2. split...
-                intros Hine. apply He2. apply List.in_app_iff. now right.
-            * intros x v Hdom. specialize Hmem with x v. apply Hmem in Hdom as [Hm1 Hm2]. simpl in Hm2. split...
-                intro Hin. apply Hm2. apply List.in_app_iff... 
-    - apply C_E_BinOpTrue with z z' z_ir z'_ir...
-        + apply IHHderiv1.
-            * intros v. specialize Henv with v as [He1 He2]. simpl in He2. split...
-                intros Hine. apply He2. apply List.in_app_iff...
-            * intros x v Hdom. specialize Hmem with x v. apply Hmem in Hdom as [Hm1 Hm2]. simpl in Hm2. split...
-                intro Hin. apply Hm2. apply List.in_app_iff...
-        + apply IHHderiv2.
-            * intros v. specialize Henv with v as [He1 He2]. simpl in He2. split...
-                intros Hine. apply He2. apply List.in_app_iff...
-            * intros x v Hdom. specialize Hmem with x v. apply Hmem in Hdom as [Hm1 Hm2]. simpl in Hm2. split...
-                intro Hin. apply Hm2. apply List.in_app_iff...
+    - constructor. admit.
+    - admit.
+    - admit.
+    - admit.
+Admitted.
 
-    - apply C_E_BinOpFalse with z z' z_ir z'_ir...
-        + apply IHHderiv1.
-            * intros v. specialize Henv with v as [He1 He2]. simpl in He2. split...
-                intros Hine. apply He2. apply List.in_app_iff...
-            * intros x v Hdom. specialize Hmem with x v. apply Hmem in Hdom as [Hm1 Hm2]. simpl in Hm2. split...
-                intro Hin. apply Hm2. apply List.in_app_iff...
-        + apply IHHderiv2.
-            * intros v. specialize Henv with v as [He1 He2]. simpl in He2. split...
-                intros Hine. apply He2. apply List.in_app_iff...
-            * intros x v Hdom. specialize Hmem with x v. apply Hmem in Hdom as [Hm1 Hm2]. simpl in Hm2. split...
-                intro Hin. apply Hm2. apply List.in_app_iff...
-Qed.
+Definition weakening_of_c_expression_semantics_3 {T} := weakening_of_expression_semantics_3 (@Empty_exp_sem T) weakening_of_empty_expression_semantics_3. 
 
 
 Lemma weakening_of_statement_semantics_3 {S T : Set} : 
     forall exp_sem stmt_sem, 
-    _weakening_of_expression_semantics exp_sem
+    _weakening_of_expression_semantics_3 exp_sem
     -> _weakening_of_statement_semantics_3 stmt_sem 
     -> _weakening_of_statement_semantics_3 (@generic_stmt_sem S T exp_sem stmt_sem)
 .
 
 Proof with auto with rac_hint.
-    intros exp_sem stmt_sem ext_exp_weak ext_stmt_weak f ev₀ s ev₁ Hderiv ev₀' Hrel [Henv Hmem].
+    intros exp_sem stmt_sem ext_exp_weak ext_stmt_weak.
+    epose proof (weakening_of_expression_semantics_3 exp_sem ext_exp_weak) as exp_weak.
+    intros f ev₀ s ev₁ Hderiv ev₀' Hrel [Henv Hmem].
+
     induction Hderiv.
     (* skip *)
     - exists ev₀'. constructor.
-    (* assign *)
-    - destruct Henv with x. simpl in H3. destruct H3...  
-    (* if true *)
-    - destruct IHHderiv as [ev'' Hx]...
-        + intro v. destruct Henv with v. split... intros Hin. apply H2.
-            apply List.in_app_iff. right. apply List.in_app_iff...
-        + intros l v Hdom. destruct Hmem with l v... split... intros Hin. apply H2.  
-            apply List.in_app_iff. right. apply List.in_app_iff...
-        + exists ev''. apply S_IfTrue with z... destruct H as [He Hzero]. split...
-            eapply weakening_of_expression_semantics_3 in He... specialize He with ev₀'. apply He.
-            * apply Hrel.
-            * split ; simpl in Henv,Hmem.
-                ** intros v. specialize Henv with v as [He1 He2]. simpl in He2. split...
-                    intros Hine. apply He2. apply List.in_app_iff...
-                ** intros x v Hdom. specialize Hmem with x v. apply Hmem in Hdom as [Hm1 Hm2]. simpl in Hm2. split...
-                    intro Hin. apply Hm2. apply List.in_app_iff...
 
+    (* assign *)
+    - exists (ev₀' <| env ; vars ::= {{x\Def z}} |>). apply S_Assign...
+        + apply env_same_ty with ev... easy.
+        + eapply (exp_weak _ _ _ _ H1 _ Hrel). split.
+            * intros v Hdom. specialize (Henv v Hdom). now apply List.not_in_cons in Henv.
+            * intros l Hdom. specialize (Hmem l Hdom). destruct Hmem as [v' [H3 H4]]. apply List.not_in_cons in H4. now exists v'.
+             
+
+    (* if true *)
+    -  admit.
     (* if false *)
-    - destruct IHHderiv as [ev'' Hx]...
-        + intro v. destruct Henv with v. split... intros Hin. apply H2.
-            apply List.in_app_iff. right. apply List.in_app_iff...
-        + intros l v Hdom. destruct Hmem with l v... split... intros Hin. apply H2.  
-            apply List.in_app_iff. right. apply List.in_app_iff...
-        + exists ev''. apply S_IfFalse... 
-            eapply weakening_of_expression_semantics_3 in H... specialize H with ev₀'. apply H.
-            * apply Hrel.
-            * split ; simpl in Henv,Hmem.
-                ** intros v. specialize Henv with v as [He1 He2]. simpl in He2. split...
-                    intros Hine. apply He2. apply List.in_app_iff...
-                ** intros x v Hdom. specialize Hmem with x v. apply Hmem in Hdom as [Hm1 Hm2]. simpl in Hm2. split...
-                    intro Hin. apply Hm2. apply List.in_app_iff...
+    - admit.
     (* while *)
-    - destruct IHHderiv as [ev'' Hx]...
-        + intro v. destruct Henv with v. split... intros Hin. simpl in H1,Hin. apply H1. rewrite List.app_nil_r in Hin.
-            apply List.in_app_iff in Hin. destruct Hin.
-            * apply List.in_app_iff...
-            * apply List.in_app_iff in H2. destruct H2... apply List.in_app_iff...
-        + intros l v Hdom. destruct Hmem with l v... split... intros Hin. apply H1. simpl in Hin. rewrite List.app_nil_r in Hin.
-            apply List.in_app_iff in Hin. destruct Hin.
-            * apply List.in_app_iff...
-            * apply List.in_app_iff in H2. destruct H2... apply List.in_app_iff...
-        +  exists ev''. constructor... 
+    - admit.
 
     (* seq *)
-    - destruct IHHderiv as [ev0 Hx]...
-        + intro v. destruct Henv with v. split... intros Hin. simpl in H2,Hin. apply H2. 
-            apply List.in_app_iff...
-        + intros l v Hdom. destruct Hmem with l v... split... intros Hin. apply H2. simpl in Hin.
-            apply List.in_app_iff...
-        + eexists.  apply S_Seq with ev0... admit. 
+    - admit. 
 
     (* fcall *)
     - eexists. apply S_FCall with b xargs zargs...
@@ -397,11 +337,11 @@ Proof with auto with rac_hint.
 
     (* return *)
     - exists (ev₀' <| env ; vars ::= {{res_f\Def z}} |>). apply S_Return.
-        eapply weakening_of_expression_semantics_3 in H... specialize H with ev₀'. apply H... apply Hrel.
+        eapply weakening_of_expression_semantics_3 in H... specialize H with ev₀'. apply H... apply Hrel. admit.
         
     (* assert *)
     - exists ev₀'. apply S_PAssert with z... 
-        eapply weakening_of_expression_semantics_3 in H... specialize H with ev₀'. apply H... apply Hrel.
+        eapply weakening_of_expression_semantics_3 in H... specialize H with ev₀'. apply H... apply Hrel. admit.
         
 
     (* other cases *)
@@ -409,3 +349,6 @@ Proof with auto with rac_hint.
         specialize (ext_stmt_weak f  ev (S_Ext s) _ H ev₀' Hrel).
         destruct ext_stmt_weak as [ev'' Hd]... exists ev''...
 Admitted.
+
+Definition weakening_of_c_statements_semantics_3 {S T} := 
+    weakening_of_statement_semantics_3 (@Empty_exp_sem T) (@Empty_stmt_sem S T) weakening_of_empty_expression_semantics_3 weakening_of_empty_statement_semantics_3. 
