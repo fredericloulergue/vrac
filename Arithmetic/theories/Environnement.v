@@ -4,13 +4,12 @@ From Coq Require Import ZArith.ZArith Strings.String Logic.FinFun.
 From RecordUpdate Require Import RecordUpdate.
 
 
-Record fenv {S T : Set} := {
+Record fenv {S T : Set} := mk_fenv {
     funs : @𝓕 S T ;
     procs : @𝓟 S T ;
     lfuns : 𝔉 ;
     preds : 𝔓 ;
 }.
-
 
 Module Int16Bounds.
     Open Scope Z_scope.
@@ -590,6 +589,25 @@ Proof.
     | L : _ = None,  Contra : _ <> None |- _ =>  now rewrite L in Contra
     end. *)
 Admitted.
+
+
+
+
+(* fixme: use inductive definition instead to have non determinstic undefined values *)
+Definition add_gmp_decls (decls : list (@_c_decl _gmp_t)) : Env -> Env  := 
+    List.fold_left (
+        fun e d => 
+            let 'C_Decl ty x := d in 
+            let undef := match ty with
+            | C_Int => UInt 2%nat
+            | T_Ext Mpz => UMpz 2%nat
+            | _ => UMpz 2%nat (* fixme *)
+            end 
+            in
+            e <| env; vars ::= fun f => {{x\Undef (UInt 2%nat)}} f |> 
+
+    ) decls
+.
 
 
 

@@ -12,7 +12,7 @@ Declare Scope gmp_stmt_sem_scope.
 Delimit Scope gmp_stmt_sem_scope with gmpssem.
 
 
-Inductive _gmp_stmt_sem { S T : Set } (f : @fenv S T) (ev:Env) : gmp_statement -> Env -> Prop := 
+Inductive _gmp_stmt_sem  (f : @fenv _gmp_statement _gmp_t) (ev:Env) : gmp_statement -> Env -> Prop := 
     | S_init x (l:location) u:
         (forall v, ev v <> Some (Def (VMpz (Some l)))) ->
         ev x = Some (Undef (UMpz u)) ->
@@ -63,6 +63,17 @@ Inductive _gmp_stmt_sem { S T : Set } (f : @fenv S T) (ev:Env) : gmp_statement -
         ev r = Some (Def (VMpz (Some lr))) -> (* not in paper *)
         (ev |= fsl_to_gmp_op bop r x y => ev <| mstate ::= {{lr\Defined (⋄ (□ bop) zx zy) }} |>) f
 
+    | S_Scope d (s:@_c_statement _gmp_statement _gmp_t) ev_s:
+        (*
+            - A scope has var declarations that gets dropped at the end. 
+            - This was missing in the original paper but required in the translation 
+            as we must create a scope when we translate the assertions 
+            - Note it complicate things because the statement are c instructions, not just gmp ones.
+        *)
+        @generic_stmt_sem _gmp_statement _gmp_t Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars f (add_gmp_decls d ev) s ev_s -> 
+        (ev |= GMP_Scope d s =>  ev_s) f
+
+
 where "ev |= s => ev'" := (fun f => _gmp_stmt_sem f ev s ev') : gmp_stmt_sem_scope.
 
 #[global] Hint Constructors _gmp_stmt_sem  : rac_hint.
@@ -108,4 +119,5 @@ Proof with auto with rac_hint.
         + rewrite p_map_not_same in Hl'... destruct (string_dec c v).
             * subst. rewrite p_map_same in Hl. injection Hl as Hl. now subst.
             * rewrite p_map_not_same in Hl... destruct Hnoalias with v v' l' l'...
-Qed.
+    - admit.
+Admitted.

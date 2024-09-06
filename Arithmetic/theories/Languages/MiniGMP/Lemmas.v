@@ -89,6 +89,8 @@ Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
                 ++ now apply (eq_mpz x (Some lx)).
                 ++ now apply (eq_mpz y (Some ly)).
                 ++ now apply (eq_mpz r (Some lr)).
+        (* scope*)
+        * admit.
 Admitted.
 
 Definition weakening_of_gmp_statements_semantics_1 := 
@@ -112,6 +114,7 @@ Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
     - admit.  
     - admit.  
     - admit.  
+    - admit.
     - admit.
 Admitted.
 
@@ -152,6 +155,7 @@ Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
     - admit.  
     - admit.  
     - admit.  
+    - admit.
     - admit.
 Admitted.
 

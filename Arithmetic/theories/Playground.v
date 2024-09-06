@@ -202,11 +202,11 @@ Definition y := FSL_Decl (T_Ext Mpz) "y".
 
 Definition p : predicate := (P_BinOp (T_Id "x" FSL_Int) FSL_Gt (T_Id "y" FSL_Int)). 
 
-Definition greaterThan : predicate := P_Call "greaterThan" [T_Id "x" FSL_Int; T_Z 3].
+(* Definition greaterThan : predicate := P_Call "greaterThan" [T_Id "x" FSL_Int; T_Z 3]. *)
 
 Compute ( 
         let z := (C_Id "z" C_Int) in 
-        T.translate_program (Build_fenv _fsl_statement Empty_set ⊥ ⊥ ⊥ ⊥) dummy_bindings dummy_tenv  
+        T.translate_program 
         ([] : list _c_decl,
         [<[ /*@ predicate "greaterThan"(x,y) = p  */ ]>;
         <[
@@ -221,5 +221,5 @@ Compute (
             ]
          ]> 
         ]
-        )
+        ) dummy_bindings dummy_tenv  
 ). 

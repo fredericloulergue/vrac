@@ -12,6 +12,10 @@ Notation 𝔗 := gmp_t. (* minigmp types *)
 (* a gmp expression is a regular c_expression where a variable can additionally be of type String or Mpz *)
 Definition gmp_exp := @_c_exp _gmp_t.
 
+Definition gmp_decl := @_c_decl _gmp_t.
+
+
+
 Inductive _gmp_statement := 
     | Init (name:id) (* mpz allocation *)
     | Set_i (name:id) (i: c_exp) (* assignment from an int *)
@@ -25,11 +29,13 @@ Inductive _gmp_statement :=
     | Comp (res lid rid :id) (* mpz comparison *)
     | Coerc (name n : id)  (* mpz coercion *)
     
-    (* GMP_Decl added because translation seems to insert declarations inside statements 
-        type is gmp_t because DECLS input is gmp_t
+    (* 
+        GMP_Scope added because translation creates a scope per translated assertion within which lies 
+        the assertion and its required declarations. 
     *)
-    (* | GMP_Decl (type: gmp_t) (name:id)  *)
+    | GMP_Scope (decls: list gmp_decl) (s:@_c_statement _gmp_statement _gmp_t) 
 .
+
 #[global] Hint Constructors _gmp_statement  : rac_hint.
 Definition gmp_routine := @_c_routine Empty_set _gmp_statement _gmp_t.
 

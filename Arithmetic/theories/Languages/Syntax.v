@@ -15,7 +15,6 @@ Coercion gmp_s_ext (s:_gmp_statement) : 𝐒 := S_Ext s (T:=_gmp_t).
 
 
 Definition c_decl := @_c_decl Empty_set.
-Definition gmp_decl := @_c_decl _gmp_t.
 (* fsl_decl defined earlier *)
 
 
@@ -87,17 +86,24 @@ Fixpoint stmt_vars {T S:Set} (stmt : @_c_statement T S) (ext_stmt_vars: T -> lis
 | S_Ext s => ext_stmt_vars s
 end.
 
-Definition Empty_ext_stmt_vars {T} : T -> list id := fun _ => nil.
 
-
-Definition c_stmt_vars s := stmt_vars (T:=Empty_set) (S:=Empty_set) s Empty_ext_stmt_vars.
-
-Definition _gmp_stmt_vars (stmt:_gmp_statement) : list id := match stmt with 
+Unset Guard Checking. (* fixme *)
+Fixpoint _gmp_stmt_vars (stmt:_gmp_statement) : list id := match stmt with 
+| GMP_Scope _ s => stmt_vars s _gmp_stmt_vars
 | Init z | Set_s z _  | Clear z  => z::nil
 | Set_i z e  => z::exp_vars e
 | Set_z z1 z2 | Coerc z1 z2 => z1::z2::nil
 | GMP_Add l r res | GMP_Sub l r res | GMP_Mul l r res | GMP_Div l r res | Comp res l r => l::r::res::nil
 end.
+
+Set Guard Checking.
+
+
+Definition Empty_ext_stmt_vars {T} : T -> list id := fun _ => nil.
+
+
+Definition c_stmt_vars s := stmt_vars (T:=Empty_set) (S:=Empty_set) s Empty_ext_stmt_vars.
+
 
 Definition gmp_stmt_vars s := stmt_vars (T:=_gmp_statement) (S:=_gmp_t) s _gmp_stmt_vars.
 

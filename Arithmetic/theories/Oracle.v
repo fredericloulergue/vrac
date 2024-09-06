@@ -45,7 +45,7 @@ Module Type Oracle.
     .
 
 
-    (* there is also convergence for predicates but the oracle is for terms, not predicates, what to do? *)
+    (* fixme: there is also convergence for predicates but the oracle is for terms, not predicates, what to do? *)
     (* Parameter convergence_of_pred_ty : 
     forall S (f : @fenv _fsl_statement S) pname xargs (targs:list ℨ) (iargs:list 𝐼) b, 
     f.(preds) pname = Some (xargs,b) ->

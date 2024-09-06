@@ -270,23 +270,28 @@ Definition string_of_nat (n : nat) : string :=
 
 
 
-    Module CounterMonad.
+Module CounterMonad.
+    (* 
+        todo: combine with option monad for use to signal errors in the translation
+        then, show the translation can't have error
+    *)
+
 
     Definition state {T : Type} : Type := nat -> T * nat.
 
 
     Definition ret {A : Type} (a : A) : state (T:=A) := fun c => (a, c).
-    
+
     Definition bind {A B : Type} (m : state (T:=A)) (f : A -> state (T:=B)) : state (T:=B) :=
         let f' := fun c => 
             let (a, c') := m c in f a c' 
         in f'.
-    
+
     Notation "x <- f ;; c" := (bind f (fun x => c)) (f at next level, at level 61, right associativity) .
     Notation "x <- f ;;; c" := (bind f (fun x => ret c)) (f at next level, at level 61, right associativity) .
     Notation "f ;; c" := (bind f (fun _ => c)) ( at level 61, right associativity).
     Notation "f ;;; c" := (bind f (fun _ => ret c)) ( at level 61, right associativity).
-    
+
     Definition tick : state := fun c => (tt, S c).
     Definition getTick : state := fun c => (c, c).
     Definition fresh := n <- getTick ;; tick ;;; n.
