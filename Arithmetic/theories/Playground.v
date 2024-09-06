@@ -1,5 +1,5 @@
 From RAC Require Import Utils Environnement Translation.
-From RAC.Languages Require Import Syntax.
+From RAC.Languages Require Import Syntax Semantics.
 From Coq Require Import ZArith.ZArith Lists.List String.
 Import ListNotations.
 Open Scope string_scope.
@@ -152,18 +152,50 @@ end.
 Open Scope Z_scope.
 Open Scope mini_gmp_scope.
 
+Module DummyOracle : Oracle.Oracle.
+    Record 𝐼 := mkInterval {min : Z; max : Z}.
+    
+    Definition 𝓘 : ℨ -> (𝔏 ⇀ 𝐼) -> 𝐼 := fun _ _ => mkInterval (-10) 10.
+
+    Definition ϴ : 𝐼 -> 𝔗 := fun _ => Mpz. 
+
+    Definition Γᵢ : Type :=  𝔏 ⇀ 𝐼. 
+
+    Definition 𝒯 : ℨ -> (𝔏 ⇀ 𝐼) -> 𝔗 := fun t τᵢ =>  ϴ (𝓘 t τᵢ).
+
+    Parameter ty_funcall_is_ty_body: 
+    forall S (f : @fenv _fsl_statement S) fname xargs (targs:list ℨ) (iargs:list 𝐼) b, 
+    f.(lfuns) fname = Some (xargs,b) ->
+    forall te,
+    List.Forall2 (fun e i => eq (𝓘 e te) i) targs iargs ->
+    𝒯 (T_Call fname targs) te = 𝒯 b (p_map_addall_back xargs iargs ⊥).
+
+    Inductive fits (z:Z) : 𝔗 -> Prop := 
+    | InInt : Int.inRange z -> fits z C_Int
+    | InMpz : fits z (T_Ext Mpz)
+    .
+
+    Parameter type_soundness : forall env te f t z, 
+    fsl_term_sem f env t z -> fits z (𝒯 t te).
+
+    Parameter convergence_of_lfuns_ty : 
+    forall fname (targs:list ℨ) (iargs:list 𝐼), 
+    forall (typing_envs : Ensembles.Ensemble Γᵢ)  (fe:Γᵢ), Ensembles.In Γᵢ typing_envs fe ->
+    (exists ty te, eq (𝒯 (T_Call fname targs) te) ty) -> 
+    Finite_sets.Finite _ typing_envs
+    .
+
+End DummyOracle.
 
 
-Definition dummy_iop : ϴ := fun i => Mpz. 
-Definition dummy_oracle : 𝓘 := fun t li => mkInterval (-10) 10.
-
-Definition dummy_tinf : type_inf := 
-    {| oracle := dummy_oracle; t_env := ⊥; i_op := dummy_iop|}.
+Definition dummy_tenv : DummyOracle.Γᵢ := ⊥.
 
 
-Definition dummy_bindings : Γᵥ := ⊥.
+Module T := Translation.Translation(DummyOracle).
 
-Definition dummy_defs : ψ := ⊥.
+Definition dummy_bindings : T.Γᵥ := ⊥.
+
+Definition dummy_defs : T.ψ := ⊥.
 
 Definition x := FSL_Decl (T_Ext Mpz) "x".
 Definition y := FSL_Decl (T_Ext Mpz) "y".
@@ -174,7 +206,7 @@ Definition greaterThan : predicate := P_Call "greaterThan" [T_Id "x" FSL_Int; T_
 
 Compute ( 
         let z := (C_Id "z" C_Int) in 
-        translate_program (Build_fenv _fsl_statement Empty_set ⊥ ⊥ ⊥ ⊥) dummy_bindings dummy_tinf  
+        T.translate_program (Build_fenv _fsl_statement Empty_set ⊥ ⊥ ⊥ ⊥) dummy_bindings dummy_tenv  
         ([] : list _c_decl,
         [<[ /*@ predicate "greaterThan"(x,y) = p  */ ]>;
         <[

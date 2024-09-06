@@ -632,29 +632,3 @@ intros. destruct mem eqn:X.
             assert (Hsome: mem (max + 1)%nat <> None) by congruence. apply H1 in Hsome. auto with zarith. 
     - easy.
 Qed. *)
-
-
-(**** oracle & co ****)
-
-Record 𝐼 := mkInterval {min : Z; max : Z}. (* interval *)
-
-Definition 𝓘 := ℨ -> (𝔏 ⇀ 𝐼) -> 𝐼. (* oracle *)
-
-Definition ϴ :=  𝐼 -> 𝔗.
-
-Definition Γᵢ := 𝔏 ⇀ 𝐼. (* typing env mapping logic binders to intervals *)
-Definition Γᵥ := 𝔏 ⇀ 𝓥 ⨉ 𝐼. (* environment for bindings :  variable and interval infered from it *)
-Definition Γ := Γᵥ ⨉ Γᵢ.
-
-(* See 5.1. (𝔏 ⇀ 𝐼) is the interval infered for each function arguments but how to make it decidable ? *)
-Axiom eq_dec_bindings : forall (e1 e2 : (𝔏 ⨉ (𝔏 ⇀ 𝐼))), {e1 = e2} + {e1 <> e2}. 
-
-#[global] Instance eqdec_bindings : EqDecC (𝔏 ⨉ (𝔏 ⇀ 𝐼)) := {
-    eq_dec := eq_dec_bindings
-}.
-
-
-Definition ψ := (𝔏 ⨉ (𝔏 ⇀ 𝐼)) ⇀ 𝓥 . (* global definitions env *)
-Notation "'Γ' '(' x ')' " := (Γᵥ x, Γᵢ x).
-Definition 𝚪 (oracle: 𝓘) (o:ϴ) := fun (t:ℨ) (τᵢ: Γᵢ) =>  o (oracle t τᵢ) : 𝔗. (* Θ ◦ oracle. *)
-Record type_inf := { oracle : 𝓘 ; t_env : Γᵢ ; i_op : ϴ }.

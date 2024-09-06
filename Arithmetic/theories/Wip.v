@@ -97,6 +97,7 @@ Qed.
 
 
 
+(*
 
 (* synchronicity invariant *)
 Definition I1 (env:Ω) (ienv:Γ) := ((dom env.(binds)) = (dom (fst ienv) + dom (snd ienv)))%utils.
@@ -104,6 +105,11 @@ Definition I1 (env:Ω) (ienv:Γ) := ((dom env.(binds)) = (dom (fst ienv) + dom (
 (* suitability invariant *)
 Definition I2 (env:ψ) := True. (* todo *)
 
+
+*)
+
+
+(*
 
 Inductive pgrm_var_representation (iop:ϴ) (e : Env) (ienv:Γ) : Env -> Prop :=
 | empty ΩΓ 𝓜Γ :   
@@ -121,11 +127,4 @@ Inductive pgrm_var_representation (iop:ϴ) (e : Env) (ienv:Γ) : Env -> Prop :=
 *)
 
 
-
-(* Module Todo.
-Hypothesis type_soundness : forall (env:Ω) (t:Z), True.
-
-Hypothesis convergence : forall (type_env:Γ) (r:mini_c(((((((((_routines), 
-    exists (t:T), type_env r = t.
-End Todo. *)
-
+*)
