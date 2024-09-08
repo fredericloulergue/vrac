@@ -4,6 +4,8 @@ From RAC.Languages Require Export MiniC.Semantics MiniGMP.Semantics MiniFSL.Sema
 
 Open Scope c_sem_scope.
 
+
+
 Fact ty_int_gmp_c_exp_equiv {ext_exp} (e:gmp_exp): forall env v, 
     ty e = C_Int -> 
     (env |= gmp_exp_to_c_exp e => v)%csem <-> generic_exp_sem env e v (ext_exp:=ext_exp).

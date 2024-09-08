@@ -30,7 +30,7 @@ Notation "⋄" := c_binop_int_model.
 
 #[warnings="-uniform-inheritance"] 
 Inductive _c_exp {T : Set}  :=
-    | Zm (z : Z) :> _c_exp(* machine integer *) (* can only be of type int *)
+    | Zm (z : Z) :> _c_exp (* machine integer *) (* can only be of type int *)
     | C_Id (var : id) (ty : @_c_type T) (* variable access *) (* can be either int or mpz *)
     | BinOpInt (le : _c_exp) (op:c_binop_int) (re : _c_exp) (* can only be of type int *)
     | BinOpBool (le : _c_exp) (op:c_binop_bool) (re : _c_exp) (* can only be of type int *)

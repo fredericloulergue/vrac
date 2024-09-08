@@ -1,4 +1,5 @@
 From Coq Require Import ZArith.ZArith Lists.List String.
+From RecordUpdate Require Import RecordUpdate.
 From RAC Require Import Utils Environnement Translation.
 From RAC.Languages Require Import Syntax Semantics.
 
@@ -42,6 +43,10 @@ mscrA : 𝒜
 mfrakA : 𝔄
 mbfscrA : 𝓐
 *)
+
+
+
+
 
 Open Scope c_sem_scope.
 Open Scope mini_gmp_scope.
@@ -153,6 +158,58 @@ end.
 (* Compute (exec (test (true::true::false::false::true::false::nil))). *)
 
 
+
+
+Example add_var_int : forall (ir3 :Int.inRange 3),  empty_env +++ (C_Int, "y", 3) (empty_env  <| env ; vars := ⊥{"y"\Def (VInt ( 3ⁱⁿᵗ ir3))} |>).
+Proof. now constructor. Qed.
+
+
+Example add_var_mpz  : 
+add_z_var empty_env Mpz "y" 3  
+    ( empty_env 
+        <| env ; vars := ⊥{"y"\Def 1%nat} |>
+        <| mstate := ⊥{(1%nat)\(Defined 3)} |>
+    )
+.
+Proof.
+    assert (ir3: Int.inRange 3) by easy.
+    now apply typeMpz.
+Qed.
+
+
+From Coq Require Import Ensembles.
+Open Scope Z_scope.
+
+Example envaddnil : add_z_vars empty_env (Empty_set _) empty_env.
+Proof.
+ constructor.
+Qed.
+
+Open Scope list.
+
+Example envaddone : add_z_vars empty_env  (Singleton _ (T_Ext Mpz, "y", 3))
+    (empty_env 
+        <| env ; vars := ⊥{"y"\Def (VMpz 1%nat)} |>
+        <| mstate := ⊥{1%nat\(Defined 3)} |>
+    )
+.
+Proof.
+    replace (Singleton _ (T_Ext Mpz, "y", 3)) with (Add _ (Empty_set _) (T_Ext Mpz, "y", 3)).
+    - assert (ir3: Int.inRange 3) by easy.
+     apply (add_z_vars_cons empty_env (Empty_set _) (T_Ext Mpz) "y" 3) .
+   
+   apply (typeMpz empty_env Mpz "y" 3 1%nat).
+      * reflexivity.
+      * intro v. intro contra. inversion contra.
+  - apply Extensionality_Ensembles. split. 
+      * autounfold with sets. intros. destruct H.
+        + inversion H.
+        + auto with sets.
+      * autounfold with sets. intros. now constructor.
+Qed.
+
+
+
 Open Scope Z_scope.
 Open Scope mini_gmp_scope.
 
@@ -164,6 +221,8 @@ Module DummyOracle : Oracle.Oracle.
     Module StringEnv := StringEnv.
 
     Definition Γᵢ : Type :=  StringEnv.t 𝐼. 
+
+    Definition get_Γᵢ : fsl_pgrm -> Γᵢ := fun _ => DummyOracle.StringEnv.empty.
 
     Definition 𝓘 : ℨ -> Γᵢ -> 𝐼 := fun _ _ => (-10,10).
 
@@ -198,8 +257,6 @@ End DummyOracle.
 
 Module T := Translation.Translation(DummyOracle).
 
-Definition dummy_intervals : DummyOracle.Γᵢ := DummyOracle.StringEnv.empty.
-
 Definition x := FSL_Decl (T_Ext Mpz) "x".
 Definition y := FSL_Decl (T_Ext Mpz) "y".
 
@@ -224,5 +281,5 @@ Compute (
             ]
          ]> 
         ]
-        )  dummy_intervals 
+        ) 
 ). 

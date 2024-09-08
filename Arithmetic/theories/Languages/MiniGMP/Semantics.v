@@ -3,7 +3,7 @@ From RecordUpdate Require Import RecordUpdate.
 From RAC Require Import Utils Environnement.
 From RAC.Languages Require Import Syntax.
 From RAC.Languages Require Import MiniC.Semantics MiniGMP.Syntax.
-
+ 
 Import RecordSetNotations FunctionalEnv.
 
 Open Scope utils_scope.
@@ -11,6 +11,8 @@ Open Scope mini_c_scope.
 Open Scope mini_gmp_scope.
 Declare Scope gmp_stmt_sem_scope.
 Delimit Scope gmp_stmt_sem_scope with gmpssem.
+
+Definition declare_gmp_vars := @declare_vars _gmp_t (fun x => T_Ext Mpz).
 
 
 Inductive _gmp_stmt_sem  (f : @fenv _gmp_statement _gmp_t) (ev:Env) : gmp_statement -> Env -> Prop := 
@@ -64,15 +66,16 @@ Inductive _gmp_stmt_sem  (f : @fenv _gmp_statement _gmp_t) (ev:Env) : gmp_statem
         ev r = Some (Def (VMpz (Some lr))) -> (* not in paper *)
         (ev |= fsl_to_gmp_op bop r x y => ev <| mstate ::= {{lr\Defined (⋄ (□ bop) zx zy) }} |>) f
 
-    | S_Scope d (s:@_c_statement _gmp_statement _gmp_t) ev_s:
+    | S_Scope decls (s:@_c_statement _gmp_statement _gmp_t) ev_s:
         (*
             - A scope has var declarations that gets dropped at the end. 
             - This was missing in the original paper but required in the translation 
             as we must create a scope when we translate the assertions 
             - Note it complicate things because the statement are c instructions, not just gmp ones.
         *)
-        @generic_stmt_sem _gmp_statement _gmp_t Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars f (add_gmp_decls d ev) s ev_s -> 
-        (ev |= GMP_Scope d s =>  ev_s) f
+        declare_gmp_vars ev (list_to_ensemble decls) ev_s ->
+        @generic_stmt_sem _gmp_statement _gmp_t Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars f ev_s s ev -> 
+        (ev |= GMP_Scope decls s =>  ev_s) f
 
 
 where "ev |= s => ev'" := (fun f => _gmp_stmt_sem f ev s ev') : gmp_stmt_sem_scope.
@@ -81,9 +84,9 @@ where "ev |= s => ev'" := (fun f => _gmp_stmt_sem f ev s ev') : gmp_stmt_sem_sco
 
 
 Definition gmp_stmt_sem := @generic_stmt_sem _gmp_statement _gmp_t Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars.
-(*
-Notation "Ω ⋅ M |= s => Ω' ⋅ M'"  := (fun f => gmp_stmt_sem f Ω M s Ω' M') : gmp_sem_scope. 
- *)
+
+Definition gmp_pgrm_sem := @generic_pgrm_sem Empty_set _gmp_statement _gmp_t (fun _ => T_Ext Mpz) Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars.
+
 
 
  Fact _no_mem_aliasing_gmp : _no_mem_aliasing _gmp_stmt_sem.

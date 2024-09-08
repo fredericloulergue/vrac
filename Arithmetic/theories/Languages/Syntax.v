@@ -31,8 +31,6 @@ Definition 𝔓 : Type :=  𝔏 ⇀ (𝔏* ⨉  𝔅). (* predicates *)
 
 
 
-
-
 (****************** Expression Typing ******************)
 
 
@@ -100,6 +98,27 @@ Fixpoint _gmp_stmt_vars (stmt:_gmp_statement) : list id := match stmt with
 end.
 
 Set Guard Checking.
+
+Definition _fsl_stmt_vars (stmt:_fsl_statement) : list id := 
+  let _stmt_vars:= fix predicate_vars (p:predicate) : list id := match p with
+    | P_True | P_False => nil
+    | P_BinOp t1 _ t2 => (term_vars t1 ++ term_vars t2)%list
+    | P_Not p => predicate_vars p
+    | P_Disj p1 p2 => (predicate_vars p1 ++ predicate_vars p2)%list
+    | P_Call _ args => List.flat_map term_vars args
+    end
+  with term_vars (t:fsl_term) : list id := match t with
+    | T_Z _ => nil
+    | T_Id x _ => (x::nil)%list
+    | T_BinOp t1 _ t2 => (term_vars t1 ++ term_vars t2)%list
+    | T_Cond p t1 t2 => (predicate_vars p ++ term_vars t1 ++ term_vars t2)%list
+    | T_Call _ targs => List.flat_map term_vars targs
+    end
+  for predicate_vars
+  in
+  match stmt with 
+  | LAssert p => _stmt_vars p
+ end.
 
 
 Definition Empty_ext_stmt_vars {T} : T -> list id := fun _ => nil.

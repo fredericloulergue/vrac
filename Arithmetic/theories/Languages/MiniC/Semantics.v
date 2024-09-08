@@ -134,26 +134,53 @@ Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt
         -> (ev |= (S_Ext s) => ev') f
     
     where "env |= s => env'"  := (fun f => generic_stmt_sem f env s env') : generic_stmt_sem_scope.
-    
 #[global] Hint Constructors generic_stmt_sem  : rac_hint.
 
 
-(* 
-Declare Scope c_sem_scope.
-Delimit Scope c_sem_scope with csem. 
-Definition c_stmt_sem := @generic_stmt_sem Empty_set Empty_set Empty_exp_sem Empty_stmt_sem.
-Notation "ev |= s => ev'"  := (c_stmt_sem ev s ev') : c_sem_scope. 
-*)
+
+Inductive generic_decl_sem {T} {ext_ty_val: 𝕍 -> @_c_type T} (ev:Env) : @_c_decl T -> Env -> Prop :=
+| D_Decl x (t:@_c_type T) u:
+    ev.(vars) x  = None -> 
+    _type_of_value ext_ty_val (Some (Undef u)) = Some t  ->
+    generic_decl_sem ev (C_Decl t x) (ev <| env ;vars ::= {{x\Undef u}} |>)
+.
 
 
+From Coq Require Import Sets.Ensembles.
 
-(* 
-Definition c_decl_sem (env env':Ω) (mem mem':𝓜) d : Prop := 
-forall x t u,
-env x  = None -> 
-(ty u) = Some t ->
-d = C_Decl t x -> env' = env <| vars ::= {{x\u}} |> /\ mem = mem'.
-*)
+Inductive declare_vars {T} {ext_ty_val: 𝕍 -> @_c_type T} (e : Env) : Ensemble (@_c_decl T) -> Env -> Prop :=
+| DV_nil : 
+    declare_vars e (Empty_set _) e
+
+| DV_cons decls d e': 
+  @generic_decl_sem T ext_ty_val e d e' -> 
+  declare_vars e (Add _ decls d) e'
+.
+
+Definition declare_funs {F S T} : @fenv S T -> Ensemble (@_c_routine F S T) -> Prop := fun _ _ => True. (* todo *)
+
+
+Inductive generic_pgrm_sem {F S T:Set} 
+    {ext_ty_val: 𝕍 -> @_c_type T} {ext_exp : @exp_sem_sig T} {ext_stmt: @stmt_sem_sig S T} {ext_stmt_vars: S -> list id} 
+    (ev:Env) (P : @_c_program F S T) (args:Int.MI*) : Env -> Prop :=
+
+    | P_Pgrm params b ret z ev_decls fenv  ev':
+
+        (* add global declarations to the env *)
+        @declare_vars T ext_ty_val ev (list_to_ensemble (fst P)) ev_decls ->
+        (* add all functions to fenv *)
+        declare_funs fenv (list_to_ensemble (snd P))  -> 
+
+        (* call the main function with the given parameters (same as F_Call except the evaluation env for the body is not empty and we keep the env from the body) *) 
+        let vargs := List.map (fun x => Def (VInt x)) args in 
+        fenv.(funs) "main"%string = Some (params,b) ->
+        List.length params = List.length vargs ->
+        @generic_stmt_sem S T ext_exp ext_stmt ext_stmt_vars fenv (ev_decls <| env ; vars ::= p_map_addall_back params vargs |>)  b ev' -> 
+        ~ List.In res_f (stmt_vars b ext_stmt_vars) -> 
+        ev' res_f = Some (Def (VInt z)) -> (* must be a defined integer value *)
+
+        generic_pgrm_sem ev P args (ev' <| env; vars ::= {{ret\Def z}} |>)
+.
 
 
 Definition _untouched_var_same_eval_exp {T : Set} (exp_sem : @exp_sem_sig T) := 

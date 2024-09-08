@@ -606,12 +606,15 @@ Module Translation (Oracle : Oracle).
         ) routines {|funs := ⊥ ; procs := ⊥ ; lfuns := ⊥; preds := ⊥|}
         .
 
-    Definition translate_program (p: fsl_pgrm) (t_env:Γᵢ) : rac_pgrm := 
+    Definition translate_program (p: fsl_pgrm) : rac_pgrm := 
 
         let '(decls,routines) := p in  
 
         (* gather all routines definitions in fenv *)
         let fenv := build_fenv routines in 
+
+        (* perform the static analysis *)
+        let t_env := Oracle.get_Γᵢ p in
 
         (* begin by converting c decls to gmp_decls *)
         let gmp_decls := map c_decl_to_gmp_decl decls in

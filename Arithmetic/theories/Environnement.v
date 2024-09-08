@@ -1,4 +1,4 @@
-From Coq Require Import ZArith.ZArith Strings.String Logic.FinFun.
+From Coq Require Import ZArith.ZArith Strings.String Logic.FinFun Sets.Ensembles Sets.Finite_sets.
 From RecordUpdate Require Import RecordUpdate.
 From RAC Require Import Utils.
 From RAC.Languages Require Import Syntax.
@@ -591,12 +591,16 @@ Definition _no_env_mpz_aliasing (ev : Ω) : Prop :=
 
 
 
-Definition type_of_value : option 𝕍 -> option 𝔗 := fun v => match v with
+Definition _type_of_value {T:Set} (ext_valty : 𝕍 -> @_c_type T) : option 𝕍 -> option (@_c_type T) := fun v => match v with
 | Some (VInt _) | Some (UInt _) => Some C_Int
-| Some (VMpz _) | Some (UMpz _) => Some (T_Ext Mpz)
+| Some t => Some (ext_valty t)
 | None => None
 end.
 
+Definition _type_of_gmp :  𝕍 -> gmp_t := fun _ =>  T_Ext Mpz.
+
+
+Definition type_of_value := _type_of_value _type_of_gmp.
 
 Fact type_of_value_env : forall (env:Ω) (var:𝓥), type_of_value (env var) <> None -> env var <> None.
 Proof.
@@ -623,24 +627,40 @@ Admitted.
 
 
 
-(* Inductive add_gmp_decls (decls : list (@_c_decl _gmp_t)) : Env -> Env -> Prop :=
-| Add u  *)
+(* environnement enrichers *)
 
+Inductive add_z_var (e : Env) (τ:gmp_t) (v:id) (z:Z) : Env -> Prop :=
+| typeInt irz : 
+    (* fixme: section F is able to tell if z is in Uint and in any case transform it into a machine integer (how?) *)
+    τ = C_Int ->
+    add_z_var e τ v z (e <| env ; vars ::= {{v\z ⁱⁿᵗ irz : 𝕍}} |>)
 
-(* fixme: use inductive definition instead to have non determinstic undefined values *)
-Definition add_gmp_decls (decls : list (@_c_decl _gmp_t)) : Env -> Env  := 
-    List.fold_left (
-        fun e d => 
-            let 'C_Decl ty x := d in 
-            let undef := match ty with
-            | C_Int => UInt 2%nat
-            | T_Ext Mpz => UMpz 2%nat
-            | _ => UMpz 2%nat (* fixme *)
-            end 
-            in
-            e <| env; vars ::= fun f => {{x\Undef (UInt 2%nat)}} f |> 
+| typeMpz l:
+    τ  = Mpz ->
+    (forall v', e v' <> Some (Def (VMpz (Some l))) )->
+    add_z_var e τ v z 
+    ( e 
+    <| env ; vars ::= {{ v\l : 𝕍}} |>
+    <| mstate ::= {{l\Defined z}} |> 
+    )
+.
 
-    ) decls
+Notation "env '+++' ( t , v , z )" := (add_z_var env t v z) (at level 99).
+
+Definition 𝐴 : Type := Ensemble (gmp_t ⨉ id ⨉ Z).
+
+Inductive add_z_vars (e : Env) : 𝐴 -> Env -> Prop := 
+| add_z_vars_nil : add_z_vars e (Empty_set _) e
+
+| add_z_vars_cons (vars:𝐴) t v z e': 
+    e +++ (t,v,z) e' -> 
+    add_z_vars e (Add _ vars (t,v,z)) e'
+.
+
+Fixpoint list_to_ensemble {X} (l:list X) : Ensemble X := match l with
+| nil => Empty_set _
+| List.cons hd tl => Add _ (list_to_ensemble tl) hd
+end
 .
 
 

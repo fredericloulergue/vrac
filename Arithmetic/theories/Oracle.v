@@ -12,6 +12,8 @@ Module Type Oracle.
     Module StringEnv := MMapsEnv(String_as_OT).
     Definition Γᵢ : Type :=  StringEnv.t 𝐼. (* typing env mapping logic binders to intervals *)
 
+    Parameter get_Γᵢ : fsl_pgrm -> Γᵢ. (* static analysis *)
+
     Parameter 𝓘 : ℨ -> Γᵢ -> 𝐼. (* oracle *)
 
     Parameter ϴ :  𝐼 -> 𝔗.

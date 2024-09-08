@@ -100,6 +100,8 @@ Inductive _fsl_assert_sem  (f : fenv ) (ev:Env) : fsl_statement -> Env -> Prop :
 
 
 Definition fsl_stmt_sem := @generic_stmt_sem _fsl_statement Empty_set Empty_exp_sem _fsl_assert_sem.
-Notation "ev |= s => ev'"  := (fun f => fsl_stmt_sem f ev s ev') : fsl_sem_scope. 
+Notation "ev |= s => ev'"  := (fun f => fsl_stmt_sem f ev s ev') : fsl_sem_scope.
+
+Definition fsl_pgrm_sem := @generic_pgrm_sem _fsl_routine _fsl_statement Empty_set (fun _ => Void) Empty_exp_sem _fsl_assert_sem _fsl_stmt_vars. 
 
 
