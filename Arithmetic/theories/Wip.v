@@ -1,10 +1,11 @@
-From RAC Require Import Utils Environnement.
-From RAC.Languages Require Import Syntax.
 From Coq Require Import ZArith.ZArith Strings.String.
 From RecordUpdate Require Import RecordUpdate.
+From RAC Require Import Utils Environnement.
+From RAC.Languages Require Import Syntax.
 
+Import FunctionalEnv.
 Open Scope utils.
-
+Open Scope string_scope.
 (* invariants for routine translation *)
 
 (* notations *)
@@ -27,7 +28,7 @@ Example add_var_int : forall (ir3 :Int.inRange 3),
 add_var empty_env C_Int "y" 3 (empty_env  <| env ; vars := ⊥{"y"\Def (VInt ( 3ⁱⁿᵗ ir3))} |>).
 Proof. now constructor. Qed.
 
-Definition 𝐴 := list (gmp_t * id * Z).
+Definition 𝐴 := list (gmp_t ⨉ id ⨉ Z).
 
 (* Fixpoint add_var_𝐴 (env : Ω) (mem_state : 𝓜) (A : 𝐴) : Ω * 𝓜 -> Prop := match A with 
     | nil => fun x => x

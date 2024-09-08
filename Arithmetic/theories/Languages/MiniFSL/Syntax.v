@@ -31,13 +31,13 @@ Inductive predicate : Set :=
     | P_BinOp (lt: fsl_term) (op:fsl_binop_bool) (rt : fsl_term)
     | P_Not (t:predicate)
     | P_Disj (lp:predicate) (rp:predicate)  (* disjunction *)
-    | P_Call (name:string) (args:fsl_term ⃰) (* predicate call *)
+    | P_Call (name:string) (args:fsl_term*) (* predicate call *)
 with fsl_term :=
     | T_Z (z:Z) :> fsl_term (* integer in Z *)
     | T_Id (name:id) (ty:fsl_type)  (* variable access, ty added to distinguish between program var and logic var *)
     | T_BinOp (lt : fsl_term) (op:fsl_binop_int) (rt : fsl_term)
     | T_Cond (cond:predicate) (_then:fsl_term) (_else:fsl_term) (* conditional term *)
-    | T_Call (name:string) (args:fsl_term ⃰) (* logic function call *)
+    | T_Call (name:string) (args:fsl_term*) (* logic function call *)
 .
 
 Notation 𝔅 := predicate. (* predicates *)
@@ -67,8 +67,8 @@ end.
 Notation "◖" := fsl_binop_bool_to_c.
 
 Inductive _fsl_routine : Set :=
-| LFun (ret:fsl_type) (name:id) (args: fsl_decl ⃰) (body:fsl_term) (* logic function *)
-| Predicate (name:id) (args: fsl_decl ⃰) (p:predicate) (* predicate *)
+| LFun (ret:fsl_type) (name:id) (args:fsl_decl*) (body:fsl_term) (* logic function *)
+| Predicate (name:id) (args:fsl_decl*) (p:predicate) (* predicate *)
 .
 
 Definition fsl_routine := @_c_routine _fsl_routine _fsl_statement Empty_set.

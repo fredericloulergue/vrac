@@ -1,20 +1,16 @@
-From Coq.ZArith Require Import ZArith Znat.
-From Coq Require Import Lists.List  Strings.String.
-
-
-Declare Scope utils_scope.
-Delimit Scope utils_scope with utils.
+From Coq Require Import Strings.String ZArith.
 
 Declare Custom Entry pmap.
 
-Reserved Notation "X ⇀ Y"  (at level 100).
-Notation "A ⃰" := (list A) (at level 20) : type_scope.
-Notation "x '\' y" := (x,y) (in custom pmap at level 0, x constr, y constr) : utils_scope.
-
-Notation id := string.
+Notation id := Strings.String.string.
+Notation ℤ := Z.
+Notation "A *" := (list A) (at level 20) : type_scope.
+Infix "⨉" := prod (at level 99) : type_scope. 
 
 Definition 𝓥 : Type := id. (* program variables and routines *)
 Definition 𝔏 : Type := id. (* logic variables *)
+
+Reserved Notation "X ⇀ Y"  (at level 100).
 Reserved Notation "⊥".
 Reserved Notation "'dom' f" (at level 10).
 Reserved Notation "f { xy , .. , xy' }" (xy custom pmap, xy' custom pmap, at level 0).

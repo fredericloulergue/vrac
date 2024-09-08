@@ -1,25 +1,29 @@
+From Coq Require Import ZArith.ZArith Strings.String Sets.Ensembles Sets.Finite_sets Orders Structures.OrdersEx.
+From MMaps Require Import MMaps.
 From RAC Require Import Utils Environnement.
 From RAC.Languages Require Import Syntax Semantics.
-From Coq Require Import ZArith.ZArith Strings.String Sets.Ensembles Sets.Finite_sets.
+
+
 
 Module Type Oracle.
-    Record 𝐼 := mkInterval {min : Z; max : Z}. (* interval *)
 
-    Parameter 𝓘 : ℨ -> (𝔏 ⇀ 𝐼) -> 𝐼. (* oracle *)
+    Definition 𝐼 : Type := Z ⨉ Z. (* interval *)
+   
+    Module StringEnv := MMapsEnv(String_as_OT).
+    Definition Γᵢ : Type :=  StringEnv.t 𝐼. (* typing env mapping logic binders to intervals *)
 
-
-    Definition Γᵢ : Type :=  𝔏 ⇀ 𝐼.  (* typing env mapping logic binders to intervals *)
+    Parameter 𝓘 : ℨ -> Γᵢ -> 𝐼. (* oracle *)
 
     Parameter ϴ :  𝐼 -> 𝔗.
 
-    Definition 𝒯 : ℨ -> (𝔏 ⇀ 𝐼) -> 𝔗 := fun t τᵢ =>  ϴ (𝓘 t τᵢ).
+    Definition 𝒯 : ℨ -> Γᵢ -> 𝔗 := fun t τᵢ =>  ϴ (𝓘 t τᵢ).
 
     Parameter ty_funcall_is_ty_body: 
         forall S (f : @fenv _fsl_statement S) fname xargs (targs:list ℨ) (iargs:list 𝐼) b, 
         f.(lfuns) fname = Some (xargs,b) ->
         forall te,
         List.Forall2 (fun e i => eq (𝓘 e te) i) targs iargs ->
-        𝒯 (T_Call fname targs) te = 𝒯 b (p_map_addall_back xargs iargs ⊥).
+                    𝒯 (T_Call fname targs) te = 𝒯 b (StringEnv.add_all xargs iargs StringEnv.empty).
 
 
     (* a term always fits in an mpz and only fits in a machine integer if it is in range *)

@@ -1,6 +1,6 @@
+From Coq Require Import ZArith.ZArith Strings.String.
 From RAC Require Import Utils Environnement Macros.
 From RAC.Languages Require Import Syntax Semantics.
-From Coq Require Import ZArith.ZArith Strings.String.
 
 Open Scope utils_scope.
 

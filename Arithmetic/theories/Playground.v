@@ -1,7 +1,10 @@
+From Coq Require Import ZArith.ZArith Lists.List String.
 From RAC Require Import Utils Environnement Translation.
 From RAC.Languages Require Import Syntax Semantics.
-From Coq Require Import ZArith.ZArith Lists.List String.
-Import ListNotations.
+
+
+Import ListNotations FunctionalEnv Domain.
+
 Open Scope string_scope.
 Open Scope list_scope.
 Open Scope Z_scope.
@@ -131,7 +134,8 @@ Proof.
      }
 Qed. *)
 
-Example test_dom : 2 ∉ (fun x => if x>?2 then Some (x*2) else None).
+
+Example test_dom : 2 ∉ (fun x => if x>?2 then Some (Z.mul x 2) else None).
 Proof. easy. Qed.
 
 
@@ -152,23 +156,27 @@ end.
 Open Scope Z_scope.
 Open Scope mini_gmp_scope.
 
+Module StringEnv := MMapsEnv(Structures.OrdersEx.String_as_OT).
+
 Module DummyOracle : Oracle.Oracle.
-    Record 𝐼 := mkInterval {min : Z; max : Z}.
+    Definition 𝐼 := Z ⨉ Z.
     
-    Definition 𝓘 : ℨ -> (𝔏 ⇀ 𝐼) -> 𝐼 := fun _ _ => mkInterval (-10) 10.
+    Module StringEnv := StringEnv.
+
+    Definition Γᵢ : Type :=  StringEnv.t 𝐼. 
+
+    Definition 𝓘 : ℨ -> Γᵢ -> 𝐼 := fun _ _ => (-10,10).
 
     Definition ϴ : 𝐼 -> 𝔗 := fun _ => Mpz. 
 
-    Definition Γᵢ : Type :=  𝔏 ⇀ 𝐼. 
-
-    Definition 𝒯 : ℨ -> (𝔏 ⇀ 𝐼) -> 𝔗 := fun t τᵢ =>  ϴ (𝓘 t τᵢ).
+    Definition 𝒯 : ℨ -> Γᵢ -> 𝔗 := fun t τᵢ =>  ϴ (𝓘 t τᵢ).
 
     Parameter ty_funcall_is_ty_body: 
     forall S (f : @fenv _fsl_statement S) fname xargs (targs:list ℨ) (iargs:list 𝐼) b, 
     f.(lfuns) fname = Some (xargs,b) ->
     forall te,
     List.Forall2 (fun e i => eq (𝓘 e te) i) targs iargs ->
-    𝒯 (T_Call fname targs) te = 𝒯 b (p_map_addall_back xargs iargs ⊥).
+             𝒯 (T_Call fname targs) te = 𝒯 b (StringEnv.add_all xargs iargs StringEnv.empty).
 
     Inductive fits (z:Z) : 𝔗 -> Prop := 
     | InInt : Int.inRange z -> fits z C_Int
@@ -188,14 +196,9 @@ Module DummyOracle : Oracle.Oracle.
 End DummyOracle.
 
 
-Definition dummy_tenv : DummyOracle.Γᵢ := ⊥.
-
-
 Module T := Translation.Translation(DummyOracle).
 
-Definition dummy_bindings : T.Γᵥ := ⊥.
-
-Definition dummy_defs : T.ψ := ⊥.
+Definition dummy_intervals : DummyOracle.Γᵢ := DummyOracle.StringEnv.empty.
 
 Definition x := FSL_Decl (T_Ext Mpz) "x".
 Definition y := FSL_Decl (T_Ext Mpz) "y".
@@ -221,5 +224,5 @@ Compute (
             ]
          ]> 
         ]
-        ) dummy_bindings dummy_tenv  
+        )  dummy_intervals 
 ). 

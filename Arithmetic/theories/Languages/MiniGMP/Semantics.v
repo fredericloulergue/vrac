@@ -1,9 +1,10 @@
+From Coq Require Import Strings.String ZArith.ZArith BinaryString.
+From RecordUpdate Require Import RecordUpdate.
 From RAC Require Import Utils Environnement.
 From RAC.Languages Require Import Syntax.
 From RAC.Languages Require Import MiniC.Semantics MiniGMP.Syntax.
-From Coq Require Import Strings.String ZArith.ZArith BinaryString.
-From RecordUpdate Require Import RecordUpdate.
-Import RecordSetNotations.
+
+Import RecordSetNotations FunctionalEnv.
 
 Open Scope utils_scope.
 Open Scope mini_c_scope.

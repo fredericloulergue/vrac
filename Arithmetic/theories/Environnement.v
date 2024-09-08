@@ -1,8 +1,10 @@
-From RAC Require Import Utils.
-From RAC.Languages Require Import Syntax.
 From Coq Require Import ZArith.ZArith Strings.String Logic.FinFun.
 From RecordUpdate Require Import RecordUpdate.
+From RAC Require Import Utils.
+From RAC.Languages Require Import Syntax.
 
+
+Import FunctionalEnv.
 
 Record fenv {S T : Set} := mk_fenv {
     funs : @𝓕 S T ;
@@ -38,7 +40,7 @@ Definition sub_one := (-1)ⁱⁿᵗ suboneinRange.
 Definition location := nat. 
 Definition undefval := nat.
 
-#[global] Instance location_eq_dec : EqDecC location := {eq_dec := Nat.eq_dec}.
+#[global] Instance location_eq_dec : FunctionalEnv.EqDecC location := {eq_dec := Nat.eq_dec}.
 
 
 
@@ -113,6 +115,33 @@ Fact bijective_eq_iff_f_eq  {A B:Type} : forall (f: A -> B) x y , Bijective f ->
 Proof.
     intros. destruct H as [f_inv [H1 H2]]. split ; congruence.
 Qed.
+
+Fact list_map_id_eq {A B} (f : A -> B): forall x x', 
+    Injective f ->
+    List.map f x = List.map f x' <-> x  = x'.
+Proof.
+    split; intros; subst; auto. generalize dependent x'. induction x.
+    -  simpl. intros x'. destruct x'; [trivial|].  intros. simpl in H0. inversion H0.
+    - intros. destruct x'; simpl in *; [inversion H0|]. inversion H0. f_equal; auto. 
+Qed. 
+
+
+Fact bijective_injective {A B : Type} (f : A -> B) :
+    Bijective f -> Injective f.
+Proof.
+    intros [g [H H']] x y e.
+    rewrite <- (H x), <- (H y).
+    now rewrite e.
+Qed.
+
+Fact bijective_surjective {A B : Type} (f : A -> B) :
+    Bijective f -> Surjective f.
+Proof.
+    intros [g [H H']] y. now exists (g y).
+Qed.
+
+
+
 
 
 Definition induced (f: σ) : 𝕍 -> 𝕍 := fun value => match value with
@@ -404,6 +433,7 @@ Proof.
 Qed.
 
 
+Import FunctionalEnv.
 
 (* Fact sym_env_cond : forall (env env' : Ω), 
 (forall v, (dom env - dom env') v ) -> (env ⊑ env')%env -> (env' ⊑ env)%env.
@@ -591,6 +621,10 @@ Proof.
 Admitted.
 
 
+
+
+(* Inductive add_gmp_decls (decls : list (@_c_decl _gmp_t)) : Env -> Env -> Prop :=
+| Add u  *)
 
 
 (* fixme: use inductive definition instead to have non determinstic undefined values *)

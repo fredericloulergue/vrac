@@ -1,6 +1,6 @@
+From Coq Require Import Strings.String.
 From RAC Require Import Notations.
 From RAC.Languages Require Import MiniC.Syntax.
-From Coq Require Import Strings.String.
 
 Inductive _gmp_t := String | Mpz. 
 Coercion gmp_t_ext (t:_gmp_t) : _c_type := T_Ext t.

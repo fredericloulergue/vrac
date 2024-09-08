@@ -1,8 +1,10 @@
-From RAC Require Import Utils Environnement.
-From RAC.Languages Require Import Syntax Semantics Lemmas.
 From Coq Require Import  ZArith.ZArith BinaryString.
 From RecordUpdate Require Import RecordUpdate.
+From RAC Require Import Utils Environnement.
+From RAC.Languages Require Import Syntax Semantics Lemmas.
 
+
+Import FunctionalEnv.
 
 Open Scope mini_c_scope.
 Open Scope Z_scope.

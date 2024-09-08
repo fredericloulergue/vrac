@@ -1,7 +1,10 @@
+From Coq Require Import Strings.String.
 From RAC.Languages Require Export MiniC.Syntax MiniGMP.Syntax MiniFSL.Syntax.
 From RAC Require Import Utils.
-From Coq Require Import Strings.String.
 
+
+
+Import FunctionalEnv.
 
 Definition c_statement := @_c_statement Empty_set Empty_set.
 
@@ -23,8 +26,8 @@ Definition rac_pgrm := @_c_program Empty_set _gmp_statement _gmp_t.
 
 
 
-Definition 𝔉 : Type :=  𝔏 ⇀ (𝔏 ⃰ ⨉ ℨ). (* logic functions *)
-Definition 𝔓 : Type :=  𝔏 ⇀ (𝔏 ⃰ ⨉ 𝔅). (* predicates *)
+Definition 𝔉 : Type :=  𝔏 ⇀ (𝔏* ⨉ ℨ). (* logic functions *)
+Definition 𝔓 : Type :=  𝔏 ⇀ (𝔏* ⨉  𝔅). (* predicates *)
 
 
 
@@ -62,7 +65,7 @@ Fact mpz_exp_is_var : forall (e:_c_exp), ty e = T_Ext Mpz ->  exists x, (e = C_I
 Proof. 
     intros. destruct e eqn:E.
     3,4: simpl in H ; destruct (ty _c1); try congruence; destruct (ty _c2); congruence.  
-    - now exists "". 
+    - now exists EmptyString. 
     - exists var. unfold ty in H. now rewrite H. 
 Qed.
 

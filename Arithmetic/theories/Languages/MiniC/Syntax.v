@@ -1,8 +1,10 @@
-From RAC Require Import Utils.
 From Coq Require Import ZArith.ZArith Strings.String.
+From RAC Require Import Utils.
+
 
 Open Scope Z_scope.
 
+Import FunctionalEnv.
 
 Inductive _c_type {T:Set} := C_Int | Void | T_Ext (t:T).  (* program types τc *)
 
@@ -40,8 +42,8 @@ Inductive _c_exp {T : Set}  :=
 Inductive _c_statement {S T : Set} :=
     | Skip (* empty statement *)
     | Assign (var:id) (e: @_c_exp T) (* assignment *)
-    | FCall (var:id) (fname:string) (args: @_c_exp T ⃰) (* function call *)
-    | PCall  (fname:string) (args: @_c_exp T ⃰) (* procedure call *)
+    | FCall (var:id) (fname:string) (args: @_c_exp T*) (* function call *)
+    | PCall  (fname:string) (args: @_c_exp T*) (* procedure call *)
     | Seq (s1 : _c_statement) (s2 : _c_statement) (* sequence *)
     | If (cond:@_c_exp T) (_then:_c_statement) (_else:_c_statement) (* conditional *)
     | While (cond:@_c_exp T) (body:_c_statement) (* loop *) 
@@ -50,21 +52,22 @@ Inductive _c_statement {S T : Set} :=
     (* | Decl (d: @_c_decl T) :> _c_statement *)
     | S_Ext (stmt:S)
 .
-
-Definition 𝓕 {S T : Set} := 𝓥 ⇀ (𝓥 ⃰ ⨉ @_c_statement S T). (* program functions *)
-Definition 𝓟 {S T : Set} := 𝓥 ⇀ (𝓥 ⃰ ⨉ @_c_statement S T). (* program procedures *)
-
-
 #[global] Hint Constructors _c_statement  : rac_hint.
+
+
+Definition 𝓕 {S T : Set} := 𝓥 ⇀ (𝓥 * ⨉ @_c_statement S T). (* program functions *)
+Definition 𝓟 {S T : Set} := 𝓥 ⇀ (𝓥 * ⨉ @_c_statement S T). (* program procedures *)
+
+
 
 Inductive _c_decl {T:Set} :=  C_Decl (type: @_c_type T) (name:id). (* program declaration *)
 
 Inductive _c_routine {F S T : Set} :=
-| PFun (rtype: @_c_type T) (name:id) (args: @_c_decl T ⃰) (b_decl: @_c_decl T ⃰) (body: @_c_statement S T) (* program function *)
+| PFun (rtype: @_c_type T) (name:id) (args: @_c_decl T*) (b_decl: @_c_decl T*) (body: @_c_statement S T) (* program function *)
 | F_Ext (f:F)
 .
 
-Definition _c_program {F S T : Set} := (@_c_decl T ⃰ ⨉ @_c_routine F S T  ⃰). 
+Definition _c_program {F S T : Set} : Type := @_c_decl T* ⨉ @_c_routine F S T*. 
 
 Definition c_exp := @_c_exp Empty_set.
 

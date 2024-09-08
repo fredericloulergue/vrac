@@ -1,7 +1,11 @@
+From Coq Require Import ZArith.ZArith.
+From RecordUpdate Require Import RecordUpdate.
 From RAC Require Import Utils Environnement.
 From RAC.Languages Require Import Syntax Semantics MiniC.Lemmas. 
-From RecordUpdate Require Import RecordUpdate.
-From Coq Require Import ZArith.ZArith.
+
+
+Import FunctionalEnv Domain.
+
 Open Scope Z_scope. 
 
 (* helper lemma for gmp cmp semantics *)

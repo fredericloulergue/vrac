@@ -8,6 +8,7 @@
   (depends
     (coq-core (and (< 8.20) (>= 8.19)))
     coq-record-update
+    coq-mmaps
   )
 )
 

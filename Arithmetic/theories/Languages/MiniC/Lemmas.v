@@ -1,7 +1,9 @@
+From Coq Require Import Strings.String Logic.FinFun. 
+From RecordUpdate Require Import RecordUpdate.
 From RAC Require Import Utils Environnement.
 From RAC.Languages Require Import Syntax MiniC.Semantics.
-From RecordUpdate Require Import RecordUpdate.
-From Coq Require Import Strings.String Logic.FinFun. 
+
+Import FunctionalEnv Domain.
 
 Fact untouched_var_same_eval_exp {T : Set} : forall exp_sem, 
     _untouched_var_same_eval_exp exp_sem ->

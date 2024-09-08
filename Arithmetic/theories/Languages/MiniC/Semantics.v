@@ -1,8 +1,10 @@
-From RAC Require Import Utils Environnement.
-From RAC.Languages Require Import Syntax.
 From Coq Require Import Strings.String ZArith.ZArith.
 From RecordUpdate Require Import RecordUpdate.
+From RAC Require Import Utils Environnement.
+From RAC.Languages Require Import Syntax.
+
 Import RecordSetNotations.
+
 
 Declare Scope c_sem_scope.
 Delimit Scope c_sem_scope with csem.
@@ -68,6 +70,7 @@ Notation "Ω '|=' e => v"  := (c_exp_sem Ω e v) : c_sem_scope.
 
 Open Scope utils_scope.
 Open Scope mini_c_scope.
+Import FunctionalEnv.
 
 (* extensible statement semantic *)
 Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt_sem_sig S T} {ext_stmt_vars:  S -> list id} (f : @fenv S T) (ev:Env) : @_c_statement S T -> Env -> Prop := 
@@ -99,7 +102,7 @@ Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt
         (ev' |= s' => ev'') f ->
         (ev |= <{ s ; s' }> =>  ev'') f
 
-    | S_FCall fname (b: @_c_statement S T) b_ev c xargs eargs (zargs : Int.MI ⃰ ) z : 
+    | S_FCall fname (b: @_c_statement S T) b_ev c xargs eargs (zargs : Int.MI*) z : 
         let vargs := List.map (fun x => Def (VInt x)) zargs in 
         List.length xargs = List.length eargs ->
         f.(funs) fname = Some (xargs,b) ->
@@ -109,7 +112,7 @@ Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt
         b_ev res_f = Some (Def (VInt z)) -> (* must be a defined integer value *)
         (ev |= (FCall c fname eargs) => ev <| env ; vars ::= {{c\Def z}} |> <| mstate := b_ev |>) f
 
-    | S_PCall p b ev' xargs eargs (zargs : Int.MI ⃰ ) : 
+    | S_PCall p b ev' xargs eargs (zargs : Int.MI*) : 
         let vargs := List.map (fun x => Def (VInt x)) zargs  in 
         List.length xargs = List.length eargs ->
         f.(procs) p = Some (xargs,b) ->
@@ -221,6 +224,7 @@ Proof.
     easy. 
 Qed.
 
+Import Domain.
 
 Definition _weakening_of_statement_semantics_2  {S T : Set} (exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) := 
     _determinist_exp_eval exp_sem ->
