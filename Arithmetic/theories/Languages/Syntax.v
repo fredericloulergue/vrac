@@ -130,6 +130,9 @@ Definition c_stmt_vars s := stmt_vars (T:=Empty_set) (S:=Empty_set) s Empty_ext_
 Definition gmp_stmt_vars s := stmt_vars (T:=_gmp_statement) (S:=_gmp_t) s _gmp_stmt_vars.
 
 
+Definition fsl_stmt_vars s := stmt_vars (T:=_fsl_statement) (S:=Empty_set) s _fsl_stmt_vars.
+
+
 (****************** Convertion ********************)
 
 
@@ -147,6 +150,8 @@ Definition gmp_ty_mpz_to_var (e: gmp_exp) : Notations.id := match e with
     | _ => ""
 end.
 
+
+(* Fact gmp_ty_mpz_to_var_spec : ty e = Mpz ->  gmp_ty_mpz_to_var e =  *)
 
 Fixpoint c_exp_to_gmp_int_exp (e: c_exp) : gmp_exp := match e with
 | Zm z => Zm z

@@ -101,7 +101,7 @@ where "ev '|=' e ⇝ z" := (get_int_exp ev e z).
 (* helper lemmas *)
 
 Lemma same_eval_macro :  forall (ev : Env) v l e z z', 
-    _no_env_mpz_aliasing ev ->
+    no_aliasing ev ->
     ~ List.In v (exp_vars e) ->
     ev v = Some (Def (VMpz (Some l))) ->
     ev |= e ⇝ z ->
@@ -127,11 +127,16 @@ Proof.
 Qed.
 
 
-Lemma semantics_of_the_mpz_assgn_macro :
+Open Scope gmp_stmt_sem_scope.
+
+(* SECTION E: PROOFS OF THE SEMANTICS OF THE MACROS *)
+
+
+Lemma LE1_semantics_of_the_mpz_assgn_macro :
     forall f e z (ev : Env) v (y:location),
     ev |= e ⇝ z ->
     ev v = Some (Def (VMpz y)) ->
-    gmp_stmt_sem f ev (mpz_ASSGN v e) (ev <| mstate ::= {{y\Defined z}} |>)
+    (ev |= mpz_ASSGN v e => ev <| mstate ::= {{y\Defined z}} |>) f
 .
 (* implies either set_i or set_z, everything else is not possible *)
 Proof.
@@ -151,12 +156,12 @@ Proof.
             +  destruct (ty e1); try congruence. destruct (ty e2); congruence.
 Qed.
 
-Lemma semantics_of_the_int_assgn_macro :
+Lemma LE2_semantics_of_the_int_assgn_macro :
     forall f e z (ir: Int.inRange z) (ev:Env) v,
     is_comp_var v = false ->
     ev |= e ⇝ z ->
     type_of_value (ev v) = Some C_Int ->
-    gmp_stmt_sem f ev (int_ASSGN v e) (ev <| env ; vars ::= {{v\VInt (z ⁱⁿᵗ ir) : 𝕍}} |>)
+    (ev |= int_ASSGN v e => ev <| env ; vars ::= {{v\VInt (z ⁱⁿᵗ ir) : 𝕍}} |>) f
 .
 (* implies either set_i or S_Assign, everything else is not possible *)
 Proof with eauto with rac_hint.
@@ -178,217 +183,270 @@ Proof with eauto with rac_hint.
                 constructor. subst. simpl in H2. apply S_get_int with l; auto.
 Qed.
 
-Lemma semantics_of_the_Z_assgn_macro_tint :
+Lemma LE3_semantics_of_the_Z_assgn_macro_tint :
     forall f z (ir: Int.inRange z) (ev:Env) v,
     is_comp_var v = false ->
     type_of_value (ev v) = Some C_Int ->
-    gmp_stmt_sem f ev (Z_ASSGN C_Int v z) (ev <| env ; vars ::= {{v\VInt (z ⁱⁿᵗ ir) : 𝕍}} |>)
+    (ev |= Z_ASSGN C_Int v z => ev <| env ; vars ::= {{v\VInt (z ⁱⁿᵗ ir) : 𝕍}} |>) f
 .
 Proof.
     intros.  constructor ; auto with rac_hint.
 Qed.
 
-Lemma semantics_of_the_Z_assgn_macro_tmpz :
+Lemma LE3_semantics_of_the_Z_assgn_macro_tmpz :
     forall f y (z:ℤ) (ev:Env) v,
     ev v = Some (Def (VMpz (Some y))) ->
-    gmp_stmt_sem f ev (Z_ASSGN Mpz v z) (ev <| mstate ::= {{y\Defined z}} |>)
+    (ev |= Z_ASSGN Mpz v z => ev <| mstate ::= {{y\Defined z}} |>) f
 .
 Proof with auto using BinaryString.Z_of_of_Z.
     intros. simpl. constructor. apply S_set_s...
 Qed.
 
 
-Lemma semantics_of_the_cmp_macro :
+Lemma LE4_semantics_of_the_cmp_macro :
     forall f (ev:Env) c e1 e2 v1 v2 z1 z2 a,
-    _no_env_mpz_aliasing ev ->
-    is_comp_var c = false ->
-    type_of_value (ev c) = Some C_Int ->
-    ev |= e1 ⇝ z1 ->
-    ev |= e2 ⇝ z2 ->
 
-    (
-        (Def a = VInt sub_one <-> Z.lt z1 z2 ) /\
-        (Def a = VInt zero <-> z1 = z2) /\
-        (Def a = VInt one <-> Z.gt z1 z2)
-    ) -> 
+
+    no_aliasing ev ->  (* not in paper proof *)
+    ~ List.In v1 (exp_vars e2) -> (* not in paper proof *)
+    v1 <> v2 -> (* not in paper proof *)
+    type_of_value (ev c) = Some C_Int (* not in paper proof *) /\ is_comp_var c = false (* added *) -> 
+
 
     (* v1 and v2 must be bound to a mpz location (implied by mpz_assign ) *)
     forall (l1 l2 : location),
-    ev v1 = Some (Def (VMpz l1)) /\  ev v2 = Some (Def (VMpz l2))->
+    ev v1 = Some (Def (VMpz l1)) /\  ev v2 = Some (Def (VMpz l2)) ->
     
-    ~ List.In v1 ((exp_vars e2)) /\  l1 <> l2   -> (* not in paper proof *)
 
-    exists M, (
-        forall v (n:location), 
-        ev v = Some (Def (VMpz n)) ->
-        ev v <> ev v1 /\ ev v <> ev v2  -> 
-        ev.(mstate) n = M n
-    ) -> 
-    
-    gmp_stmt_sem f ev (CMP c e1 e2 v1 v2) (ev <| env ; vars ::= {{c\Def a}} |> <| mstate := M |>) 
+    exists M': 𝓜, (
+        forall v, 
+        v <> v1 /\ v <> v2  -> 
+        forall (n:location), ev v = Some (Def (VMpz n)) ->
+        ev.(mstate) n = M' n
+    ) /\
+    (
+        (
+            (Def a = VInt sub_one <-> Z.lt z1 z2 ) /\
+            (Def a = VInt zero <-> z1 = z2) /\
+            (Def a = VInt one <-> Z.gt z1 z2)
+        ) -> 
+
+        ev |= e1 ⇝ z1 -> 
+        ev |= e2 ⇝ z2 ->
+
+        (ev |= CMP c e1 e2 v1 v2 => ev <| env ; vars ::= {{c\Def a}} |> <| mstate := M' |>) f 
+    )
 .
 
 Proof with try easy ; auto with rac_hint ; unshelve eauto using Z.ltb_irrefl,Z.gtb_ltb,Z.ltb_lt with rac_hint; auto with rac_hint.
-    intros f ev c e1 e2 v1 v2 z1 z2 a Hnoalias Hnocom H H0 H1 (inf & eq & sup) l1 l2 (Hv1 & Hv2) (Hv1NotIne2 & Hdiffl1l2).
+    intros f ev c e1 e2 v1 v2 z1 z2 a Hnoalias Hv1NotIne2 Hv1notv2 [Hnocom Hc] l1 l2 [Hv1 Hv2].
     
     assert (NotInt : 
-        exists M, (
-            forall v (n:location), 
-            ev v = Some (Def (VMpz n)) ->
-            ev v <> ev v1 /\ ev v <> ev v2  -> 
-            ev.(mstate) n = M n
-        ) -> 
-        let cmp := S_Ext <(c = cmp (v1, v2) )> in
-        gmp_stmt_sem f ev <{(mpz_ASSGN v1 e1); (mpz_ASSGN v2 e2); cmp}> 
-        (ev <| env ; vars ::= {{c \Def a}} |> <| mstate := M |>)
+        exists M' : 𝓜,
+        (forall v : id, 
+            v <> v1 /\ v <> v2 -> 
+            forall n : location, ev v = Some (Def (VMpz n)) -> ev.(mstate) n = M' n
+        ) 
+        /\
+        (
+            (
+                (Def a = VInt sub_one <-> Z.lt z1 z2 ) /\
+                (Def a = VInt zero <-> z1 = z2) /\
+                (Def a = VInt one <-> Z.gt z1 z2)
+            ) ->             ev |= e1 ⇝ z1 ->
+            ev |= e2 ⇝ z2 ->
+            gmp_stmt_sem f ev <{ (mpz_ASSGN v1 e1); (mpz_ASSGN v2 e2); (<(c = cmp (v1, v2))> : gmp_statement)}>
+            (ev <| env; vars ::= {{c \Def a}} |> <| mstate := M' |>)
+        )
     ). {
-        exists ev.(mstate){l2 \Defined z2, l1 \Defined  z1}. intros Hvdiff. 
-        apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |>).
-        - apply semantics_of_the_mpz_assgn_macro...
-        - eapply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |> <| mstate ::= {{l2\Defined z2}} |> ).
-            + apply semantics_of_the_mpz_assgn_macro... inversion H1 ; subst. 
-                * constructor... eapply untouched_var_same_eval_exp...
-                    now rewrite gmp_exp_c_exp_same_exp_vars.
-                *  econstructor... 
-                    assert (Hdiffll1: l <> l1) by admit. apply p_map_not_same_eq... 
+        exists ev.(mstate){l2 \Defined z2, l1 \Defined  z1}. split.
+        - intros v [Hvneqv1 Hvneqv2] n Hv. repeat rewrite p_map_not_same...
+        - intros Ha He1 He2.  
+            apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |>).
+            * apply LE1_semantics_of_the_mpz_assgn_macro...
+            * apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |> <| mstate ::= {{l2\Defined z2}} |> ). 
+                + apply LE1_semantics_of_the_mpz_assgn_macro...  inversion_clear He2 ; subst. 
+                    ++ constructor... eapply untouched_var_same_eval_exp... now rewrite gmp_exp_c_exp_same_exp_vars.
+                    ++ econstructor... apply p_map_not_same_eq... destruct e2; try discriminate. 
+                        +++ simpl in H. subst. simpl in H0. destruct (eq_dec var v1)...
+                            subst. exfalso. apply Hv1NotIne2. simpl. now left.
+                        +++ exfalso. simpl in H. destruct (ty e2_1) , (ty e2_2); simpl in H; discriminate.  
+                        +++  exfalso. simpl in H. destruct (ty e2_1) , (ty e2_2); simpl in H; discriminate.  
 
-            + constructor. replace 
-                (_ <| env; vars ::= _ |><| mstate := _ |>)
-                with (ev <| mstate := ev.(mstate) {l2 \Defined z2, l1 \Defined z1} |><| env; vars ::= {{c \Def a}} |> ) by reflexivity.
-                apply S_cmp with (lx:=l1) (ly:=l2) (zx:=z1) (zy:=z2) ; simpl... apply p_map_not_same_eq...
-    }
-    unfold CMP. destruct (ty e1) eqn:T1, (ty e2) eqn:T2 ; try apply NotInt ; clear NotInt.
+                + constructor.
+                    replace  (_ <| env; vars ::= _ |><| mstate := _ |>)
+                    with (ev <| mstate := ev.(mstate) {l2 \Defined z2, l1 \Defined z1} |><| env; vars ::= {{c \Def a}} |> ) 
+                    by reflexivity.
+                    apply S_cmp with (lx:=l1) (ly:=l2) (zx:=z1) (zy:=z2) ; simpl... apply p_map_not_same_eq...
+    } 
+    unfold CMP. destruct (ty e1) eqn:T1, (ty e2) eqn:T2; try apply NotInt. clear NotInt.
     
     (* both ty(e1) = int and ty(e2) = int *)
-    inversion H0 ; inversion H1 ; idtac; try  match goal with 
-        | mpz : ty ?e = (gmp_t_ext Mpz), int : ty ?e = C_Int  |- _ => now rewrite mpz in int end.
-
-
-    exists ev.(mstate). intros Hvdiff. clear Hvdiff (* not needed *). destruct (Z.lt_trichotomy z1 z2) as [inf' | [ eq' | sup']].
+    - exists ev.(mstate). split ; [auto|]. intros (inf & eq & sup) He1 He2. inversion He1; inversion He2; 
+        try match goal with
+        | mpz: ty ?e = (gmp_t_ext Mpz), int : ty ?e = C_Int  |- _ => now rewrite mpz in int end. 
         
-    (* z1 < z2 *)
-    * assert (cmp := inf'). apply <- inf in inf'. clear eq inf sup. subst. 
-        destruct x,x0. simpl in *.  apply S_IfTrue with one.
-        + split ; [| easy]. apply C_E_BinOpTrue with x x0 i i0. 
-            ++ now apply ty_int_gmp_c_exp_equiv.
-            ++ now apply ty_int_gmp_c_exp_equiv.
-            ++ apply Z.ltb_lt. apply cmp.
-        + inversion inf'. constructor...  apply (C_E_BinOpInt ev 0 1 0 1) with zeroinRange oneinRange...
+        destruct (Z.lt_trichotomy z1 z2) as [inf' | [ eq' | sup']].
+        
+        (* z1 < z2 *)
+        * assert (cmp := inf'). apply <- inf in inf'. clear eq inf sup. subst. 
+            destruct x,x0. simpl in *.  apply S_IfTrue with one.
+            + split ; [| easy]. apply C_E_BinOpTrue with x x0 i i0. 
+                ++ now apply ty_int_gmp_c_exp_equiv.
+                ++ now apply ty_int_gmp_c_exp_equiv.
+                ++ apply Z.ltb_lt. apply cmp.
+            + inversion inf'. constructor...  apply (C_E_BinOpInt ev 0 1 0 1) with zeroinRange oneinRange...
 
-    (* z1 = z2 *)
-    * assert (cmp := eq'). rewrite <- eq in eq'. clear eq inf sup. subst.
-        destruct x,x0. apply Int.mi_eq in cmp. injection cmp as cmp. inversion eq'. subst. simpl in *. constructor.
-        + econstructor... apply ty_int_gmp_c_exp_equiv... apply ty_int_gmp_c_exp_equiv...
-        + constructor. econstructor...  apply ty_int_gmp_c_exp_equiv... apply ty_int_gmp_c_exp_equiv... constructor...
-
-
-    (* z1 > z2 *)
-    * assert (cmp := sup').  apply Z.lt_gt in sup'. apply <- sup in sup'.  clear inf eq sup. subst.
-        destruct x, x0. subst. constructor ; simpl in *.
-        + apply C_E_BinOpFalse with x x0 i i0.
-            ++ apply ty_int_gmp_c_exp_equiv...
-            ++ apply ty_int_gmp_c_exp_equiv...
-            ++ apply Z.ltb_ge. auto with zarith. 
-        + inversion sup'. subst. apply S_IfTrue with one.
-            ++  subst. split; [|easy]. apply C_E_BinOpTrue with x x0 i i0.
-                +++ apply ty_int_gmp_c_exp_equiv...
-                +++ apply ty_int_gmp_c_exp_equiv...
-                +++ now apply Z.gtb_lt.
-            ++  constructor...
-Admitted.
+        (* z1 = z2 *)
+        * assert (cmp := eq'). rewrite <- eq in eq'. clear eq inf sup. subst.
+            destruct x,x0. apply Int.mi_eq in cmp. injection cmp as cmp. inversion eq'. subst. simpl in *. constructor.
+            + econstructor... apply ty_int_gmp_c_exp_equiv... apply ty_int_gmp_c_exp_equiv...
+            + constructor. econstructor...  apply ty_int_gmp_c_exp_equiv... apply ty_int_gmp_c_exp_equiv... constructor...
 
 
+        (* z1 > z2 *)
+        * assert (cmp := sup').  apply Z.lt_gt in sup'. apply <- sup in sup'.  clear inf eq sup. subst.
+            destruct x, x0. subst. constructor ; simpl in *.
+            + apply C_E_BinOpFalse with x x0 i i0.
+                ++ apply ty_int_gmp_c_exp_equiv...
+                ++ apply ty_int_gmp_c_exp_equiv...
+                ++ apply Z.ltb_ge. auto with zarith. 
+            + inversion sup'. subst. apply S_IfTrue with one.
+                ++  subst. split; [|easy]. apply C_E_BinOpTrue with x x0 i i0.
+                    +++ apply ty_int_gmp_c_exp_equiv...
+                    +++ apply ty_int_gmp_c_exp_equiv...
+                    +++ now apply Z.gtb_lt.
+                ++  constructor...
+Qed.
 
 
-Lemma semantics_of_the_binop_macro_int :
-    forall f (ev:Env) (op:fsl_binop_int) c r e1 e2 v1 v2 z1 z2 (ir: Int.inRange (⋄ op z1 z2) ) l1 l2 lr,
-    _no_env_mpz_aliasing ev ->
-    is_comp_var c = false ->
-    type_of_value (ev c) = Some C_Int ->
-    ev |= e1 ⇝ z1 ->
-    ev |= e2 ⇝ z2 ->
-    let zr := ⋄ op z1 z2 in
+
+
+Lemma LE5_semantics_of_the_binop_macro_int :  
+    forall f (ev:Env) (op:fsl_binop_int) c r (e1 e2 : gmp_exp) v1 v2 z1 z2 (ir: Int.inRange (⋄ op z1 z2) ),
+
+    no_aliasing ev ->  (* not in paper proof *)
+    ~ List.In v1 (exp_vars e2) -> (* not in paper proof *)
+    v1 <> v2 -> (* not in paper proof *)
+    type_of_value (ev c) = Some C_Int /\ is_comp_var c = false (* added *) -> 
+
+
+    (* v1 and v2 must be bound to a mpz location (implied by mpz_assign ) *)
+    forall (l1 l2 lr: location),
 
     ev v1 = Some (Def (VMpz (Some l1))) /\  
     ev v2 = Some (Def (VMpz (Some l2))) /\
     ev r = Some (Def (VMpz (Some lr))) ->
-    exists M, (forall v n, ev v = Some (Def (VMpz (Some n))) ->
-    ev v1 <> ev v /\ ev v2 <> ev v  -> ev.(mstate) n = M n) -> 
 
-    ~ List.In v1 ((exp_vars e2)) /\  l1 <> l2   -> (* not in paper proof *)
 
-    gmp_stmt_sem f ev (binop_ASSGN op (c,C_Int) e1 e2 r v1 v2) (ev <| env ; vars ::= fun e => e{c\VInt (zr ⁱⁿᵗ ir) : 𝕍} |> <| mstate := M |>)
-    .
+    exists M': 𝓜, (
+        forall v, 
+        v <> v1 /\ v <> v2 /\ v <> r -> 
+        forall (n:location), ev v = Some (Def (VMpz n)) ->
+        ev.(mstate) n = M' n
+    ) /\
+    (
+        ev |= e1 ⇝ z1 -> 
+        ev |= e2 ⇝ z2 ->
+
+        (ev |= binop_ASSGN op (c,C_Int) e1 e2 r v1 v2 => ev <| env ; vars ::= fun e => e{c\VInt ((⋄ op z1 z2) ⁱⁿᵗ ir) : 𝕍} |> <| mstate := M' |>) f 
+    )
+.
 
 Proof with eauto with rac_hint.
-    intros f ev op c r e1 e2 v1 v2 z1 z2 ir l1 l2 lr Hnoalias Hnocomp H H0 H1 zr H2. destruct H2 as (v1l & v2l & rl).  
+    intros f ev op c r e1 e2 v1 v2 z1 z2 ir Hnoalias Hv1NotIne2 Hv1notv2 [Hnocom Hc] l1 l2 lr (Hv1 & Hv2 & Hr).  
     assert (NotInt : 
-        exists M,
-        (forall (v : 𝓥) (n : location),
-        ev v = Some (Def (VMpz n)) ->
-        ev v1 <> ev v /\ ev v2 <> ev v ->
-        ev.(mstate) n = M n) ->
-        ~ List.In v1 ((exp_vars e2)) /\  l1 <> l2   -> (* not in paper proof *)
-        gmp_stmt_sem f ev <{
-            (mpz_ASSGN v1 e1);
-            (mpz_ASSGN v2 e2);
-            (S_Ext (fsl_to_gmp_op op r v1 v2));
-            (int_ASSGN c (C_Id r Mpz))
-        }> (ev <| env ; vars ::= fun e => e{c \VInt (zr ⁱⁿᵗ ir) : 𝕍} |> <| mstate := M |> )
+        exists M' : 𝓜,
+        (forall v : id, 
+            v <> v1 /\ v <> v2 /\ v <> r -> 
+            forall n : location, ev v = Some (Def (VMpz n)) -> ev.(mstate) n = M' n
+        ) 
+        /\
+        (
+            ev |= e1 ⇝ z1 ->
+            ev |= e2 ⇝ z2 ->
+
+            (ev |= 
+                <{
+                    (mpz_ASSGN v1 e1); (mpz_ASSGN v2 e2); (gmp_s_ext (fsl_to_gmp_op op r v1 v2)); (int_ASSGN c (C_Id r (T_Ext Mpz)))
+                }> 
+            => ev <| env; vars ::= (fun e : Ωᵥ => (e) {c \VInt (⋄ op z1 z2 ⁱⁿᵗ ir) : 𝕍}) |> <| mstate := M' |>)%gmpssem f
+        )
     ). {
-    exists ev.(mstate){lr\Defined zr,l2\Defined z2,l1\Defined z1}. intros H2 [H3 H4].  apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |>). 
-    - apply semantics_of_the_mpz_assgn_macro...
-    - apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |> <| mstate ::= {{l2\Defined z2}} |> ). 
-        + apply semantics_of_the_mpz_assgn_macro... apply same_eval_macro with v1...
-        + apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |> <| mstate ::= {{l2\Defined z2}}  |> <| mstate ::= {{lr\Defined zr}} |>).
-            * constructor. apply S_op with l1 l2...  
-                ** simpl.  apply p_map_not_same_eq...
-                ** simpl. apply p_map_same. 
-            * replace (ev <| env; vars ::= _ |> <| mstate :=  _ |>)
-            with (ev <| mstate := ev.(mstate) {lr \Defined zr, l2 \Defined z2, l1 \ Defined z1} |> 
-                    <| env; vars ::= {{c \Def (VInt ((zr ⁱⁿᵗ) ir))}} |>
-            ) by reflexivity.
-            apply semantics_of_the_int_assgn_macro...  apply M_Mpz with lr ; simpl...
-    }
+        exists ev.(mstate){lr\Defined (⋄ op z1 z2),l2\Defined z2,l1\Defined z1}. split.
+        - intros v (Hvneqv1 & Hvneqv2 & Hvneqr) n Hv. repeat rewrite p_map_not_same...
+        - intros He1 He2. apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |>). 
+            + apply LE1_semantics_of_the_mpz_assgn_macro...
+            + apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |> <| mstate ::= {{l2\Defined z2}} |> ). 
+                * apply LE1_semantics_of_the_mpz_assgn_macro... apply same_eval_macro with v1...
+                * apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |> <| mstate ::= {{l2\Defined z2}}  |> <| mstate ::= {{lr\Defined (⋄ op z1 z2)}} |>).
+                    ** constructor. apply S_op with l1 l2...  
+                        *** simpl.  apply p_map_not_same_eq...
+                        *** simpl. apply p_map_same. 
+                    ** replace (ev <| env; vars ::= _ |> <| mstate :=  _ |>)
+                        with (ev <| mstate := ev.(mstate) {lr \Defined (⋄ op z1 z2), l2 \Defined z2, l1 \ Defined z1} |> 
+                                <| env; vars ::= {{c \Def (VInt (((⋄ op z1 z2) ⁱⁿᵗ) ir))}} |>
+                        ) 
+                        by reflexivity.
+                apply LE2_semantics_of_the_int_assgn_macro...  apply M_Mpz with lr ; simpl...
+    } 
     
     unfold binop_ASSGN. destruct (ty e1) eqn:T1, (ty e2) eqn:T2 ; try apply NotInt. clear NotInt.
-    exists ev.(mstate). intros. inversion H0 ; inversion H1;  inversion H0 ; inversion H1 ; 
-    try  match goal with 
-    | mpz : ty ?e = (gmp_t_ext Mpz), int : ty ?e = C_Int  |- _ => now rewrite mpz in int end.
-    (* both ty(e1) = int and ty(e2) = int *)
-   subst. constructor... destruct x,x0. econstructor... simpl in *.
-        + eapply ty_int_gmp_c_exp_equiv in H5...
-        + eapply ty_int_gmp_c_exp_equiv in H8...
+
+    exists ev.(mstate). split ; [auto|]. intros  He1 He2. inversion He1; inversion He2; 
+        try match goal with
+        | mpz: ty ?e = (gmp_t_ext Mpz), int : ty ?e = C_Int  |- _ => now rewrite mpz in int end. 
+        (* both ty(e1) = int and ty(e2) = int *)
+        subst. constructor... destruct x,x0. econstructor.
+        + eapply ty_int_gmp_c_exp_equiv in H0...
+        + eapply ty_int_gmp_c_exp_equiv in H3...
 Qed.
 
 
-Lemma semantics_of_the_binop_macro_mpz :
-    forall f (ev:Env) (op:fsl_binop_int) c y r e1 e2 v1 v2 z1 z2 l1 l2,
-    _no_env_mpz_aliasing ev ->
-    type_of_value (ev c) = Some C_Int ->
-    ev |= e1 ⇝ z1 ->
-    ev |= e2 ⇝ z2 ->
+Lemma LE5_semantics_of_the_binop_macro_mpz :
+    forall f (ev:Env) (op:fsl_binop_int) c y r e1 e2 v1 v2 z1 z2,
 
-    let zr := ⋄ op z1 z2 in
-    ev v1 = Some (Def (VMpz (Some l1))) /\  ev v2 = Some (Def (VMpz (Some l2))) /\  ev c = Some (Def (VMpz (Some y))) ->
+    no_aliasing ev ->
     ~ List.In v1 (exp_vars e2) -> (* not in paper proof *)
-    exists M, (forall v n, ev v = Some (Def (VMpz (Some n))) ->
-    ev v1 <> ev v /\ ev v2 <> ev v -> ev.(mstate) n = M n) -> 
-    l1 <> l2 -> (* not in paper proof *)
-    gmp_stmt_sem f ev (binop_ASSGN op (c,T_Ext Mpz) e1 e2 r v1 v2) (ev <| mstate := M{y\Defined zr} |>)
-    .
+    type_of_value (ev c) = Some C_Int -> (* not in paper proof *)
+    v1 <> v2 -> (* not in paper proof *)
+
+
+    (* v1 and v2 must be bound to a mpz location (implied by mpz_assign ) *)
+    forall (l1 l2 lr: location),
+
+    ev v1 = Some (Def (VMpz (Some l1))) /\  
+    ev v2 = Some (Def (VMpz (Some l2))) /\ 
+    ev c = Some (Def (VMpz (Some y))) ->
+
+    exists M': 𝓜, (
+        forall v,
+            v1 <> v /\ v2 <> v -> 
+            forall (n:location), ev v = Some (Def (VMpz n)) ->
+            ev.(mstate) n = M' n
+    ) /\
+    (
+        ev |= e1 ⇝ z1 ->
+        ev |= e2 ⇝ z2 ->
+
+    (ev |= binop_ASSGN op (c,T_Ext Mpz) e1 e2 r v1 v2 => ev <| mstate := M'{y\Defined (⋄ op z1 z2)} |>) f 
+    ).
 Proof with eauto using p_map_same with rac_hint.
-    intros f ev op c y r e1 e2 v1 v2 z1 z2 l1 l2 Hnoalias H H0 H1 zr H2 H3. 
-    exists ev.(mstate){l2\Defined z2,l1\Defined z1}. intros. destruct H2 as (v1l & v2l & rl). unfold binop_ASSGN.
-    apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |>).
-    - apply semantics_of_the_mpz_assgn_macro...
-    - apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |> <| mstate ::= {{l2\Defined z2}} |>). 
-        * apply semantics_of_the_mpz_assgn_macro... apply same_eval_macro with v1...
-        * constructor.  
-            replace  (ev <| mstate := ev.(mstate) {y \Defined zr, l2 \Defined z2, l1 \Defined z1} |>)
-            with (ev <| mstate ::= {{l1 \Defined z1}} |> 
+    intros f ev op c y r e1 e2 v1 v2 z1 z2  Hnoalias Hv1NotIne2 Hv1notv2 Htyc l1 l2 lr (Hv1 & Hv2 & Hc).  
+    exists ev.(mstate){l2\Defined z2,l1\Defined z1}. split.
+    - intros v [Hneqv1 Hneqv2] n Hv. repeat rewrite p_map_not_same...
+    
+    - intros He1 He2.  unfold binop_ASSGN.
+        apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |>).
+        * apply LE1_semantics_of_the_mpz_assgn_macro...
+        * apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |> <| mstate ::= {{l2\Defined z2}} |>). 
+            + apply LE1_semantics_of_the_mpz_assgn_macro... apply same_eval_macro with v1...
+            + constructor.  
+                replace  (ev <| mstate := ev.(mstate) {y \Defined (⋄ op z1 z2), l2 \Defined z2, l1 \Defined z1} |>)
+                with (ev <| mstate ::= {{l1 \Defined z1}} |> 
                     <| mstate ::= {{l2 \Defined z2}} |>
-                    <| mstate ::= {{y \Defined zr}} |> 
-            ) by reflexivity.
-        apply S_op with l1 l2 ; simpl...  apply p_map_not_same_eq...
+                    <| mstate ::= {{y \Defined (⋄ op z1 z2)}} |> 
+                )
+                by reflexivity.
+                apply S_op with l1 l2 ; simpl...  apply p_map_not_same_eq... 
 Qed.

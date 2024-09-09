@@ -582,7 +582,7 @@ Admitted.
 
 
 
-Definition _no_env_mpz_aliasing (ev : Ω) : Prop := 
+Definition no_aliasing (ev : Ω) : Prop := 
     forall v v' l l', 
     v <> v' ->
     ev v = Some (Def (VMpz (Some l)))  ->

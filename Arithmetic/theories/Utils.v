@@ -203,9 +203,6 @@ Fixpoint fold_left2 {Acc A B : Type} (f : Acc -> A -> B -> Acc) (acc:Acc) (l1 : 
     end
 .
 
-
-
-
 (* modified from http://poleiro.info/posts/2013-03-31-reading-and-writing-numbers-in-coq.html *)
 Definition string_of_nat (n : nat) : string :=
     let fix aux (time n : nat) (acc : string) : string :=

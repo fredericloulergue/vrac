@@ -9,6 +9,8 @@ Import RecordSetNotations FunctionalEnv.
 Open Scope utils_scope.
 Open Scope mini_c_scope.
 Open Scope mini_gmp_scope.
+Declare Scope ext_gmp_stmt_sem_scope.
+Delimit Scope ext_gmp_stmt_sem_scope with extgmpssem.
 Declare Scope gmp_stmt_sem_scope.
 Delimit Scope gmp_stmt_sem_scope with gmpssem.
 
@@ -66,7 +68,7 @@ Inductive _gmp_stmt_sem  (f : @fenv _gmp_statement _gmp_t) (ev:Env) : gmp_statem
         ev r = Some (Def (VMpz (Some lr))) -> (* not in paper *)
         (ev |= fsl_to_gmp_op bop r x y => ev <| mstate ::= {{lr\Defined (⋄ (□ bop) zx zy) }} |>) f
 
-    | S_Scope decls (s:@_c_statement _gmp_statement _gmp_t) ev_s:
+    | S_Scope decls (s:@_c_statement _gmp_statement _gmp_t) ev_s ev_s':
         (*
             - A scope has var declarations that gets dropped at the end. 
             - This was missing in the original paper but required in the translation 
@@ -74,16 +76,17 @@ Inductive _gmp_stmt_sem  (f : @fenv _gmp_statement _gmp_t) (ev:Env) : gmp_statem
             - Note it complicate things because the statement are c instructions, not just gmp ones.
         *)
         declare_gmp_vars ev (list_to_ensemble decls) ev_s ->
-        @generic_stmt_sem _gmp_statement _gmp_t Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars f ev_s s ev -> 
-        (ev |= GMP_Scope decls s =>  ev_s) f
+        @generic_stmt_sem _gmp_statement _gmp_t Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars f ev_s s ev_s' -> 
+        (ev |= GMP_Scope decls s =>  ev) f
 
 
-where "ev |= s => ev'" := (fun f => _gmp_stmt_sem f ev s ev') : gmp_stmt_sem_scope.
+where "ev |= s => ev'" := (fun f => _gmp_stmt_sem f ev s ev') : ext_gmp_stmt_sem_scope.
 
 #[global] Hint Constructors _gmp_stmt_sem  : rac_hint.
 
 
 Definition gmp_stmt_sem := @generic_stmt_sem _gmp_statement _gmp_t Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars.
+Notation "ev |= s => ev'" := (fun f => gmp_stmt_sem f ev s ev') : gmp_stmt_sem_scope.
 
 Definition gmp_pgrm_sem := @generic_pgrm_sem Empty_set _gmp_statement _gmp_t (fun _ => T_Ext Mpz) Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars.
 
@@ -123,5 +126,4 @@ Proof with auto with rac_hint.
         + rewrite p_map_not_same in Hl'... destruct (string_dec c v).
             * subst. rewrite p_map_same in Hl. injection Hl as Hl. now subst.
             * rewrite p_map_not_same in Hl... destruct Hnoalias with v v' l' l'...
-    - admit.
 Admitted.

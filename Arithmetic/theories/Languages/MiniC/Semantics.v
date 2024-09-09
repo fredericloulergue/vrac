@@ -148,21 +148,25 @@ Inductive generic_decl_sem {T} {ext_ty_val: 𝕍 -> @_c_type T} (ev:Env) : @_c_d
 
 From Coq Require Import Sets.Ensembles.
 
+
+
 Inductive declare_vars {T} {ext_ty_val: 𝕍 -> @_c_type T} (e : Env) : Ensemble (@_c_decl T) -> Env -> Prop :=
 | DV_nil : 
     declare_vars e (Empty_set _) e
 
 | DV_cons decls d e': 
-  @generic_decl_sem T ext_ty_val e d e' -> 
-  declare_vars e (Add _ decls d) e'
+    @generic_decl_sem T ext_ty_val e d e' -> 
+    declare_vars e (Add _ decls d) e'
 .
+
+
 
 Definition declare_funs {F S T} : @fenv S T -> Ensemble (@_c_routine F S T) -> Prop := fun _ _ => True. (* todo *)
 
 
 Inductive generic_pgrm_sem {F S T:Set} 
     {ext_ty_val: 𝕍 -> @_c_type T} {ext_exp : @exp_sem_sig T} {ext_stmt: @stmt_sem_sig S T} {ext_stmt_vars: S -> list id} 
-    (ev:Env) (P : @_c_program F S T) (args:Int.MI*) : Env -> Prop :=
+    (ev:Env) (P : @_c_program F S T) (args:Int.MI* ) : Env -> Prop :=
 
     | P_Pgrm params b ret z ev_decls fenv  ev':
 
@@ -190,7 +194,7 @@ Definition _untouched_var_same_eval_exp {T : Set} (exp_sem : @exp_sem_sig T) :=
     (forall x', exp_sem (ev <| env ; vars ::= {{v\x'}} |>)  e x)
     /\ 
     (forall l z', 
-    _no_env_mpz_aliasing ev ->
+    no_aliasing ev ->
     ev v = Some (Def (VMpz (Some l))) -> exp_sem (ev <| mstate ::= {{l\z'}} |>) e x).
 
 
@@ -204,9 +208,9 @@ Definition _untouched_var_same_eval_stmt {S T : Set} (exp_sem : @exp_sem_sig T) 
 
 Definition _no_mem_aliasing {S T : Set} (stmt_sem : @stmt_sem_sig S T)  : Prop := 
     forall (exp_sem:@exp_sem_sig T) f (ev:Env) s (ev':Env), 
-    _no_env_mpz_aliasing ev
+    no_aliasing ev
     -> stmt_sem f ev s ev' 
-    -> _no_env_mpz_aliasing ev'.
+    -> no_aliasing ev'.
 
 
 Definition _determinist_exp_eval {T : Set} (exp_sem : @exp_sem_sig T) : Prop := 

@@ -281,10 +281,10 @@ Fact weakening_of_expression_semantics_3 {T : Set} : forall exp_sem,
     -> _weakening_of_expression_semantics_3 (@generic_exp_sem T exp_sem)
 .
 Proof with auto.
-    intros exp Hextweak ev' e v Hderiv.
-    induction Hderiv; intros ev [sub [Henv Hmem]] [HnotinEnv HnotinMem].
+    intros exp Hextweak ev e v Hderiv.
+    induction Hderiv; intros ev' [sub [Henv Hmem]] [HnotinEnv HnotinMem].
     - constructor.
-    - assert (HxnotinEnv: ~ (dom ev' - dom ev) x). {
+    - assert (HxnotinEnv: ~ (dom ev - dom ev') x). {
         intros contra.  apply (HnotinEnv x contra); now left.
         }  
         apply not_in_sub_domain_prop in HxnotinEnv;[|apply in_domain_dec| apply in_domain_dec].
