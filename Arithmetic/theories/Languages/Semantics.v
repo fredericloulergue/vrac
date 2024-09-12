@@ -2,7 +2,7 @@ Require Import Coq.Program.Equality. (* axiom eq_rect_eq *)
 From RAC.Languages Require Import Syntax.
 From RAC.Languages Require Export MiniC.Semantics MiniGMP.Semantics MiniFSL.Semantics.
 
-Open Scope c_sem_scope.
+#[local] Open Scope c_sem_scope.
 
 
 

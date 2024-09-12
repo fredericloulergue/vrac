@@ -6,9 +6,10 @@ From RAC.Languages Require Import Syntax Semantics Lemmas.
 
 Import FunctionalEnv.
 
-Open Scope mini_c_scope.
-Open Scope Z_scope.
-Open Scope mini_gmp_scope.
+#[local] Open Scope Z_scope.
+#[local] Open Scope utils_scope.
+#[local] Open Scope mini_c_scope.
+#[local] Open Scope mini_gmp_scope.
 
 
 
@@ -127,7 +128,7 @@ Proof.
 Qed.
 
 
-Open Scope gmp_stmt_sem_scope.
+#[local] Open Scope gmp_stmt_sem_scope.
 
 (* SECTION E: PROOFS OF THE SEMANTICS OF THE MACROS *)
 

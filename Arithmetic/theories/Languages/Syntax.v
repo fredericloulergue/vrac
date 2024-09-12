@@ -2,9 +2,10 @@ From Coq Require Import Strings.String.
 From RAC.Languages Require Export MiniC.Syntax MiniGMP.Syntax MiniFSL.Syntax.
 From RAC Require Import Utils.
 
-
-
 Import FunctionalEnv.
+
+#[local] Open Scope list.
+
 
 Definition c_statement := @_c_statement Empty_set Empty_set.
 
@@ -99,19 +100,20 @@ end.
 
 Set Guard Checking.
 
+
 Definition _fsl_stmt_vars (stmt:_fsl_statement) : list id := 
   let _stmt_vars:= fix predicate_vars (p:predicate) : list id := match p with
     | P_True | P_False => nil
-    | P_BinOp t1 _ t2 => (term_vars t1 ++ term_vars t2)%list
+    | P_BinOp t1 _ t2 => term_vars t1 ++ term_vars t2
     | P_Not p => predicate_vars p
-    | P_Disj p1 p2 => (predicate_vars p1 ++ predicate_vars p2)%list
+    | P_Disj p1 p2 => predicate_vars p1 ++ predicate_vars p2
     | P_Call _ args => List.flat_map term_vars args
     end
   with term_vars (t:fsl_term) : list id := match t with
     | T_Z _ => nil
-    | T_Id x _ => (x::nil)%list
-    | T_BinOp t1 _ t2 => (term_vars t1 ++ term_vars t2)%list
-    | T_Cond p t1 t2 => (predicate_vars p ++ term_vars t1 ++ term_vars t2)%list
+    | T_Id x _ => x::nil
+    | T_BinOp t1 _ t2 => term_vars t1 ++ term_vars t2
+    | T_Cond p t1 t2 => predicate_vars p ++ term_vars t1 ++ term_vars t2
     | T_Call _ targs => List.flat_map term_vars targs
     end
   for predicate_vars

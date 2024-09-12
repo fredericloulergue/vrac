@@ -6,9 +6,9 @@ From RAC.Languages Require Import MiniC.Semantics MiniGMP.Syntax.
  
 Import RecordSetNotations FunctionalEnv.
 
-Open Scope utils_scope.
-Open Scope mini_c_scope.
-Open Scope mini_gmp_scope.
+#[local] Open Scope utils_scope.
+#[local] Open Scope mini_c_scope.
+#[local] Open Scope mini_gmp_scope.
 Declare Scope ext_gmp_stmt_sem_scope.
 Delimit Scope ext_gmp_stmt_sem_scope with extgmpssem.
 Declare Scope gmp_stmt_sem_scope.

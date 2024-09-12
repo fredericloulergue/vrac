@@ -68,8 +68,8 @@ where  "env '|=' e => z" := (generic_exp_sem env e z) : generic_exp_sem_scope.
 Definition c_exp_sem := @generic_exp_sem Empty_set Empty_exp_sem.
 Notation "Ω '|=' e => v"  := (c_exp_sem Ω e v) : c_sem_scope.
 
-Open Scope utils_scope.
-Open Scope mini_c_scope.
+#[local] Open Scope utils_scope.
+#[local] Open Scope mini_c_scope.
 Import FunctionalEnv.
 
 (* extensible statement semantic *)

@@ -6,10 +6,13 @@ From RAC.Languages Require Import Syntax Semantics.
 
 Import ListNotations FunctionalEnv Domain.
 
-Open Scope string_scope.
-Open Scope list_scope.
-Open Scope Z_scope.
-Open Scope utils_scope.
+#[local] Open Scope string_scope.
+#[local] Open Scope list_scope.
+#[local] Open Scope Z_scope.
+#[local] Open Scope utils_scope.
+#[local] Open Scope mini_c_scope.
+#[local] Open Scope list.
+
 
 
 Definition two := VInt (2 ⁱⁿᵗ eq_refl).
@@ -44,12 +47,6 @@ mfrakA : 𝔄
 mbfscrA : 𝓐
 *)
 
-
-
-
-
-Open Scope c_sem_scope.
-Open Scope mini_gmp_scope.
 
 (* Example stmt_test :
     forall v l m,     
@@ -143,10 +140,7 @@ Qed. *)
 Example test_dom : 2 ∉ (fun x => if x>?2 then Some (Z.mul x 2) else None).
 Proof. easy. Qed.
 
-
-
-Close Scope Z_scope.
-
+#[local] Open Scope nat.
 (* monad *)
 Export CounterMonad.
 (* Compute (exec (n <- fresh ;;; n)). *)
@@ -178,14 +172,13 @@ Qed.
 
 
 From Coq Require Import Ensembles.
-Open Scope Z_scope.
+Close Scope nat_scope.
 
 Example envaddnil : add_z_vars empty_env (Empty_set _) empty_env.
 Proof.
  constructor.
 Qed.
 
-Open Scope list.
 
 Example envaddone : add_z_vars empty_env  (Singleton _ (T_Ext Mpz, "y", 3))
     (empty_env 
@@ -210,15 +203,11 @@ Qed.
 
 
 
-Open Scope Z_scope.
-Open Scope mini_gmp_scope.
-
-Module StringEnv := MMapsEnv(Structures.OrdersEx.String_as_OT).
 
 Module DummyOracle : Oracle.Oracle.
     Definition 𝐼 := Z ⨉ Z.
     
-    Module StringEnv := StringEnv.
+    Module StringEnv := MMapsEnv(Structures.OrdersEx.String_as_OT).
 
     Definition Γᵢ : Type :=  StringEnv.t 𝐼. 
 
@@ -234,7 +223,7 @@ Module DummyOracle : Oracle.Oracle.
     forall S (f : @fenv _fsl_statement S) fname xargs (targs:list ℨ) (iargs:list 𝐼) b, 
     f.(lfuns) fname = Some (xargs,b) ->
     forall te,
-    List.Forall2 (fun e i => eq (𝓘 e te) i) targs iargs ->
+    List.Forall2 (fun e i => 𝓘 e te = i)%type targs iargs ->
              𝒯 (T_Call fname targs) te = 𝒯 b (StringEnv.add_all xargs iargs StringEnv.empty).
 
     Inductive fits (z:Z) : 𝔗 -> Prop := 
@@ -248,7 +237,7 @@ Module DummyOracle : Oracle.Oracle.
     Parameter convergence_of_lfuns_ty : 
     forall fname (targs:list ℨ) (iargs:list 𝐼), 
     forall (typing_envs : Ensembles.Ensemble Γᵢ)  (fe:Γᵢ), Ensembles.In Γᵢ typing_envs fe ->
-    (exists ty te, eq (𝒯 (T_Call fname targs) te) ty) -> 
+    (exists ty te, 𝒯 (T_Call fname targs) te = ty)%type -> 
     Finite_sets.Finite _ typing_envs
     .
 

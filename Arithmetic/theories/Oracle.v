@@ -24,7 +24,7 @@ Module Type Oracle.
         forall S (f : @fenv _fsl_statement S) fname xargs (targs:list ℨ) (iargs:list 𝐼) b, 
         f.(lfuns) fname = Some (xargs,b) ->
         forall te,
-        List.Forall2 (fun e i => eq (𝓘 e te) i) targs iargs ->
+        List.Forall2 (fun e => eq (𝓘 e te)) targs iargs ->
                     𝒯 (T_Call fname targs) te = 𝒯 b (StringEnv.add_all xargs iargs StringEnv.empty).
 
 
@@ -46,7 +46,7 @@ Module Type Oracle.
     Parameter convergence_of_lfuns_ty : 
         forall fname (targs:list ℨ) (iargs:list 𝐼), 
         forall (typing_envs : Ensemble Γᵢ)  (fe:Γᵢ), Ensembles.In Γᵢ typing_envs fe ->
-        (exists ty te, eq (𝒯 (T_Call fname targs) te) ty) -> 
+        (exists ty te, 𝒯 (T_Call fname targs) te = ty) -> 
         Finite_sets.Finite _ typing_envs
     .
 

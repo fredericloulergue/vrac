@@ -14,9 +14,8 @@ Record fenv {S T : Set} := mk_fenv {
 }.
 
 Module Int16Bounds.
-    Open Scope Z_scope.
-    Definition m_int := -32768.
-    Definition M_int := 32767.
+    Definition m_int := (-32768)%Z.
+    Definition M_int := 32767%Z.
 End Int16Bounds.
 
 Module Int := MachineInteger Int16Bounds.
@@ -68,6 +67,8 @@ Coercion def_v_mpz (l:nat) : 𝕍 := Def (VMpz (Some l)).
 Coercion mpz_loc (l:location) : 𝕍 := VMpz (Some l).
 
 Inductive 𝔹 := BTrue | BFalse.
+
+Definition 𝔹_to_Z  (b:𝔹) : Z := if b then 1 else 0.
 
 Inductive mpz_val := Defined (z:Z) :> mpz_val | Undefined (z:Z).
 
@@ -285,7 +286,7 @@ Proof.
         destruct l; simpl in H4; try congruence.
 Qed.
 
-Open Scope utils_scope.
+#[local] Open Scope utils_scope.
 
 
 Fact id_bijective {T:Type} : @Bijective T T (fun T => T). 
@@ -727,6 +728,9 @@ Inductive add_z_vars (e : Env) : 𝐴 -> Env -> Prop :=
     e +++ (t,v,z) e' -> 
     add_z_vars e (Add _ vars (t,v,z)) e'
 .
+
+Notation "env '+++' e" := (add_z_vars env e) (at level 99).
+
 
 Fixpoint list_to_ensemble {X} (l:list X) : Ensemble X := match l with
 | nil => Empty_set _

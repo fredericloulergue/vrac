@@ -9,11 +9,13 @@ Import RecordSetNotations.
 
 Export CounterMonad.
 
-Open Scope string_scope.
-Open Scope mini_c_scope.
-Open Scope list_scope.
-Open Scope Z_scope.
-Open Scope mini_gmp_scope.
+#[local] Open Scope string_scope.
+#[local] Open Scope mini_c_scope.
+#[local] Open Scope list_scope.
+#[local] Open Scope Z_scope.
+#[local] Open Scope mini_gmp_scope.
+#[local] Open Scope utils_scope.
+
 
 
 Definition var_list := (𝓥 ⨉ gmp_t)*.

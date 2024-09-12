@@ -2,7 +2,8 @@ From Coq Require Import ZArith.ZArith Strings.String.
 From RAC Require Import Utils Environnement Macros Oracle Translation.
 From RAC.Languages Require Import Syntax Semantics MiniFSL.Semantics.
 
-Open Scope utils_scope.
+#[local] Open Scope utils_scope.
+#[local] Open Scope list.
 
 From RecordUpdate Require Import RecordUpdate.
 Import RecordSetNotations.
@@ -52,7 +53,7 @@ Proof.
     - now apply Hsmth with (f:=f) (e:=env)  (e':=env') in Hflat.
     - now apply Hsmth with (f:=f) (e:=env)  (e':=env') in Hflat.
     - subst. destruct (flatten s1) eqn:s1Eqn.
-        + simpl in Hflat.  specialize (IHs2 <{s'}> f env env'). apply IHs2 ; [assumption|]. clear IHs2. 
+        + simpl in Hflat.  specialize (IHs2 <{s'}> f env env')%c. apply IHs2 ; [assumption|]. clear IHs2. 
             apply (Hnil _ f env) in s1Eqn. inversion Hsem; subst. admit.
         + admit.
 Admitted.
@@ -150,10 +151,12 @@ Definition well_formed_pgrm (P : fsl_pgrm) (env : Env) (fenv: @fenv _fsl_stateme
 
 
 
-Module Theorems(Oracle:Oracle).
-    
-    Module T := Translation(Oracle).
+Module Theorems(O:Oracle).
+    #[local] Open Scope mini_c_scope.
+    #[local] Open Scope mini_gmp_scope.
 
+    Module T := Translation(O).
+    Import T O.
 
     (* Section C : PROPERTIES OF THE SEMANTICS *)
     (* -> Languages/{MiniC,MiniGMP}/Lemmas.v *)
@@ -202,7 +205,7 @@ Module Theorems(Oracle:Oracle).
 
     Lemma LD3_preservation_of_control_flow : forall P fenv env,
         well_formed_pgrm  P env fenv ->
-        Forall_routines (T.translate_program P) ( fun _ _ b => 
+        Forall_routines (translate_program P) ( fun _ _ b => 
             forall decls s,
             In_stmt (S_Ext (GMP_Scope decls s)) b -> 
             (* passes through: how to represent control flow ?  *)
@@ -221,7 +224,7 @@ Module Theorems(Oracle:Oracle).
 
     Lemma LD5_memory_transparency_of_generated_code : forall P fenv env,
         well_formed_pgrm  P env fenv ->
-        Forall_routines (T.translate_program P) ( fun _ _ b => 
+        Forall_routines (translate_program P) ( fun _ _ b => 
             forall decls s,
             In_stmt (S_Ext (GMP_Scope decls s)) b -> 
             (* todo: add decls tec *)
@@ -233,7 +236,7 @@ Module Theorems(Oracle:Oracle).
 
     Theorem T61_absence_of_dangling_pointers : forall P fenv t_fenv env,
         well_formed_pgrm  P env fenv ->
-        Forall_routines (T.translate_program P) ( fun _ _ b => 
+        Forall_routines (translate_program P) ( fun _ _ b => 
             forall s (renv renv' : Env),
             (renv |= s => renv')%gmpssem t_fenv ->
             forall (l:location), renv'.(mstate) l <> None <->  exists! x, eq (renv' x) (Some (Def (VMpz l)))
@@ -256,16 +259,7 @@ Module Theorems(Oracle:Oracle).
 
     (* Section F  : INVARIANTS FOR ROUTINE TRANSLATION *)
 
-    (*
-
-    (* synchronicity invariant *)
-    Definition I1 (env:Ω) (ienv:Γ) := ((dom env.(binds)) = (dom (fst ienv) + dom (snd ienv)))%utils.
-
-    (* suitability invariant *)
-    Definition I2 (env:ψ) := True. (* todo *)
-
-    *)
-
+    (* -> Invariants.v *)
 
 
 (*
@@ -284,8 +278,8 @@ Inductive pgrm_var_representation (iop:ϴ) (e : Env) (ienv:Γ) : Env -> Prop :=
 
 
     (* Section G : PRESERVATION OF THE SEMANTICS *)
+    #[local] Open Scope fsl_sem_scope.
 
-    Open Scope fsl_sem_scope.
 
     (*
     Lemma LG1_semantics_of_term_translation : 
@@ -311,7 +305,7 @@ Inductive pgrm_var_representation (iop:ϴ) (e : Env) (ienv:Γ) : Env -> Prop :=
         exists  (e  e' : Ω),
         (fsl_pgrm_sem empty_env P args (empty_env <|env ; vars := e|>)
         <-> 
-        gmp_pgrm_sem empty_env (T.translate_program P) args (empty_env <|env ; vars := e'|>)
+        gmp_pgrm_sem empty_env (translate_program P) args (empty_env <|env ; vars := e'|>)
         )
         /\ (e ⊑ e')%env.
 

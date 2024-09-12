@@ -8,7 +8,19 @@ Declare Scope utils_scope.
 Delimit Scope utils_scope with utils.
 
 Create HintDb rac_hint.
-Open Scope utils_scope.
+#[local] Open Scope utils_scope.
+
+
+
+Fixpoint fold_left2 {Acc A B : Type} (f : Acc -> A -> B -> Acc) (acc:Acc) (l1 : A*) (l2 : B*) : Acc := 
+    match l1,l2 with
+      | nil,nil => acc
+      | cons b1 t1,cons b2 t2 => fold_left2 f (f acc b1 b2) t1 t2
+      | _,_ => acc (* both lists must have the same length,
+       otherwise computation will be interrupted when one of the list is empty but not the other *)
+    end
+.
+
 
 
 Module FunctionalEnv. (* used across the formalization to bind variables to values *)
@@ -40,12 +52,12 @@ Module FunctionalEnv. (* used across the formalization to bind variables to valu
 
 
 
-  Definition p_map_addall_front {X Y: Type} `{EqDecC X} env (lx:list X) (ly : list Y) :=
-      List.fold_left (fun f xy => f {(fst xy) \ (snd xy)}) (List.combine lx ly) env
+  Definition p_map_addall_back {X Y: Type} `{EqDecC X} (lx:list X) (ly : list Y) env :=
+      fold_left2 (fun f x y => f {x \ y}) env lx ly
   .
 
-  Definition p_map_addall_back {X Y: Type} `{EqDecC X} (lx:list X) (ly : list Y) env :=
-      p_map_addall_front env lx ly
+  Definition p_map_addall_front {X Y: Type} `{EqDecC X} env (lx:list X) (ly : list Y) :=
+      p_map_addall_back lx ly env
   .
 
 
@@ -193,16 +205,6 @@ Module MMapsEnv(K: OrderedType).
 End MMapsEnv.
 
 
-
-Fixpoint fold_left2 {Acc A B : Type} (f : Acc -> A -> B -> Acc) (acc:Acc) (l1 : A*) (l2 : B*) : Acc := 
-    match l1,l2 with
-      | nil,nil => acc
-      | cons b1 t1,cons b2 t2 => fold_left2 f (f acc b1 b2) t1 t2
-      | _,_ => acc (* both lists must have the same length,
-       otherwise computation will be interrupted when one of the list is empty but not the other *)
-    end
-.
-
 (* modified from http://poleiro.info/posts/2013-03-31-reading-and-writing-numbers-in-coq.html *)
 Definition string_of_nat (n : nat) : string :=
     let fix aux (time n : nat) (acc : string) : string :=
@@ -228,9 +230,11 @@ End Bounds.
 
 (* simplified from compcert.lib.Integers *)
 Module MachineInteger(B:Bounds).
-    Open Scope bool_scope.
-    Open Scope Z_scope.
+    #[local] Open Scope bool_scope.
+    #[local] Open Scope Z_scope.
 
+    Include B.
+    
     Definition inRange n : Prop := (B.m_int <? n) && (n <? B.M_int) = true.
 
     Definition MI := sig inRange.

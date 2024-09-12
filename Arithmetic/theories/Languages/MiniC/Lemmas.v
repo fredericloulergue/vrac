@@ -5,6 +5,8 @@ From RAC.Languages Require Import Syntax MiniC.Semantics.
 
 Import FunctionalEnv Domain.
 
+#[local] Open Scope utils_scope.
+
 Fact untouched_var_same_eval_exp {T : Set} : forall exp_sem, 
     _untouched_var_same_eval_exp exp_sem ->
     _untouched_var_same_eval_exp (@generic_exp_sem T exp_sem).

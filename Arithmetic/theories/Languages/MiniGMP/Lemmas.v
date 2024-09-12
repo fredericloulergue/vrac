@@ -6,7 +6,8 @@ From RAC.Languages Require Import Syntax Semantics MiniC.Lemmas.
 
 Import FunctionalEnv Domain.
 
-Open Scope Z_scope. 
+#[local] Open Scope utils_scope.
+#[local] Open Scope Z_scope. 
 
 (* helper lemma for gmp cmp semantics *)
 Fact cmp_induced : forall zx zy (b: 𝕍) sub,

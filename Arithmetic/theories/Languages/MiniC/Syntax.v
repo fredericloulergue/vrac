@@ -2,7 +2,7 @@ From Coq Require Import ZArith.ZArith Strings.String.
 From RAC Require Import Utils.
 
 
-Open Scope Z_scope.
+#[local] Open Scope Z_scope.
 
 Import FunctionalEnv.
 
