@@ -126,4 +126,4 @@ Proof with auto with rac_hint.
         + rewrite p_map_not_same in Hl'... destruct (string_dec c v).
             * subst. rewrite p_map_same in Hl. injection Hl as Hl. now subst.
             * rewrite p_map_not_same in Hl... destruct Hnoalias with v v' l' l'...
-Admitted.
+Qed.

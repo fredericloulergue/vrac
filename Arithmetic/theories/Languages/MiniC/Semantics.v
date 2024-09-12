@@ -222,12 +222,12 @@ Definition _determinist_stmt_eval {S T : Set} (ext_exp_sem : @exp_sem_sig T) (st
     @_determinist_exp_eval T ext_exp_sem  -> 
     forall f s ev ev',  stmt_sem f ev s ev' ->  (forall ev'', stmt_sem f ev s ev'' -> ev' = ev'').
 
-Definition _weakening_of_expression_semantics {T} (exp_sem : @exp_sem_sig T) : Prop := 
+Definition _weakening_of_expression_semantics {T} (exp_sem : @exp_sem_sig T) (rel: Env -> Env -> Prop): Prop := 
     forall e ev (x:𝕍), 
-    exp_sem ev e x <-> (forall ev',  (ev ⊑ ev')%envmem -> exp_sem ev' e x).
+    exp_sem ev e x <-> (forall ev', rel ev ev' -> exp_sem ev' e x).
 
 
-Fact weakening_of_empty_expression_semantics {T} : _weakening_of_expression_semantics (@Empty_exp_sem T). 
+Fact weakening_of_empty_expression_semantics {T} : _weakening_of_expression_semantics (@Empty_exp_sem T) exist_env_mem_partial_order. 
 Proof.
     unfold _weakening_of_expression_semantics. intros. split ; unfold Empty_exp_sem.
     - intros [].
@@ -236,53 +236,56 @@ Qed.
 
 
 
-Definition _weakening_of_statement_semantics_1  {S T : Set} (exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) := 
+Definition _weakening_of_statement_semantics_1  {S T : Set} (exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) 
+    (rel: Env -> Env -> σ -> Prop) := 
     (*
     should be in both directions according to the article but right to left does not work :
     We will see if the 'bad' direction is used in the proof 
     If this is the cast, one direction is trying to add to have a new env_01 = ev_0 + a and a new env_02 = ev_0 + b so that 
         (ev0 + a) inter ev0 + b) = ev1
     *)  
-    _weakening_of_expression_semantics exp_sem ->
+    _weakening_of_expression_semantics exp_sem (fun e e' => existify (rel e e')) ->
     forall (f : @fenv S T) ev₀ s ev₁,
     stmt_sem f ev₀ s ev₁ ->
-    ( forall ev₀' sub, env_mem_partial_order ev₀ ev₀' sub ->
+    ( forall ev₀' sub, rel ev₀ ev₀' sub ->
         exists ev₁', 
-        env_mem_partial_order ev₁ ev₁' sub /\ stmt_sem f ev₀' s ev₁').
+        rel ev₁ ev₁' sub /\ stmt_sem f ev₀' s ev₁').
 
-Fact weakening_of_empty_statement_semantics_1 {S T}: _weakening_of_statement_semantics_1 (@Empty_exp_sem T) (@Empty_stmt_sem S T).
+Fact weakening_of_empty_statement_semantics_1 {S T}: forall rel, _weakening_of_statement_semantics_1 (@Empty_exp_sem T) (@Empty_stmt_sem S T) rel.
 Proof. 
     easy. 
 Qed.
 
 Import Domain.
 
-Definition _weakening_of_statement_semantics_2  {S T : Set} (exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) := 
+Definition _weakening_of_statement_semantics_2  {S T : Set} (exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) 
+    (rel: Env -> Env -> σ -> Prop)
+    := 
     _determinist_exp_eval exp_sem ->
-    _weakening_of_expression_semantics exp_sem ->
-    forall (f: @fenv S T) ev₀ ev₀' s ev₁,
-    stmt_sem f ev₀ s ev₁ /\ (ev₀ ⊑ ev₀')%envmem  ->
+    _weakening_of_expression_semantics exp_sem (fun e e' => existify (rel e e')) ->
+    forall (f: @fenv S T) ev₀ ev₀' s ev₁ sub,
+    stmt_sem f ev₀ s ev₁ /\ rel ev₀ ev₀' sub  ->
     (
         forall ev₁',
         stmt_sem f ev₀' s ev₁'->
         (* if v is a compiler variable, i.e. a function return value, v can change*)
         (forall (v:𝓥), (v ∉ ev₀) /\ is_comp_var v = false  -> ev₀' v = ev₁' v) 
         /\
-        (forall (x:location) (v:𝓥), ev₀ v <> Some (Def (VMpz x)) -> ev₀'.(mstate) x = ev₁'.(mstate) x)
+        (forall (x:location), (forall v, ev₀ v <> Some (Def (VMpz x))) -> ev₀'.(mstate) (proj1_sig sub x) = ev₁'.(mstate) (proj1_sig sub x))
     ).
 
 
-Fact weakening_of_empty_statement_semantics_2 {S T}: _weakening_of_statement_semantics_2 (@Empty_exp_sem T) (@Empty_stmt_sem S T).
+Fact weakening_of_empty_statement_semantics_2 {S T}: forall rel, _weakening_of_statement_semantics_2 (@Empty_exp_sem T) (@Empty_stmt_sem S T) rel.
 Proof. 
     easy. 
 Qed.
 
 
 (* required to prove _weakening_of_statement_semantics_3 *)
-Definition _weakening_of_expression_semantics_3 {T : Set} (exp_sem : @exp_sem_sig T) := 
+Definition _weakening_of_expression_semantics_3 {T : Set} (exp_sem : @exp_sem_sig T)  (rel: Env -> Env -> Prop) := 
     forall ev e z,
     exp_sem ev e z ->
-    forall ev', (ev' ⊑ ev)%envmem ->
+    forall ev', rel ev' ev ->
     (
         (forall v, (dom ev - dom ev') v -> ~ List.In v (exp_vars e))
         /\
@@ -293,18 +296,19 @@ Definition _weakening_of_expression_semantics_3 {T : Set} (exp_sem : @exp_sem_si
 .
 
 
-Fact weakening_of_empty_expression_semantics_3 {T}: _weakening_of_expression_semantics_3 (@Empty_exp_sem T).
+Fact weakening_of_empty_expression_semantics_3 {T}: forall rel, _weakening_of_expression_semantics_3 (@Empty_exp_sem T) rel.
 Proof. 
     easy.
 Qed.
 
 
 
-Definition _weakening_of_statement_semantics_3  {S T : Set} (stmt_sem : @stmt_sem_sig S T) (ext_stmt_vars: S -> list id) := 
+Definition _weakening_of_statement_semantics_3  {S T : Set} (stmt_sem : @stmt_sem_sig S T) (ext_stmt_vars: S -> list id)
+    (rel: Env -> Env -> Prop)  := 
     forall f ev₀  s ev₁,
     stmt_sem f ev₀ s ev₁ -> 
 
-    forall ev₀', (ev₀' ⊑ ev₀)%envmem ->
+    forall ev₀', rel ev₀' ev₀ ->
     (
         (forall v, (dom ev₀ - dom ev₀') v -> ~ List.In v (stmt_vars s ext_stmt_vars))
         /\
@@ -314,7 +318,7 @@ Definition _weakening_of_statement_semantics_3  {S T : Set} (stmt_sem : @stmt_se
     exists ev₁', stmt_sem f ev₀' s ev₁'
     .
 
-Fact weakening_of_empty_statement_semantics_3 {S T}: _weakening_of_statement_semantics_3 (@Empty_stmt_sem S T) (fun x => nil).
+Fact weakening_of_empty_statement_semantics_3 {S T}: forall f rel, _weakening_of_statement_semantics_3 (@Empty_stmt_sem S T) f rel.
 Proof. 
-    unfold _weakening_of_expression_semantics. intros f. intros. now exists ev₀'.
+    easy. 
 Qed.

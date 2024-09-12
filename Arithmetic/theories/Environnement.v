@@ -111,6 +111,7 @@ Definition apply_mem (a : Ω) (l : 𝔏) : option Z := a.(binds) l.
 
 Definition σ : Type := {f : location -> location | Bijective f}.
 
+
 Fact bijective_eq_iff_f_eq  {A B:Type} : forall (f: A -> B) x y , Bijective f -> x = y <-> f x = f y. 
 Proof.
     intros. destruct H as [f_inv [H1 H2]]. split ; congruence.
@@ -144,18 +145,18 @@ Qed.
 
 
 
-Definition induced (f: σ) : 𝕍 -> 𝕍 := fun value => match value with
-| Def (VMpz (Some l)) => Def (VMpz (Some (proj1_sig f l)))
+Definition induced (f: location -> location) : 𝕍 -> 𝕍 := fun value => match value with
+| Def (VMpz (Some l)) => Def (VMpz (Some (f l)))
 | v => v
 end.
 
-Fact induced_not_mpz_transparent (f: σ) : forall v, 
+Fact induced_not_mpz_transparent (f: location -> location) : forall v, 
     (forall l, v <> Def (VMpz (Some l))) -> induced f v = v.
 Proof.
         intros. destruct v; auto. destruct v; auto. destruct l; auto. congruence.
 Qed.
 
-Fact induced_int_iff (f: σ) : forall v n, 
+Fact induced_int_iff (f: location -> location) : forall v n, 
     induced f v = (VInt n) <-> v = VInt n.
 Proof.
         intros. split; intros H.
@@ -189,6 +190,16 @@ Inductive param_env_partial_order (env env':Ω) (var: 𝓥) (f:σ) : Prop :=
 | Enone : env var = None -> param_env_partial_order env env' var f
 .
 
+Definition param_mem_partial_order (mem mem':𝓜)  (l: location) (f:σ) := forall i, mem l = Some i ->  (mem' (proj1_sig f l)) = Some i.
+
+
+(* stronger constraints *)
+Definition strong_param_env_partial_order (env env':Ω) (var: 𝓥) (f:σ) : Prop :=
+    forall v x, env v = Some x ->  env' v = Some (induced (proj1_sig f) x).
+
+
+
+
 #[global] Hint Constructors param_env_partial_order : rac_hint.
 
 Declare Scope env_scope.
@@ -201,18 +212,78 @@ Delimit Scope env_mem_scope with envmem.
 Definition existify {A} (p: A -> Prop) : Prop := exists a, p a. 
 
 Definition env_partial_order env env' := fun f => forall v, param_env_partial_order env env' v f.
-Infix "⊑" := (fun e e' =>  existify (env_partial_order e e') ) : env_scope.
+Definition exist_env_partial_order env env' := existify (env_partial_order env env').
+Infix "⊑" := exist_env_partial_order : env_scope.
 
 
-Definition param_mem_partial_order (mem mem':𝓜)  (l: location) (f:σ) := forall i, mem l = Some i ->  (mem' (proj1_sig f l)) = Some i.
 Definition mem_partial_order env env' := fun f => forall l, param_mem_partial_order env env' l f.
-Infix "⊑" := (fun e e' =>  existify (mem_partial_order e e') ) : mem_scope.
+Definition exist_mem_partial_order env env' := existify (mem_partial_order env env').
+Infix "⊑" := exist_mem_partial_order : mem_scope.
 
 
 Definition env_mem_partial_order e e' f := 
     env_partial_order e.(env) e'.(env) f /\ mem_partial_order e.(mstate) e'.(mstate) f.
-Infix "⊑" := (fun e e' =>  existify (env_mem_partial_order e e') ) : env_mem_scope.
+Definition exist_env_mem_partial_order env env' := existify (env_mem_partial_order env env').
+Infix "⊑" := exist_env_mem_partial_order : env_mem_scope.
 
+
+Definition strong_env_partial_order env env' := fun f => forall v, strong_param_env_partial_order env env' v f.
+Definition exist_strong_env_partial_order env env' := existify (strong_env_partial_order env env').
+
+Definition strong_env_mem_partial_order e e' f := 
+        strong_env_partial_order e.(env) e'.(env) f /\ mem_partial_order e.(mstate) e'.(mstate) f.
+Definition exist_strong_env_mem_partial_order env env' := existify (strong_env_mem_partial_order env env').
+
+
+Fact strong_env_mem_stronger : forall e e' f, 
+    strong_env_mem_partial_order e e' f -> 
+    env_mem_partial_order e e' f.
+Proof with eauto with rac_hint.
+    intros e e' f [Hstrenv Hstrmem]. split ; [|trivial].
+    intros v. destruct (e v) as [val |] eqn:res...
+    specialize (Hstrenv v v val res). destruct val...
+        + destruct v0; simpl in *... destruct l...
+        + destruct uv...
+Qed.
+
+
+Import Domain.
+
+
+
+Goal forall (s rev : location -> location) 
+    (H1 :forall x, rev (s x) = x ) (H2: forall y, s (rev y) = y),
+    σ.
+Proof.
+        intros. exists s. unfold Bijective. exists rev. auto. 
+Qed.
+
+
+Fact strong_reverse_dom_same : forall (ev' ev : Env) x (v: 𝕍) (s rev : location -> location) 
+    (H1 :forall x, rev (s x) = x ) (H2: forall y, s (rev y) = y),
+
+    strong_env_mem_partial_order ev' ev 
+        (exist (fun f => Bijective f) s
+                 (ex_intro
+                    (fun g =>
+                        (forall x, g (s x) = x) /\ (forall y, s (g y) = y)
+                    )
+                    rev (conj H1 H2)
+                )
+        )%type ->
+    ev x = Some v ->
+    (dom ev')%utils x ->
+    ev' x = Some (induced rev v)
+.
+Proof.
+    intros ev' ev x v s rev H1 H2 [Hrenv _] Hevx [v' Hdom].  
+    specialize (Hrenv x).  apply Hrenv in Hdom as H4. destruct v, v'; simpl in * ; try congruence. 
+    - destruct v , v0; simpl in H4; try congruence.
+        + destruct l; simpl in H4; try congruence.
+        + destruct l, l0; simpl in H4; try congruence.
+    - destruct v; simpl in H4; try congruence.
+        destruct l; simpl in H4; try congruence.
+Qed.
 
 Open Scope utils_scope.
 
@@ -236,7 +307,7 @@ From Coq Require Import Setoid.
 Fact _refl_env_partial_order : reflexive Ω (fun e e' => env_partial_order e e' (exist _ _ id_bijective)).
 
 Proof.
-    intros [v l] var. destruct (v var) as [val |] eqn:res. induction val.
+    intros [v l] var. destruct (v var) as [val |] eqn:res. destruct val.
     - destruct v0.
         * now apply EsameInt with n.
         * destruct l0 as [l0|].
@@ -418,7 +489,7 @@ Qed.
 
 Fact eq_mpz_env_mem_partial_order :  forall e e' sub, 
     env_mem_partial_order e e' sub -> 
-    forall v mpz, e v = Some (Def (VMpz mpz)) -> e' v = Some (induced sub (VMpz mpz)).
+    forall v mpz, e v = Some (Def (VMpz mpz)) -> e' v = Some (induced (proj1_sig sub) (VMpz mpz)).
 Proof.
     intros e e' sub [He Hm] v l Hsome. destruct (He v); try congruence.
     - rewrite Hsome in H. now inversion H.
@@ -501,7 +572,7 @@ Qed.
 Fact env_partial_order_add : forall Ω₀ Ω₀' sub, 
     env_mem_partial_order Ω₀ Ω₀' sub -> 
     (forall var' z, 
-    env_mem_partial_order (Ω₀ <| env; vars ::= {{var' \ z}} |>) (Ω₀' <| env ; vars ::= {{var' \ induced sub z}} |>) sub
+    env_mem_partial_order (Ω₀ <| env; vars ::= {{var' \ z}} |>) (Ω₀' <| env ; vars ::= {{var' \ induced (proj1_sig sub) z}} |>) sub
     )%envmem.
 Proof with eauto with rac_hint.
     intros [v l][v' l'] sub H x z.  split.
@@ -608,7 +679,7 @@ Proof.
 Qed.
 
 
-Fact induced_ty_same v (sub:σ) : type_of_value (Some (induced sub v)) = type_of_value (Some v).
+Fact induced_ty_same v (sub:σ) : type_of_value (Some (induced (proj1_sig sub) v)) = type_of_value (Some v).
 Proof.
     destruct v; simpl; [|trivial]. destruct v; simpl; [trivial|]. now destruct l. 
 Qed.
