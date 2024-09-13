@@ -1,117 +1,14 @@
-From Coq Require Import ZArith.ZArith Strings.String Logic.FinFun Sets.Ensembles Sets.Finite_sets.
+From Coq Require Import String FinFun Setoid.
 From RecordUpdate Require Import RecordUpdate.
 From RAC Require Import Utils.
-From RAC.Languages Require Import Syntax.
+From RAC Require Export Environnement.
 
-
-Import FunctionalEnv.
-
-Record fenv {S T : Set} := mk_fenv {
-    funs : @𝓕 S T ;
-    procs : @𝓟 S T ;
-    lfuns : 𝔉 ;
-    preds : 𝔓 ;
-}.
-
-Module Int16Bounds.
-    Definition m_int := (-32768)%Z.
-    Definition M_int := 32767%Z.
-End Int16Bounds.
-
-Module Int := MachineInteger Int16Bounds.
-
-
-
-Notation "z ̇" := (Int.of_mi z) (at level 0).
-Notation "z 'ⁱⁿᵗ'" := (Int.to_mi z) (at level 99).
-
-
-Fact zeroinRange : Int.inRange 0.  now split. Qed.
-Fact oneinRange : Int.inRange 1. now split. Qed.
-Fact suboneinRange : Int.inRange (-1). now split. Qed.
-Definition zero :=  0ⁱⁿᵗ zeroinRange.
-Definition one := 1ⁱⁿᵗ oneinRange.
-Definition sub_one := (-1)ⁱⁿᵗ suboneinRange.
-
-
-
-(* adresses and undefined values must be an enumerable set. We use nat for convenience *)
-Definition location := nat. 
-Definition undefval := nat.
-
-#[global] Instance location_eq_dec : FunctionalEnv.EqDecC location := {eq_dec := Nat.eq_dec}.
-
-
-
-#[global] Hint Resolve zeroinRange: rac_hint.
-#[global] Hint Resolve oneinRange: rac_hint.
-#[global] Hint Resolve suboneinRange: rac_hint.
-
-
-
-Inductive value := 
-    | VInt (n:Int.MI) :> value (* set of type int, a machine integer (may overflow) *)
-    | VMpz (l:option location) (* memory location for values of type mpz, none is a null pointer *) 
-.
-
-
-Inductive undef := 
-    | UInt : undefval -> undef (* set of undefined values of type int *) 
-    | UMpz : undefval -> undef (* set of undefined values of type mpz *) 
-.
-
-
-Inductive 𝕍 :=  Def (v : value) :> 𝕍 | Undef (uv : undef) :> 𝕍.
-Coercion v_int (mi:Int.MI) : 𝕍 := Def (VInt mi). 
-Coercion def_v_mpz (l:nat) : 𝕍 := Def (VMpz (Some l)). 
-Coercion mpz_loc (l:location) : 𝕍 := VMpz (Some l).
-
-Inductive 𝔹 := BTrue | BFalse.
-
-Definition 𝔹_to_Z  (b:𝔹) : Z := if b then 1 else 0.
-
-Inductive mpz_val := Defined (z:Z) :> mpz_val | Undefined (z:Z).
-
-
-Definition 𝓜 := location ⇀ mpz_val. 
-
-
-Definition Ωᵥ : Type := 𝓥 ⇀ 𝕍.
-Definition Ωₗ : Type := 𝔏 ⇀ ℤ.
-
-
-(* Coercion ir_z (x:Z) ir : 𝕍 := VInt (x ⁱⁿᵗ ir). *)
-Coercion int_option_loc (l:nat) :=  Some l.
-
-
-(* Coercion VMpz : nat >-> Value. *)
-(* 
-Definition same_values (v1 v2: option 𝕍) : bool := match v1,v2 with
-    | Some (VInt n1), Some (VInt n2) => Int.mi_eqb n1 n2
-    | Some (VMpz n1), Some (VMpz n2) => (n1 =? n2)%nat
-    | _,_ => false
-end
-. *)
-
-
-
+Import FunctionalEnv Domain.
 Import RecordSetNotations.
 
-Record Ω := mkΩ {vars :> Ωᵥ ;  binds :> Ωₗ}.
-Definition empty_Ω  : Ω := {|vars:=⊥;binds:=⊥|}.
-#[export] Instance etaΩ : Settable _ := settable! mkΩ <vars ; binds>.
-Definition apply_env (a : Ω) (v : 𝓥) : option 𝕍 := a.(vars) v.
-Coercion apply_env : Ω >-> Funclass.
+#[local] Open Scope utils_scope.
 
-Record Env := mkEnv {env :> Ω ;  mstate :> 𝓜}.
-Definition empty_env : Env := {|env:=empty_Ω;mstate:=⊥|}.
-#[export] Instance etaEnv : Settable _ := settable! mkEnv <env ; mstate>.
-Definition apply_mem (a : Ω) (l : 𝔏) : option Z := a.(binds) l.
-(* Coercion apply_mem : Ω >-> Funclass. *) (* can't use same coercion path *)
-
-
-Definition σ : Type := {f : location -> location | Bijective f}.
-
+(* σ-equivalence facts *)
 
 Fact bijective_eq_iff_f_eq  {A B:Type} : forall (f: A -> B) x y , Bijective f -> x = y <-> f x = f y. 
 Proof.
@@ -142,15 +39,6 @@ Proof.
     intros [g [H H']] y. now exists (g y).
 Qed.
 
-
-
-
-
-Definition induced (f: location -> location) : 𝕍 -> 𝕍 := fun value => match value with
-| Def (VMpz (Some l)) => Def (VMpz (Some (f l)))
-| v => v
-end.
-
 Fact induced_not_mpz_transparent (f: location -> location) : forall v, 
     (forall l, v <> Def (VMpz (Some l))) -> induced f v = v.
 Proof.
@@ -167,74 +55,22 @@ Proof.
 Qed.
 
 
-Inductive param_env_partial_order (env env':Ω) (var: 𝓥) (f:σ) : Prop :=
-| EsameInt n : 
-    env var = Some (Def (VInt n))
-    ->  env' var = Some (Def (VInt n))
-    -> param_env_partial_order env env' var f
-| EsameMpz (l:location) : 
-    (* if the mpz is not a null pointer, we must have a corresponding adress *)
-    env var = Some (Def (VMpz l)) ->
-    env' var = Some (Def (VMpz (proj1_sig f l)))
-    -> param_env_partial_order env env' var f
-| ENullPtr : 
-    (* if the mpz is a null pointer, it must stay null *)
-    env var = Some (Def (VMpz None)) ->
-    env' var = Some (Def (VMpz None))
-    -> param_env_partial_order env env' var f
-| EundefInt u : env var = Some (Undef (UInt u))
-    -> (exists u', env' var = Some (Undef (UInt u'))) \/  (exists n, env' var = Some (Def (VInt n)))
-    -> param_env_partial_order env env' var f
-| EundefMpz u: env var = Some (Undef (UMpz u))
-    -> (exists u, env' var = Some (Undef (UMpz u))) \/  (exists l, env' var = Some (Def (VMpz l)))
-    -> param_env_partial_order env env' var f
-| Enone : env var = None -> param_env_partial_order env env' var f
-.
+Fact id_bijective {T:Type} : @Bijective T T (fun T => T). 
+Proof.
+    now exists (fun x => x).
+Qed.
 
-Definition param_mem_partial_order (mem mem':𝓜)  (l: location) (f:σ) := forall i, mem l = Some i ->  (mem' (proj1_sig f l)) = Some i.
-
-
-(* stronger constraints *)
-Definition strong_param_env_partial_order (env env':Ω) (var: 𝓥) (f:σ) : Prop :=
-    forall v x, env v = Some x ->  env' v = Some (induced (proj1_sig f) x).
+Fact bijective_comp_bijective {A B C: Type} (fa: {f: A -> B | Bijective f}) (fb: {f: B -> C | Bijective f}) : 
+    Bijective (fun x => (proj1_sig fb) (proj1_sig fa x)).
+Proof. 
+    destruct fa as [a [a_inv [a1 a2]]] ,fb as [b [b_inv [b1 b2]]].
+    exists (fun x => a_inv (b_inv x)). simpl in *. split ; congruence. 
+Qed.
 
 
 
 
-#[global] Hint Constructors param_env_partial_order : rac_hint.
-
-Declare Scope env_scope.
-Delimit Scope env_scope with env.
-Declare Scope mem_scope.
-Delimit Scope mem_scope with mem.
-Declare Scope env_mem_scope.
-Delimit Scope env_mem_scope with envmem.
-
-Definition existify {A} (p: A -> Prop) : Prop := exists a, p a. 
-
-Definition env_partial_order env env' := fun f => forall v, param_env_partial_order env env' v f.
-Definition exist_env_partial_order env env' := existify (env_partial_order env env').
-Infix "⊑" := exist_env_partial_order : env_scope.
-
-
-Definition mem_partial_order env env' := fun f => forall l, param_mem_partial_order env env' l f.
-Definition exist_mem_partial_order env env' := existify (mem_partial_order env env').
-Infix "⊑" := exist_mem_partial_order : mem_scope.
-
-
-Definition env_mem_partial_order e e' f := 
-    env_partial_order e.(env) e'.(env) f /\ mem_partial_order e.(mstate) e'.(mstate) f.
-Definition exist_env_mem_partial_order env env' := existify (env_mem_partial_order env env').
-Infix "⊑" := exist_env_mem_partial_order : env_mem_scope.
-
-
-Definition strong_env_partial_order env env' := fun f => forall v, strong_param_env_partial_order env env' v f.
-Definition exist_strong_env_partial_order env env' := existify (strong_env_partial_order env env').
-
-Definition strong_env_mem_partial_order e e' f := 
-        strong_env_partial_order e.(env) e'.(env) f /\ mem_partial_order e.(mstate) e'.(mstate) f.
-Definition exist_strong_env_mem_partial_order env env' := existify (strong_env_mem_partial_order env env').
-
+(* strong environnement relation facts *)
 
 Fact strong_env_mem_stronger : forall e e' f, 
     strong_env_mem_partial_order e e' f -> 
@@ -248,24 +84,13 @@ Proof with eauto with rac_hint.
 Qed.
 
 
-Import Domain.
-
-
-
-Goal forall (s rev : location -> location) 
-    (H1 :forall x, rev (s x) = x ) (H2: forall y, s (rev y) = y),
-    σ.
-Proof.
-        intros. exists s. unfold Bijective. exists rev. auto. 
-Qed.
-
 
 Fact strong_reverse_dom_same : forall (ev' ev : Env) x (v: 𝕍) (s rev : location -> location) 
     (H1 :forall x, rev (s x) = x ) (H2: forall y, s (rev y) = y),
 
     strong_env_mem_partial_order ev' ev 
         (exist (fun f => Bijective f) s
-                 (ex_intro
+                (ex_intro
                     (fun g =>
                         (forall x, g (s x) = x) /\ (forall y, s (g y) = y)
                     )
@@ -286,24 +111,10 @@ Proof.
         destruct l; simpl in H4; try congruence.
 Qed.
 
-#[local] Open Scope utils_scope.
 
 
-Fact id_bijective {T:Type} : @Bijective T T (fun T => T). 
-Proof.
-    now exists (fun x => x).
-Qed.
 
-Fact bijective_comp_bijective {A B C: Type} (fa: {f: A -> B | Bijective f}) (fb: {f: B -> C | Bijective f}) : 
-    Bijective (fun x => (proj1_sig fb) (proj1_sig fa x)).
-Proof. 
-    destruct fa as [a [a_inv [a1 a2]]] ,fb as [b [b_inv [b1 b2]]].
-    exists (fun x => a_inv (b_inv x)). simpl in *. split ; congruence. 
-Qed.
-
-
-(* Environnement Properties *)
-From Coq Require Import Setoid.
+(* environnement relation facts *)
 
 Fact _refl_env_partial_order : reflexive Ω (fun e e' => env_partial_order e e' (exist _ _ id_bijective)).
 
@@ -505,8 +316,6 @@ Proof.
 Qed.
 
 
-Import FunctionalEnv.
-
 (* Fact sym_env_cond : forall (env env' : Ω), 
 (forall v, (dom env - dom env') v ) -> (env ⊑ env')%env -> (env' ⊑ env)%env.
 
@@ -653,27 +462,6 @@ Proof.
 Admitted.
 
 
-
-Definition no_aliasing (ev : Ω) : Prop := 
-    forall v v' l l', 
-    v <> v' ->
-    ev v = Some (Def (VMpz (Some l)))  ->
-    ev v' = Some (Def (VMpz (Some l'))) -> 
-    l <> l'.
-
-
-
-Definition _type_of_value {T:Set} (ext_valty : 𝕍 -> @_c_type T) : option 𝕍 -> option (@_c_type T) := fun v => match v with
-| Some (VInt _) | Some (UInt _) => Some C_Int
-| Some t => Some (ext_valty t)
-| None => None
-end.
-
-Definition _type_of_gmp :  𝕍 -> gmp_t := fun _ =>  T_Ext Mpz.
-
-
-Definition type_of_value := _type_of_value _type_of_gmp.
-
 Fact type_of_value_env : forall (env:Ω) (var:𝓥), type_of_value (env var) <> None -> env var <> None.
 Proof.
     intros env var Hty. now destruct (env var) as [v|].
@@ -696,86 +484,3 @@ Proof.
     end. *)
 Admitted.
 
-
-
-
-(* environnement enrichers *)
-
-Inductive add_z_var (e : Env) (τ:gmp_t) (v:id) (z:Z) : Env -> Prop :=
-| typeInt irz : 
-    (* fixme: section F is able to tell if z is in Uint and in any case transform it into a machine integer (how?) *)
-    τ = C_Int ->
-    add_z_var e τ v z (e <| env ; vars ::= {{v\z ⁱⁿᵗ irz : 𝕍}} |>)
-
-| typeMpz l:
-    τ  = Mpz ->
-    (forall v', e v' <> Some (Def (VMpz (Some l))) )->
-    add_z_var e τ v z 
-    ( e 
-    <| env ; vars ::= {{ v\l : 𝕍}} |>
-    <| mstate ::= {{l\Defined z}} |> 
-    )
-.
-
-Notation "env '+++' ( t , v , z )" := (add_z_var env t v z) (at level 99).
-
-Definition 𝐴 : Type := Ensemble (gmp_t ⨉ id ⨉ Z).
-
-Inductive add_z_vars (e : Env) : 𝐴 -> Env -> Prop := 
-| add_z_vars_nil : add_z_vars e (Empty_set _) e
-
-| add_z_vars_cons (vars:𝐴) t v z e': 
-    e +++ (t,v,z) e' -> 
-    add_z_vars e (Add _ vars (t,v,z)) e'
-.
-
-Notation "env '+++' e" := (add_z_vars env e) (at level 99).
-
-
-Fixpoint list_to_ensemble {X} (l:list X) : Ensemble X := match l with
-| nil => Empty_set _
-| List.cons hd tl => Add _ (list_to_ensemble tl) hd
-end
-.
-
-
-
-
-(* 
-(* the first mpz location is 0 and is then incremented by one *)
-Inductive fresh_location (mem : 𝓜)  : location -> Prop :=  
-    | First : 
-        (forall l, mem l = None) -> 
-        fresh_location mem O
-
-    | New (max:location) : 
-        max ∈ mem ->
-        (forall l, mem l <> None -> max >= l)%nat ->
-        fresh_location mem (max+1)%nat
-. 
-
-
-Fact fresh_location_deterministic : forall mem l l', 
-    fresh_location mem l /\ fresh_location mem l' ->
-    l = l'.
-Proof.
-    intros mem l l' [Hfl Hfl']. inversion Hfl ; inversion Hfl'. 
-    - easy.
-    - subst. destruct H1.  specialize H with max. congruence. 
-    - subst. destruct H.  specialize H0 with max. congruence. 
-    - clear Hfl Hfl'. subst. f_equal. inversion H. inversion H2. 
-        specialize H3 with max. specialize H0 with max0.
-        assert (mem max0 <> None) by congruence. assert (mem max <> None) by congruence.
-        apply H0 in H5. apply H3 in H6. now apply Nat.le_antisymm. 
-Qed.
-
-Fact fresh_location_no_alias : forall mem l , 
-    fresh_location mem l -> mem l = None.
-Proof.
-intros. destruct mem eqn:X.
-    - inversion H.
-        + specialize H0 with O. congruence.
-        + exfalso. destruct H0. specialize H1 with (max + 1)%nat.
-            assert (Hsome: mem (max + 1)%nat <> None) by congruence. apply H1 in Hsome. auto with zarith. 
-    - easy.
-Qed. *)

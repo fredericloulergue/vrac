@@ -25,6 +25,43 @@ Definition fifteen := VInt (15 ⁱⁿᵗ eq_refl).
 
 Definition funs  := ⊥{"test"\(["a";"b"] , <{ return ("b") }> : c_statement)} .
 
+
+
+
+Goal forall s1 s2 s3 s4, between s1 s2 s4  (Seq (Seq s1 (Seq s2 s3)) s4).
+Proof.
+    intros. eapply (Between_add_r s3 (Seq s1 (Seq s2 s3))).
+    - now constructor.
+    - auto.
+Qed.
+
+Goal forall s1 s2 s3 s4, between s1 s2 s4  (Seq s1 (Seq s2 (Seq s3 s4))).
+Proof.
+    intros. eapply (Between_add_r s3 (Seq s1 (Seq s2 s3))).
+    - now constructor.
+    - simpl. now repeat rewrite <- List.app_assoc.
+Qed.
+
+Goal forall s1 s2 s3 s4, between s1 s3 s4  (Seq s1 (Seq s2 (Seq s3 s4))).
+Proof.
+    intros. eapply (Between_add_l s2 <{s2;s3;s4}>).
+    - now constructor. 
+    - simpl. now repeat rewrite <- List.app_assoc.
+Qed.
+
+
+Goal forall s1 s2 s3 s4, between s1 s2 s4  (Seq (Seq s1 s2) (Seq s3 s4)).
+    intros. eapply (Between_add_r s3 (Seq (Seq s1 s2) s3)).
+    - constructor. simpl. now rewrite <- List.app_assoc.
+    - simpl. now repeat rewrite <- List.app_assoc.  
+Qed.
+
+(* Compute (flatten  (Seq (Seq (Assign "x" 1) (Assign "x" 2)) (Assign "x" 3))).
+Compute (flatten  (Seq (Assign "x" 1) (Seq  (Assign "x" 2) (Assign "x" 3)))).
+Compute flatten ((Seq (Seq (Assign "x" 1) (Assign "x" 2)) (Seq (Assign "x" 3) (Assign "x" 4)))). *)
+
+
+
 (* Open Scope mini_c_decl_scope. *)
 (*
 Example test_decl : (⊥,⊥) ⋅ ⊥ |= <[ int "x" ]> => (⊥{"x"\UInt},⊥)  ⋅ ⊥.

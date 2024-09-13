@@ -2,6 +2,8 @@ From Coq Require Import Strings.String ZArith.ZArith.
 From RecordUpdate Require Import RecordUpdate.
 From RAC Require Import Utils Environnement.
 From RAC.Languages Require Import Syntax.
+From RAC.Environnement Require Import Facts.
+
 
 Import RecordSetNotations.
 

@@ -60,15 +60,6 @@ Fact eq_dec_gmp_t (x y : gmp_t) : {x = y} + {x <> y}. decide equality. apply eq_
 #[global] Instance eqdec_gmp_t: EqDec gmp_t := {eq_dec := eq_dec_gmp_t}. *)
 
 
-Fact mpz_exp_is_var : forall (e:_c_exp), ty e = T_Ext Mpz ->  exists x, (e = C_Id x (T_Ext Mpz))%type.
-Proof. 
-    intros. destruct e eqn:E.
-    3,4: simpl in H ; destruct (ty _c1); try congruence; destruct (ty _c2); congruence.  
-    - now exists EmptyString. 
-    - exists var. unfold ty in H. now rewrite H. 
-Qed.
-
-
 
 Fixpoint exp_vars {T:Set} (exp : @_c_exp T) : list id := match exp with 
 | Zm z => nil
@@ -180,12 +171,19 @@ Fixpoint gmp_exp_to_c_exp  (e:gmp_exp) : c_exp := match e with
     BinOpBool le op re
 end.
 
-Fact gmp_exp_c_exp_same_exp_vars e : exp_vars (gmp_exp_to_c_exp e) = exp_vars e.
-Proof. 
-    induction e.
-    - reflexivity.
-    - destruct ty0 ;  reflexivity.
-    - simpl. rewrite IHe1,IHe2. reflexivity.
-    - simpl. rewrite IHe1,IHe2. reflexivity.
-Qed.
 
+Definition c_decl_to_gmp_decl (d:@_c_decl Empty_set) : gmp_decl := 
+    let '(C_Decl t id) := d in C_Decl (c_t_to_gmp_t t) id
+.
+
+Fixpoint c_exp_to_gmp_exp (e:c_exp) : gmp_exp := match e with
+    | Zm z => Zm z
+    | C_Id var t => C_Id var (c_t_to_gmp_t t) 
+    | BinOpInt le op re => 
+        let (le,re) := (c_exp_to_gmp_exp le,c_exp_to_gmp_exp re) in
+        BinOpInt le op re
+    | BinOpBool le op re => 
+        let (le,re) := (c_exp_to_gmp_exp le,c_exp_to_gmp_exp re) in
+        BinOpBool le op re
+    end
+.

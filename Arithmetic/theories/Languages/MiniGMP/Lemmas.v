@@ -1,34 +1,14 @@
 From Coq Require Import ZArith.ZArith.
 From RecordUpdate Require Import RecordUpdate.
 From RAC Require Import Utils Environnement.
-From RAC.Languages Require Import Syntax Semantics MiniC.Lemmas. 
-
+From RAC.Languages Require Import Syntax Semantics MiniC.Lemmas MiniGMP.Facts. 
 
 Import FunctionalEnv Domain.
+Import Environnement.Facts.
+
 
 #[local] Open Scope utils_scope.
 #[local] Open Scope Z_scope. 
-
-(* helper lemma for gmp cmp semantics *)
-Fact cmp_induced : forall zx zy (b: 𝕍) sub,
-    (zx > zy <-> b = one) /\ (zx < zy <-> b = sub_one) /\ (Z.eq zx zy <-> b = zero)
-    -> 
-    (zx > zy <-> induced sub b = one) /\
-(zx < zy <-> induced sub b = sub_one) /\ (Z.eq zx zy <-> induced sub b = zero).
-Proof.
-    intros zx zy b sub (Hone & Hsubone &Hzero). split.
-    - split.
-        * intros Hzxzy. apply Hone in Hzxzy. now subst.
-        * intros Hzxzy. apply induced_int_iff in Hzxzy. inversion Hzxzy. now apply Hone.
-    - split.
-       * split.
-            + intros Hzxzy. apply Hsubone in Hzxzy. now subst.
-            + intros Hzxzy. apply induced_int_iff in Hzxzy. inversion Hzxzy. now apply Hsubone.
-        * split.
-            + intros Hzxzy. apply Hzero in Hzxzy. now subst.
-            + intros Hzxzy. apply induced_int_iff in Hzxzy. inversion Hzxzy. now apply Hzero.
-Qed.
-
 
 
 Lemma _weakening_of_gmp_statements_semantics_1 : 
