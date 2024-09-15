@@ -38,10 +38,6 @@ Module Theorems(O:Oracle).
         )
     .
     Proof.
-        intros P args env env' Hwf. intros. unfold Forall_routines. apply List.Forall_forall. intros R Hr. destruct R eqn:REqn;[|trivial].
-        intros renv renv' v Hv stmt Hstmt Hsem. 
-        (* unroll translation... *)
-        admit.
     Admitted.
 
     Lemma LD2_absence_of_aliasing : forall P fenv t_fenv env,
@@ -56,10 +52,6 @@ Module Theorems(O:Oracle).
         )
     .
     Proof.
-        intros P fenv args env env' P' Hwf. unfold Forall_routines. apply List.Forall_forall. intros R Hr. destruct R eqn:REqn;[|trivial].
-        intros renv renv' v Hv stmt Hstmt Hsem. 
-        (* unroll translation... *)
-        admit.
     Admitted.
 
 
@@ -151,10 +143,10 @@ Module Theorems(O:Oracle).
     Inductive env_Γ_t fenv (env: Env) (g:Γ) (p:T.ψ) (t:ℨ) : Env -> Prop :=  
     | env_Γ_t_Cons env' env'' (ens : 𝐴) : 
         (
-            forall ty v z  fuel tr,  
+            forall ty v z  tr,  
                 Ensembles.In _ ens (ty,v,z) 
                 <-> 
-                TM.exec (translate_term fenv (fst g) (snd g) p t fuel) = Some tr /\
+                TM.exec (translate_term fenv (fst g) (snd g) p t) = Some tr /\
                 List.In (v,ty) tr.(decls)
                 /\
                 z = 0 <-> ty = T_Ext Mpz 
@@ -168,7 +160,7 @@ Module Theorems(O:Oracle).
 
 
     Lemma LG1_semantics_of_term_translation : 
-        forall fenv t (env:Env) g (p:T.ψ) fuel, 
+        forall fenv t (env:Env) g (p:T.ψ), 
             I1 env g ->
             I2 p g fenv ->
             forall env_gt, 
@@ -180,7 +172,7 @@ Module Theorems(O:Oracle).
                 <-> 
                 (exists env', 
                     forall result,
-                    TM.exec (translate_term fenv (fst g) (snd g) p t fuel) = Some result -> 
+                    TM.exec (translate_term fenv (fst g) (snd g) p t) = Some result -> 
                     (env_gt ⊑ env')%envmem 
                     /\
                     (env_gt |= result.(tr).(chunk) =>  env')%gmpssem fenv'

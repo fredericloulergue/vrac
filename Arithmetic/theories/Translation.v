@@ -1,6 +1,7 @@
-From Coq Require Import List String BinaryString ZArith.
+From Coq Require Import List String BinaryString ZArith Structures.OrdersEx Wellfounded.Lexicographic_Product.
 From MMaps Require Import MMaps.
 From RecordUpdate Require Import RecordUpdate.
+From Equations Require Import Equations.
 From RAC Require Import Utils Environnement Macros Oracle.
 From RAC.Languages Require Import Syntax Semantics.
 
@@ -62,9 +63,8 @@ List.fold_right
 
 Module Translation (Oracle : Oracle).
     Import Oracle.
-    Import FunctionalEnv.
 
-    Definition Γᵥ := 𝔏 ⇀ 𝓥 ⨉ 𝐼. (* environment for logic bindings : variable and interval infered from it *)
+    Definition Γᵥ := StringMap.t (𝓥 ⨉ 𝐼). (* environment for logic bindings : variable and interval infered from it *)
 
 
     Definition Γ := Γᵥ ⨉ Γᵢ.
@@ -78,8 +78,10 @@ Module Translation (Oracle : Oracle).
     Module String_TypingEnv_as_OT <: OrderedType := PairOrderedType(String_as_OT)(TypingEnv_as_OT).
     (* finally, we get our environnement of global definitions *)
     Module GlobalDef := MMapsEnv(String_TypingEnv_as_OT).
+
     Definition ψ : Type :=  GlobalDef.t 𝓥.  (* ψ(id,tenv) returns the name of the specialized version of [id] for [tenv] *)
 
+    Definition nat_lexico := slexprod nat nat Nat.lt Nat.lt.
 
 
     Record translation_result {T : Type} := mkTR
@@ -112,40 +114,119 @@ Module Translation (Oracle : Oracle).
     Definition fresh_fname id :=  c <- TM.fresh ;;; ("_id" ++ id ++ string_of_nat c)%string. 
 
 
-    (* Since predicates are evaluated to 0 or 1, their result always fits in an int.*)
+
+    Section MutRec.
+        Set Equations Transparent.
+        Set Universe Polymorphism.
+        Import Nat.
 
 
-    Fixpoint translate_predicate (f : fenv) (bindings:Γᵥ) (t_env:Γᵢ) (e: ψ) (p : predicate) (fuel:nat) : TM.t := 
-    match fuel with 
-    | O => TM.error
-    | S n =>
+        Inductive logic_tr_proto : forall (A B C D E : Type), (A -> B -> C -> D -> E -> Type) -> Set :=
+        | tr_pred : logic_tr_proto (@fenv _fsl_statement Empty_set) Γᵥ Γᵢ ψ predicate (fun _ _ _ _ _ => @TM.t (@translated_statement gmp_statement))
+        | tr_term : logic_tr_proto (@fenv _fsl_statement Empty_set) Γᵥ Γᵢ ψ fsl_term (fun _ _ _ _ _ => @TM.t (@translated_statement gmp_statement))
+        | f_gen : logic_tr_proto (@fenv _fsl_statement Empty_set) Γᵥ Γᵢ ψ id (fun _ _ _ _ _ =>  @TM.t (@translation_result 𝓥))
+        .
 
-        match p with
-        | P_True => 
+        Derive Signature NoConfusion for logic_tr_proto.
+
+        Import Sigma_Notations.
+
+
+        Definition args_size {A : Type} (size:A -> nat) (l:list A) := (fold_right (fun a s => size a + s) 0 l)%nat.
+
+        Definition args_size_lt_in : forall (A:Type) (l:list A) (f : A -> nat) (a:A), 
+            List.In a l -> (f a < S (args_size f l))%nat.
+        Proof. Open Scope nat.
+            intros A l f a Hin. unfold args_size. induction l.
+            - inversion Hin.
+            - simpl in *. destruct Hin.
+                *  subst. now auto with arith.
+                *  apply IHl in H. clear IHl. simpl. rewrite Nat.add_comm.  auto with arith.
+        Qed. 
+
+        Fixpoint term_size (t : fsl_term) : nat :=
+            match t with
+            | T_Z _ | T_Id _ _  => 1
+            | T_BinOp l _ r => S (term_size l) + (term_size r)
+            | T_Cond p t e => S (term_size t) + (term_size e) + (pred_size p)
+            | T_Call _ args => S (args_size term_size args)
+        end
+        with pred_size (p : predicate) :=  match p with
+            | P_True | P_False => 1
+            | P_Not x => S (pred_size x)
+            | P_BinOp l _ r  => S (term_size l) + (term_size r)
+            | P_Disj l r => S (pred_size l) + (pred_size r)
+            | P_Call _ args =>  S (args_size term_size args)
+        end.
+
+
+        (* todo: upper bound of ψ is the number of logic functions times the number of environnment for bindings *)
+        Definition Ψ_max (fenv: @fenv _fsl_statement Empty_set) (g:Γᵢ) :=  
+            (Nat.mul (StringMap.cardinal fenv.(lfuns)) (StringMap.cardinal g)).
+
+
+
+
+        Equations measure : (Σ A B C D E P (_ : A) (_ : B) (_ : C) (_ : D) (_ : E), logic_tr_proto A B C D E P) -> nat ⨉ nat :=
+            | (_,_,_,_,_,_, f_env,_,t_env,g,p,tr_pred) =>  pair 1 (pred_size p)
+            | (_,_,_,_,_,_, f_env,_,t_env,g,t,tr_term) => pair 1 (term_size t)
+            | (_,_,_,_,_,_, f_env,_,t_env,g,fname,f_gen)  =>  pair (GlobalDef.cardinal g) 0
+        .
+
+
+        Definition rel := Program.Wf.MR nat_lexico measure.
+        #[global] Instance: WellFounded rel.
+        Proof.
+            red. apply Wf.measure_wf. apply wf_slexprod; apply Wf_nat.lt_wf. 
+        Defined.
+
+
+        (* pack take the function and all its arguments *)
+        Definition pack {A B C D E} {P} (x1 : A) (x2 : B) (x3 : C) (x4 : D) (x5 : E) (t : logic_tr_proto A B C D E P) :=
+            (A,B,C,D,E,P, x1, x2, x3, x4, x5, t) : (Σ A B C D E P (_ : A) (_ : B) (_ : C) (_ : D) (_ : E), logic_tr_proto A B C D E P).
+
+    End MutRec.
+
+    Notation "x 'eqn:' p" := (exist _ x p) (only parsing, at level 20).
+
+    Hypothesis fixme : forall (last_env:ψ),  (Nat.lt (GlobalDef.cardinal last_env) 1 /\ Nat.lt 1 (GlobalDef.cardinal last_env)).
+
+
+    Local Obligation Tactic := 
+    simpl in *; Tactics.program_simplify; CoreTactics.equations_simpl; try Tactics.program_solve_wf ;
+    red ;red ; cbn ;  try (constructor 2; auto with arith); try now apply args_size_lt_in.
+    
+    Equations? translate_fsl {A B C D E} {P} (t : logic_tr_proto A B C D E P) (f : A) (bindings:B) (t_env:C) (e: D) (x : E)  
+        : P f bindings t_env e x by wf (pack f bindings t_env e x t) rel  := 
+
+    (* predicate translation *)
+
+    | tr_pred , _, _ , _ , _ , P_True => 
             c <- fresh_variable ;;
             let decl := [(c,C_Int)] in
             let code := <{ c = 1 }> in
             TM.ret (mkSTR gmp_statement (mkTR gmp_statement code e nil) decl (c,C_Int))
-        | P_False => 
+
+    | tr_pred , _, _ , _ , _ , P_False => 
             c <- fresh_variable ;; 
             let decl := [(c,C_Int)] in
             let code := <{ c = 0 }> in
             TM.ret (mkSTR gmp_statement (mkTR gmp_statement code e nil) decl  (c, C_Int))
 
-        | P_Not p => 
+    | tr_pred , _, _ , _ , _ , P_Not p =>             
             c <- fresh_variable ;; 
-            p_tr <- translate_predicate f bindings t_env e p n ;;;
+            p_tr <- translate_fsl tr_pred f bindings t_env e p ;;;
             let _res := C_Id (fst p_tr.(res)) (snd p_tr.(res)) in
             let decl := (c,C_Int)::p_tr.(decls) in
             let code := <{ (p_tr.(tr).(chunk gmp_statement)) ; if _res c = 0 else c = 1 }> in
             mkSTR gmp_statement (mkTR gmp_statement code p_tr.(tr).(tenv gmp_statement) nil) decl (c, C_Int)
         
-        | P_Disj p1 p2 => 
+    | tr_pred , _, _ , _ , _ , P_Disj p1 p2 => 
             c <- fresh_variable ;;
-            tr_p1 <- translate_predicate f bindings t_env e p1 n ;;
+            tr_p1 <- translate_fsl tr_pred f bindings t_env e p1 ;;
             let p1_res := C_Id (fst tr_p1.(res)) (snd tr_p1.(res)) in
             let p1_code := tr_p1.(tr).(chunk gmp_statement) in
-            tr_p2 <- translate_predicate f bindings t_env tr_p1.(tr).(tenv gmp_statement) p2  n;;;
+            tr_p2 <- translate_fsl tr_pred f bindings t_env tr_p1.(tr).(tenv gmp_statement) p2 ;;;
             let p2_res := C_Id (fst tr_p2.(res)) (snd tr_p2.(res)) in
             let p2_code := tr_p2.(tr).(chunk gmp_statement) in
             let decl := (c,C_Int)::tr_p1.(decls) ++ tr_p2.(decls) in
@@ -153,12 +234,11 @@ Module Translation (Oracle : Oracle).
             in
             mkSTR gmp_statement (mkTR gmp_statement code tr_p2.(tr).(tenv gmp_statement) nil) decl  (c,C_Int)
 
-        | P_BinOp t1 fsl_op t2 =>
+    | tr_pred , _, _ , _ , _ , P_BinOp t1 fsl_op t2 =>            
             c <- fresh_variable ;;
-
-            tr_t1 <- translate_term f bindings t_env e t1 n ;;
+            tr_t1 <- translate_fsl tr_term f bindings t_env e t1 ;;
             let t1_code := tr_t1.(tr).(chunk gmp_statement) in
-            tr_t2 <- translate_term f bindings t_env tr_t1.(tr).(tenv gmp_statement) t2  n;;
+            tr_t2 <- translate_fsl tr_term f bindings t_env tr_t1.(tr).(tenv gmp_statement) t2 ;;
             let t2_code := tr_t2.(tr).(chunk gmp_statement) in
 
             let decl := ("v1", T_Ext Mpz)::("v2",T_Ext Mpz)::(c,C_Int)::tr_t1.(decls) ++ tr_t2.(decls) in
@@ -170,115 +250,132 @@ Module Translation (Oracle : Oracle).
             let code := <{ t1_code ; t2_code; comp ; (Assign c (BinOpBool (C_Id c C_Int) (◖fsl_op) 0)) }>  in
             TM.ret (mkSTR gmp_statement (mkTR gmp_statement code tr_t2.(tr).(tenv gmp_statement) []) decl  (c,C_Int))
 
-        | P_Call pname args as call =>  
-            match f.(preds) pname with 
-            | None => TM.error
-            | Some (params,_) =>
-                (* value returned by the function call *)
-                c <- fresh_variable ;;
+    | tr_pred , _, _ , _ , _ , P_Call pname args  =>  
+        match Logic.inspect (StringMap.find pname f.(preds)) with
+        | None eqn:_ =>  TM.error
 
-                (* for each pair of function argument and parameter *)
-                let f_res := fold_left2 ( fun done arg param => 
-                    done <- done ;;
+        | Some (params,_) eqn:HInpreds  => 
 
-                    (* get current declarations, translation and bindings environment *)
-                    let '(curr_decls,curr_args_ids,curr_tr, binds) := done : (_⨉_⨉_) in 
-                    
+            (* value returned by the function call *)
+            c <- fresh_variable ;;
 
-                    (* translate the argument *)
-                    t_tr <- translate_term f bindings t_env curr_tr.(tenv) arg n ;;
+            (* for each pair of function argument and parameter *)
+            f_res <- fold_left2_in args params ( fun 
+                (done: @TM.t (var_list ⨉ list _c_exp ⨉ translation_result ⨉ StringMap.t (id ⨉ 𝐼))) 
+                (arg : {x | In x args})
+                (param : {x : 𝔏 | In x params}) => 
 
-                    let new_tr := curr_tr 
-                        <| tenv := t_tr.(tr).(tenv) |> (* pass the updated env *)
-                        <| chunk ::= fun s => Seq s t_tr.(tr).(chunk) |> (* append the code generated by the translation of t*)
-                        <| glob ::= fun globs => app globs t_tr.(tr).(glob) |> (* append the new globals *)
-                    in 
+                let HInpreds := HInpreds in
 
-                    (* building the fresh binding env for parameters *)
-                    v <- fresh_variable ;;;
-                    let interval := 𝓘 arg t_env in
+                done <- done ;;
 
-                    (* collect and append  *)
-                    ( 
-                        curr_decls ++ t_tr.(decls), (* the new fresh variables from the translation of the argument *)
-                        curr_args_ids ++ [C_Id (fst t_tr.(res)) (snd t_tr.(res))], (* the variable used to represent the argument *)
-                        new_tr, (* the updated function translation  *)
-                        binds{param\(v,interval)} (* the updated bindings *)
-                    )
 
-                ) (TM.ret ([(c,C_Int)], ([] : list _c_exp), mkTR gmp_statement Skip e [], ⊥)) args params  in
+                (* 
+                    for some reason, equations fails to prove functional induction if using let patterns 
+                    (even with annotation).
 
-                
-                f_res <- f_res ;;
+                    it also required to add explicit types to the function parameters of fold_left2_in as well as  
+                    trading the `with clause` for the regular match. The `let HInpreds := HInpreds in` 
+                    propagates the knowledege that `pname` is in `f.(preds)`
 
-                let '(decls,params_id,f_tr,binds) := f_res in 
-                
-                (* last env needed for function generation *)
-                let last_env := f_tr.(tenv) in 
+                let '(curr_decls,curr_args_ids,curr_tr,binds)  := done  in   *)
 
-                (* get specialized function name, env and globals  *)
-                gf <- match GlobalDef.find (pname,t_env) e with
-                (* function already exists for current binders, no generation required, 
-                    env is the same as the current one 
-                    no new globals 
-                *)
-                | Some name => TM.ret (name,e,[]) 
-                | None => (* no function specialized for those binders, generate a new one *)
-                    new_f <- function_generation f binds t_env last_env pname n ;;;
-                    (* one new global : the function declaration itself *)
-                    (new_f.(chunk), new_f.(tenv), new_f.(glob))
-                end ;;;
 
-                let '(gf_name,gf_env,gf_globs) := gf in  
-                
-                (* append function globals to the globals *)
-                let globs := f_tr.(glob) ++ gf_globs in
+                (* get current declarations, translation and bindings environment *)
+                let curr_decls := fst (fst (fst (done))) in
+                let curr_args_ids := snd (fst (fst done)) in
+                let curr_tr := snd (fst done) in
+                let binds := snd done in
 
-                (* return value *)
-                let res := (c,C_Int) (* c is int because return value is either 0 or 1 *) in 
 
-                (* create calling code *)
-                let code := PCall gf_name params_id in
+                (* translate the argument *)
+                t_tr <- translate_fsl tr_term f bindings t_env curr_tr.(tenv) (proj1_sig arg) ;;
 
-                mkSTR gmp_statement (mkTR _ code gf_env globs) decls res
-            end 
+                let new_tr := curr_tr 
+                    <| tenv := t_tr.(tr).(tenv) |> (* pass the updated env *)
+                    <| chunk ::= fun s => Seq s t_tr.(tr).(chunk) |> (* append the code generated by the translation of t*)
+                    <| glob ::= fun globs => app globs t_tr.(tr).(glob) |> (* append the new globals *)
+                in 
+
+                (* building the fresh binding env for parameters *)
+                v <- fresh_variable ;;;
+                let interval := 𝓘 (proj1_sig arg) t_env in
+
+                (* collect and append  *)
+                ( 
+                    curr_decls ++ t_tr.(decls), (* the new fresh variables from the translation of the argument *)
+                    curr_args_ids ++ [C_Id (fst t_tr.(res)) (snd t_tr.(res))], (* the variable used to represent the argument *)
+                    new_tr, (* the updated function translation  *)
+                    StringMap.add (proj1_sig param) (v,interval) binds (* the updated bindings *)
+                ) 
+
+            ) (TM.ret ([(c,C_Int)], ([] : list _c_exp), mkTR gmp_statement Skip e [], StringMap.empty)) 
+            
+            ;;
+
+            let '(decls,params_id,f_tr,binds) := f_res in 
+            
+            (* last env needed for function generation *)
+            let last_env := f_tr.(tenv) in 
+
+            (* get specialized function name, env and globals  *)
+            gf <- match GlobalDef.find (pname,t_env) e with
+            (* function already exists for current binders, no generation required, 
+                env is the same as the current one 
+                no new globals 
+            *)
+            | Some name => TM.ret (name,e,[]) 
+            | None => (* no function specialized for those binders, generate a new one *)
+                new_f <- translate_fsl f_gen f binds t_env last_env pname ;;;
+                (* one new global : the function declaration itself *)
+                (new_f.(chunk), new_f.(tenv), new_f.(glob))
+            end ;;;
+
+            let '(gf_name,gf_env,gf_globs) := gf in  
+            
+            (* append function globals to the globals *)
+            let globs := f_tr.(glob) ++ gf_globs in
+
+            (* return value *)
+            let res := (c,C_Int) (* c is int because return value is either 0 or 1 *) in 
+
+            (* create calling code *)
+            let code := PCall gf_name params_id in
+
+            mkSTR gmp_statement (mkTR _ code gf_env globs) decls res
         end
-    end
+        
 
-    with translate_term (f : @fenv _fsl_statement Empty_set) (bindings : Γᵥ) (t_env:Γᵢ) (e: ψ) (t : fsl_term) (fuel:nat) {struct fuel}
-        : @TM.t translated_statement := 
+    (* term translation *)
 
-    match fuel with 
-    | O => TM.error
-    | S n =>
-        match t with
-        | T_Id v FSL_Int => (* program variable *)
-            TM.ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) nil (v,C_Int))
+    | tr_term , _, _ , _ , _ , T_Id v FSL_Int => 
+         (* program variable *)
+        TM.ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) nil (v,C_Int))
 
-        | T_Id v FSL_Integer => (* logic var *)
-            res <- match bindings v with 
-                | Some (x,i) => TM.ret (x,ϴ i)
-                | None => TM.error
-            end  ;;
-            TM.ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) nil res)
+    | tr_term , _, _ , _ , _ , T_Id v FSL_Integer with StringMap.find v bindings => (* logic var *)
+        {
+            | Some (x,i) => 
+                TM.ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) nil (x,ϴ i))
+            | None => TM.error
+        } 
 
-        | T_Z z =>
+    | tr_term , _, _ , _ , _ , T_Z z =>
             let τ := 𝒯 z t_env in
             c <- fresh_variable ;;
             let decl := [(c,τ)]  in 
             let code := Z_ASSGN C_Int c z in
             TM.ret (mkSTR gmp_statement (mkTR gmp_statement code e nil) decl (c,C_Int))
 
-        | T_BinOp t1 _op t2 => 
+    | tr_term , _, _ , _ , _ , T_BinOp t1 _op t2 =>
             let τ := 𝒯 (T_BinOp t1 _op t2) t_env in
             c <- fresh_variable ;;
             v1 <- fresh_variable ;;
             v2 <- fresh_variable ;;
             r <- fresh_variable ;;
-            t1_tr <- translate_term f bindings t_env e t1  n ;; 
+            t1_tr <- translate_fsl tr_term f bindings t_env e t1  ;; 
             let t1_code := t1_tr.(tr).(chunk gmp_statement) in
             let t1_res := C_Id (fst t1_tr.(res)) (snd t1_tr.(res)) in
-            t2_tr <- translate_term f bindings t_env t1_tr.(tr).(tenv gmp_statement) t2  n;; 
+            t2_tr <- translate_fsl tr_term f bindings t_env t1_tr.(tr).(tenv gmp_statement) t2  ;; 
             let t2_code := t2_tr.(tr).(chunk gmp_statement) in
             let t2_res :=  C_Id (fst t2_tr.(res)) (snd t2_tr.(res)) in
             let decl := (c,τ) :: (v1,T_Ext Mpz) :: (v2,T_Ext Mpz) :: (r,T_Ext Mpz) :: t1_tr.(decls) ++ t2_tr.(decls) in
@@ -286,14 +383,14 @@ Module Translation (Oracle : Oracle).
             let code := <{ t1_code ; t2_code ; assgn }> in
             TM.ret (mkSTR gmp_statement (mkTR gmp_statement code t2_tr.(tr).(tenv gmp_statement) nil) decl (c,C_Int))
 
-        | T_Cond p t1 t2 as cond => 
+    | tr_term , _, _ , _ , _ ,T_Cond p t1 t2 =>
             c <- fresh_variable ;;
-            let τ := 𝒯  cond t_env in
-            p_tr <- translate_predicate f bindings t_env e p n ;;
-            t1_tr <- translate_term f bindings t_env p_tr.(tr).(tenv gmp_statement) t1  n ;; 
+            let τ := 𝒯  (T_Cond p t1 t2) t_env in
+            p_tr <- translate_fsl tr_pred f bindings t_env e p ;;
+            t1_tr <- translate_fsl tr_term f bindings t_env p_tr.(tr).(tenv gmp_statement) t1  ;; 
             let t1_code := t1_tr.(tr).(chunk gmp_statement) in
             let t1_res := C_Id (fst t1_tr.(res)) (snd t1_tr.(res))  in
-            t2_tr <- translate_term f bindings t_env t1_tr.(tr).(tenv gmp_statement) t2  n;;;
+            t2_tr <- translate_fsl tr_term f bindings t_env t1_tr.(tr).(tenv gmp_statement) t2  ;;;
             let t2_code := t2_tr.(tr).(chunk gmp_statement) in
             let t2_res := C_Id (fst t2_tr.(res)) (snd t2_tr.(res)) in
             let p_code  := p_tr.(tr).(chunk gmp_statement) in 
@@ -309,26 +406,37 @@ Module Translation (Oracle : Oracle).
                 }> in
             mkSTR gmp_statement (mkTR gmp_statement code t2_tr.(tr).(tenv gmp_statement) nil) decl  (c,C_Int)
 
-        | T_Call fname args as call =>  
-            match f.(lfuns) fname with 
-            | None => TM.error
-            | Some (params,_) =>
+    | tr_term , _, _ , _ , _ , T_Call fname args with Logic.inspect (StringMap.find fname f.(lfuns)) =>  
+        {
+            | None eqn:_ => TM.error
 
-                let rtype :=  𝒯 call t_env in 
+            | Some (params,_) eqn:HInlfuns =>
+
+                let rtype :=  𝒯 (T_Call fname args) t_env in 
                 
                 (* value returned by the function call *)
                 c <- fresh_variable ;;
 
                 (* for each pair of function argument and parameter *)
-                let f_res := fold_left2 ( fun done arg param => 
+                f_res <- fold_left2_in args params ( fun 
+                    (done: @TM.t (var_list ⨉ list _c_exp ⨉ translation_result ⨉ StringMap.t (id ⨉ 𝐼))) 
+                    (arg : {x | In x args})
+                    (param : {x : 𝔏 | In x params}) => 
+
                     done <- done ;;
+
+
 
                     (* get current declarations, translation and bindings environment *)
                     let '(curr_decls,curr_args_ids,curr_tr, binds) := done : (_ ⨉ _ ⨉ _) in 
-                    
+                    (* let curr_decls := fst (fst (fst (done))) in
+                    let curr_args_ids := snd (fst (fst done)) in
+                    let curr_tr := snd (fst done) in
+                    let binds := snd done in *)
+
 
                     (* translate the argument *)
-                    t_tr <- translate_term f bindings t_env curr_tr.(tenv) arg n ;;
+                    t_tr <- translate_fsl tr_term f bindings t_env curr_tr.(tenv) (proj1_sig arg) ;;
 
                     let new_tr := curr_tr 
                         <| tenv := t_tr.(tr).(tenv) |> (* pass the updated env *)
@@ -338,20 +446,19 @@ Module Translation (Oracle : Oracle).
 
                     (* building the fresh binding env for parameters *)
                     v <- fresh_variable ;;;
-                    let interval := 𝓘 arg t_env  in
+                    let interval := 𝓘 (proj1_sig arg) t_env  in
 
                     (* collect and append  *)
                     ( 
                         curr_decls ++ t_tr.(decls), (* the new fresh variables from the translation of the argument *)
                         curr_args_ids ++ [C_Id (fst t_tr.(res)) (snd t_tr.(res))], (* the variable used to represent the argument *)
                         new_tr, (* the updated function translation  *)
-                        binds{param\(v,interval)} (* the updated bindings *)
+                        StringMap.add (proj1_sig param) (v,interval) binds (* the updated bindings *)
                     )
 
-                ) (TM.ret ([(c,rtype)], ([] : list _c_exp), mkTR gmp_statement Skip e [], ⊥)) args params  in
+                ) (TM.ret ([(c,rtype)], ([] : list _c_exp), mkTR gmp_statement Skip e [], StringMap.empty)) 
 
-                
-                f_res <- f_res ;;
+                ;;
 
                 let '(decls,params_id,f_tr,binds) := f_res in 
                 
@@ -366,7 +473,7 @@ Module Translation (Oracle : Oracle).
                 *)
                 | Some name => TM.ret (name,e,[]) 
                 | None => (* no function specialized for those binders, generate a new one *)
-                    new_f <- function_generation f binds t_env last_env fname n ;;;
+                    new_f <- translate_fsl f_gen f binds t_env last_env fname ;;;
                     (* one new global : the function declaration itself *)
                     (new_f.(chunk), new_f.(tenv), new_f.(glob))
                 end ;;
@@ -387,43 +494,41 @@ Module Translation (Oracle : Oracle).
                         TM.ret (PCall gf_name (firstparam :: params_id))
                     | _ => TM.error
                 end ;;;
-
-
+                
                 mkSTR gmp_statement (mkTR _ code gf_env globs) decls res
-            end
-        end 
-    end
-    with function_generation (f:@fenv _fsl_statement Empty_set) (bindings:  Γᵥ) (t_env:Γᵢ) (env: ψ) (fname: id) (fuel:nat) {struct fuel}
-    : @TM.t (@translation_result 𝓥) := 
-    match fuel with 
-    | O => TM.error
-    | S n =>
-        match f.(lfuns) fname with
-        | None => TM.error
-        | Some (params,b) => 
+        }
+
+
+    (* function generation *)
+                
+    | f_gen, _,_,_,_,fname with Logic.inspect (StringMap.find fname f.(lfuns)) =>
+        {
+            | None eqn:_ => TM.error
+
+            | Some (params,b) eqn:HInlfuns => 
             (* get the return type *)
-            let rtype := 𝒯 b t_env in
+                let rtype := 𝒯 b t_env in
 
-            (* generate a fresh name for the new function *)
-            fres <- fresh_fname fname;;
+                (* generate a fresh name for the new function *)
+                fres <- fresh_fname fname;;
 
-            (* process body *)
+                (* process body *)
 
-            tr_b <- translate_term f bindings t_env env b n ;;
+                tr_b <- translate_fsl tr_term f bindings t_env e b ;;
 
-            (* global declarations generated by the body , appended before function declaration  *)
-            let globals := tr_b.(tr).(glob) in
+                (* global declarations generated by the body , appended before function declaration  *)
+                let globals := tr_b.(tr).(glob) in
 
-            (* prepare env update : 
-                indexed by the original name of the function and what binders interval Γᵢ it is for ;
-                returns the unique generated function id for those binders
-            *)
-            let upd_binding := GlobalDef.add (fname,t_env) fres in
+                (* prepare env update : 
+                    indexed by the original name of the function and what binders interval Γᵢ it is for ;
+                    returns the unique generated function id for those binders
+                *)
+                let upd_binding := GlobalDef.add (fname,t_env) fres in
 
-            let new_env := upd_binding tr_b.(tr).(tenv) in        
+                let new_env := upd_binding tr_b.(tr).(tenv) in        
 
-            (* in case the result is too big to fit in a machine integer *)
-            let retvar := "_ret" in
+                (* in case the result is too big to fit in a machine integer *)
+                let retvar := "_ret" in
 
             (*  build the signature of the function *)
             signature <- (
@@ -434,7 +539,7 @@ Module Translation (Oracle : Oracle).
                         | None => TM.error
                         end ;;
                     (* get the corresponding id *)
-                    v <- match bindings p with 
+                    v <- match StringMap.find p bindings with 
                         | Some (v,_) => TM.ret v  
                         | None => TM.error
                         end 
@@ -454,7 +559,7 @@ Module Translation (Oracle : Oracle).
             
             (* build the body *)
             (* reprocess body with original ψ + new f entry *)
-            tr_b <- translate_term f bindings t_env (upd_binding env) b n;;;
+            tr_b <- translate_fsl tr_term f bindings t_env (upd_binding e) b;;;
 
             let '(body_res_id,body_res_ty) as bres := tr_b.(res) in 
             (* body epilogue *)
@@ -476,10 +581,24 @@ Module Translation (Oracle : Oracle).
             let body := <{ inits ; code ; ret_and_cleanup }> in 
             let gen_f := signature bdecls body in
             mkTR _ fres new_env (globals++[gen_f]) (* function declarations is put with the other globals *)
-        end 
-    end
+        }   
     .
+    
+    - constructor. apply fixme.
+    - constructor. apply fixme.
+    - constructor.  apply fixme.
+    - constructor. apply fixme.
+    Qed.
 
+    (* Solve Obligations with 
+        unshelve (simpl in *; Tactics.program_simplify; CoreTactics.equations_simpl; try Tactics.program_solve_wf; 
+        red ;red ; cbn ;  try (constructor 2; auto with arith); try now apply args_size_lt_in. *)
+
+
+    Definition translate_term := translate_fsl tr_term.
+    Definition translate_pred := translate_fsl tr_pred.
+
+    
     Definition c_decl_to_gmp_decl (d:@_c_decl Empty_set) : gmp_decl := 
         let '(C_Decl t id) := d in C_Decl (c_t_to_gmp_t t) id
     .
@@ -489,7 +608,7 @@ Module Translation (Oracle : Oracle).
     Fixpoint translate_statement (f:fenv) (bindings : Γᵥ) (t_env:Γᵢ) (env: ψ) (s : fsl_statement) : @TM.t (@translation_result gmp_statement) := 
         match s with
         | S_Ext (LAssert p)  => 
-            p_tr <- translate_predicate f bindings t_env env p 100;;; (* fixme explicit fuel value *)
+            p_tr <- translate_fsl tr_pred f bindings t_env env p;;;
             let d := DECLS p_tr.(decls) in
             let i := INITS p_tr.(decls) in
             let c := p_tr.(tr).(chunk gmp_statement) in
@@ -550,13 +669,13 @@ Module Translation (Oracle : Oracle).
             | Void => 
                 (* procedure *)
                 {|  funs := fenv.(funs); 
-                    procs := fenv.(procs){name\(extract_c_args args,body)}; 
+                    procs := StringMap.add name (extract_c_args args,body) fenv.(procs); 
                     lfuns := fenv.(lfuns); 
                     preds := fenv.(preds)
                 |}
             | C_Int =>  
                 (* function *)
-                {|  funs := fenv.(funs){name\(extract_c_args args,body)}; 
+                {|  funs := StringMap.add name (extract_c_args args,body) fenv.(funs); 
                     procs := fenv.(procs); 
                     lfuns := fenv.(lfuns); 
                     preds := fenv.(preds)
@@ -569,7 +688,7 @@ Module Translation (Oracle : Oracle).
             (* logic function *)
             {|  funs := fenv.(funs); 
                 procs := fenv.(procs); 
-                lfuns := fenv.(lfuns){name\(extract_fsl_args args,body)}; 
+                lfuns := StringMap.add name (extract_fsl_args args,body) (fenv.(lfuns) : StringMap.t (𝓥 * ⨉ ℨ)); 
                 preds := fenv.(preds)
             |}
 
@@ -579,10 +698,13 @@ Module Translation (Oracle : Oracle).
                 funs := fenv.(funs); 
                 procs := fenv.(procs); 
                 lfuns := fenv.(lfuns); 
-                preds := fenv.(preds){name\(extract_fsl_args args,body)}
+                preds := StringMap.add name (extract_fsl_args args,body) fenv.(preds)
             |}
         end
-        ) routines {|funs := ⊥ ; procs := ⊥ ; lfuns := ⊥; preds := ⊥|}
+        ) routines {|funs := StringMap.empty ; 
+                    procs := StringMap.empty ; 
+                    lfuns := StringMap.empty; 
+                    preds := StringMap.empty|}
         .
 
     Definition translate_program (p: fsl_pgrm) : option rac_pgrm := 
@@ -599,7 +721,7 @@ Module Translation (Oracle : Oracle).
         let gmp_decls := map c_decl_to_gmp_decl decls in
 
         (* for each new function, reset binders  *)
-        let empty_bindings := ⊥ in
+        let empty_bindings := StringMap.empty in
 
         (* generate from left to right the globals and function definitions *)
         let res := List.fold_left (

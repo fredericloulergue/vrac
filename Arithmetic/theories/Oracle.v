@@ -20,7 +20,7 @@ Module Type Oracle.
 
     Parameter ty_funcall_is_ty_body: 
         forall S (f : @fenv _fsl_statement S) fname xargs (targs:list ℨ) (iargs:list 𝐼) b, 
-        f.(lfuns) fname = Some (xargs,b) ->
+        StringMap.find fname f.(lfuns) = Some (xargs,b) ->
         forall te,
         List.Forall2 (fun e => eq (𝓘 e te)) targs iargs ->
                     𝒯 (T_Call fname targs) te = 𝒯 b (StringMap.add_all xargs iargs StringMap.empty).

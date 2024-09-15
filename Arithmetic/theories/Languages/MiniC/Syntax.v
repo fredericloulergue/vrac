@@ -2,9 +2,10 @@ From Coq Require Import ZArith.ZArith Strings.String.
 From RAC Require Import Utils.
 
 
+
 #[local] Open Scope Z_scope.
 
-Import FunctionalEnv.
+Import StringMap.
 
 Inductive _c_type {T:Set} := C_Int | Void | T_Ext (t:T).  (* program types τc *)
 
@@ -55,8 +56,8 @@ Inductive _c_statement {S T : Set} :=
 #[global] Hint Constructors _c_statement  : rac_hint.
 
 
-Definition 𝓕 {S T : Set} := 𝓥 ⇀ (𝓥 * ⨉ @_c_statement S T). (* program functions *)
-Definition 𝓟 {S T : Set} := 𝓥 ⇀ (𝓥 * ⨉ @_c_statement S T). (* program procedures *)
+Definition 𝓕 {S T : Set} := StringMap.t (𝓥 * ⨉ @_c_statement S T). (* program functions *)
+Definition 𝓟 {S T : Set} := StringMap.t (𝓥 * ⨉ @_c_statement S T). (* program procedures *)
 
 
 

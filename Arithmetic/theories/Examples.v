@@ -260,7 +260,7 @@ Module DummyOracle : Oracle.Oracle.
 
     Parameter ty_funcall_is_ty_body: 
     forall S (f : @fenv _fsl_statement S) fname xargs (targs:list ℨ) (iargs:list 𝐼) b, 
-    f.(lfuns) fname = Some (xargs,b) ->
+    StringMap.find fname f.(lfuns) = Some (xargs,b) ->
     forall te,
     List.Forall2 (fun e i => 𝓘 e te = i)%type targs iargs ->
              𝒯 (T_Call fname targs) te = 𝒯 b (StringMap.add_all xargs iargs StringMap.empty).
@@ -292,7 +292,7 @@ Definition p : predicate := (P_BinOp (T_Id "x" FSL_Int) FSL_Gt (T_Id "y" FSL_Int
 
 (* Definition greaterThan : predicate := P_Call "greaterThan" [T_Id "x" FSL_Int; T_Z 3]. *)
 
-Compute ( 
+(* Compute ( 
         let z := (C_Id "z" C_Int) in 
         T.translate_program 
         ([] : list _c_decl,
@@ -310,4 +310,4 @@ Compute (
          ]> 
         ]
         ) 
-). 
+).  *)

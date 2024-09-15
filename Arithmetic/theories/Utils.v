@@ -21,6 +21,26 @@ Fixpoint fold_left2 {Acc A B : Type} (f : Acc -> A -> B -> Acc) (acc:Acc) (l1 : 
     end
 .
 
+Fixpoint fold_left_in {Acc A : Type} (l : list A) (f : Acc -> {x:A| List.In x l}  -> Acc)   (acc_base:Acc) {struct l} : Acc.
+Proof.
+    refine (match l with nil => fun _ => acc_base | cons h t => fun f => _ end f).
+    refine (fold_left_in _ _ t _ (f acc_base (exist _ h _))).
+    - refine (fun acc_new x => f acc_new (exist _ (proj1_sig x) _)). destruct x. simpl. now right.
+    - now constructor.
+Defined.
+
+
+Fixpoint fold_left2_in {Acc A B: Type} (l1: list A) (l2 : list B) (f : Acc -> {x:A| List.In x l1}  -> {x:B| List.In x l2} -> Acc)  (acc_base:Acc) {struct l1} : Acc.
+Proof.
+    refine (match l1,l2 with cons h1 t1,cons h2 t2 => fun f => _  | _,_ => fun _ => acc_base end f).
+    refine (fold_left2_in _ _ _ t1 t2 _ (f acc_base (exist _ h1 _) (exist _ h2 _))).
+    - refine (fun acc_new x1 x2 => f acc_new (exist _ (proj1_sig x1) _) (exist _ (proj1_sig x2) _)).
+        + destruct x1; now right.
+        + destruct x2; now right.
+    - now constructor.
+    - now constructor.
+Defined.
+
 
 
 Module FunctionalEnv. (* used across the formalization to bind variables to values *)

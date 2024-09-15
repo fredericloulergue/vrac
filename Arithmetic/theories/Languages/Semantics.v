@@ -71,7 +71,7 @@ Definition well_formed_pgrm (P : fsl_pgrm) (env : Env) (fenv: @fenv _fsl_stateme
         (* all functions are defined before being called *)
         (forall rvar fname args, 
             @In_stmt _fsl_statement Empty_set (FCall rvar fname args) b -> 
-            fname ∈ fenv.(funs)
+            StringMap.mem fname fenv.(funs) = true
         
         ) /\
         True (* fixme: well typed ? *)

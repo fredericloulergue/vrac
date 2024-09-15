@@ -35,7 +35,7 @@ Inductive fsl_term_sem (f: @fenv _fsl_statement Empty_set) (ev:Env) : ℨ -> Z -
 
     | S_T_Call fname b xargs targs zargs z :
         List.length xargs = List.length targs ->
-        f.(lfuns) fname = Some (xargs,b) ->
+        StringMap.find fname f.(lfuns) = Some (xargs,b) ->
         List.Forall2 (fsl_term_sem f ev) targs zargs ->
         fsl_term_sem f (empty_env <| env ; binds ::= p_map_addall_back xargs zargs |>) b z -> 
         fsl_term_sem f ev (T_Call fname targs) z 
@@ -76,7 +76,7 @@ with fsl_pred_sem (f: @fenv _fsl_statement Empty_set) (ev:Env) :  𝔅 -> 𝔹 -
     
     | S_P_Call p b xargs targs zargs z :
         List.length xargs = List.length targs ->
-        f.(preds) p = Some (xargs,b) ->
+        StringMap.find p f.(preds) = Some (xargs,b) ->
         List.Forall2 (fsl_term_sem f ev) targs zargs ->
         fsl_pred_sem f (empty_env <| env ; binds ::= p_map_addall_back xargs zargs |>) b z -> 
         fsl_pred_sem f ev (P_Call p targs) z 

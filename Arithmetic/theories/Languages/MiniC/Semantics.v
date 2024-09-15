@@ -107,7 +107,7 @@ Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt
     | S_FCall fname (b: @_c_statement S T) b_ev c xargs eargs (zargs : Int.MI*) z : 
         List.length xargs = List.length eargs ->
         let vargs := List.map (fun x => Def (VInt x)) zargs in 
-        f.(funs) fname = Some (xargs,b) ->
+        StringMap.find fname f.(funs) = Some (xargs,b) ->
         List.Forall2 (@generic_exp_sem T ext_exp ev) eargs vargs ->
         (empty_env <| env ; vars ::= p_map_addall_back xargs vargs |> |= b => b_ev) f -> 
         ~ StringSet.In res_f (stmt_vars b ext_stmt_vars) -> 
@@ -117,7 +117,7 @@ Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt
     | S_PCall p b ev' xargs eargs (zargs : Int.MI*) : 
         List.length xargs = List.length eargs ->
         let vargs := List.map (fun x => Def (VInt x)) zargs  in 
-        f.(procs) p = Some (xargs,b) ->
+        StringMap.find p f.(procs)  = Some (xargs,b) ->
         List.Forall2 (@generic_exp_sem T ext_exp ev) eargs vargs ->
         (empty_env <| env ; vars ::= p_map_addall_back xargs vargs |> |= b => ev') f -> 
         (ev |= PCall p eargs => ev <| mstate := ev' |>) f
@@ -179,7 +179,7 @@ Inductive generic_pgrm_sem {F S T:Set}
 
         (* call the main function with the given parameters (same as F_Call except the evaluation env for the body is not empty and we keep the env from the body) *) 
         let vargs := List.map (fun x => Def (VInt x)) args in 
-        fenv.(funs) "main"%string = Some (params,b) ->
+        StringMap.find "main"%string fenv.(funs) = Some (params,b) ->
         List.length params = List.length vargs ->
         @generic_stmt_sem S T ext_exp ext_stmt ext_stmt_vars fenv (ev_decls <| env ; vars ::= p_map_addall_back params vargs |>)  b ev' -> 
         ~ StringSet.In res_f (stmt_vars b ext_stmt_vars) -> 

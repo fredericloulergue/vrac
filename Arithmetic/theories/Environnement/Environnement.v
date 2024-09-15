@@ -1,7 +1,7 @@
 From Coq Require Import ZArith.ZArith Strings.String Logic.FinFun Sets.Ensembles Sets.Finite_sets.
 From RecordUpdate Require Import RecordUpdate.
 From RAC Require Import Utils.
-From RAC.Languages Require Import Syntax.
+From RAC.Languages Require Import Syntax. 
 
 #[local] Open Scope utils_scope.
 
@@ -12,8 +12,8 @@ Import RecordSetNotations.
 Record fenv {S T : Set} := mk_fenv {
     funs : @𝓕 S T ;
     procs : @𝓟 S T ;
-    lfuns : 𝔉 ;
-    preds : 𝔓 ;
+    lfuns : StringMap.t (𝔏* ⨉ ℨ) ;
+    preds : StringMap.t (𝔏* ⨉ 𝔅) ;
 }.
 
 Module Int16Bounds.

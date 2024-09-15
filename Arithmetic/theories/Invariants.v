@@ -24,7 +24,7 @@ Module Invariants(O: Oracle).
 
 
 
-    Definition Γdom (g:Γ) := (dom (fst g) + dom (fun k => StringMap.find k (snd g)))%utils.
+    Definition Γdom (g:Γ) := ( dom (fun k => StringMap.find k (fst g))  + dom (fun k => StringMap.find k (snd g)))%utils.
     
     (* synchronicity invariant *)
     Definition I1 (env:Ω) (ienv:Γ) := 
@@ -42,7 +42,7 @@ Module Invariants(O: Oracle).
     | Suite_L (z:Z) :
         forall vargs b zargs iargs xargs,
         
-        fenv.(lfuns) f = Some (vargs,b)  ->
+        StringMap.find f fenv.(lfuns) = Some (vargs,b)  ->
         List.length zargs = List.length vargs ->
         List.length zargs = List.length iargs ->
         List.Forall2 (fun v zi => in_interval (snd tenv) v (fst zi) (snd zi)) vargs (List.combine zargs iargs) ->
@@ -50,7 +50,7 @@ Module Invariants(O: Oracle).
         match  𝒯 b (snd tenv) with
         | C_Int =>
             forall s envᶠ irz,
-            fenv.(funs) ϕ = Some (xargs,s) ->
+            StringMap.find ϕ fenv.(funs) = Some (xargs,s) ->
             List.length zargs = List.length xargs ->
 
             let new := List.map (fun xzv => let '(i,x,z) := xzv in (ϴ i,x,z))
@@ -65,7 +65,7 @@ Module Invariants(O: Oracle).
                 /\ ( envᶠ |= s => envᶠ <| env; vars := Ω |>)%fslsem fenv
         | T_Ext Mpz =>
             forall s x1 v0 envᶠ,
-            fenv.(procs) ϕ = Some (x1::xargs,s) ->
+            StringMap.find ϕ fenv.(procs) = Some (x1::xargs,s) ->
             List.length zargs = List.length xargs ->
 
             (* fixme: is v0 fresh ? constraints ? *)
@@ -91,14 +91,14 @@ Module Invariants(O: Oracle).
     | Suite_P (z:𝔹) :
         forall vargs b zargs iargs xargs,
         
-        fenv.(preds) f = Some (vargs,b)  ->
+        StringMap.find f fenv.(preds) = Some (vargs,b)  ->
         List.length zargs = List.length vargs ->
         List.length zargs = List.length iargs ->
         List.Forall2 (fun v zi => in_interval (snd tenv) v (fst zi) (snd zi)) vargs (List.combine zargs iargs) ->
 
         (*fixme: oracle only infers for a term, not a predicate, assume it is always int for now *)
             forall s envᶠ irz,
-            fenv.(funs) ϕ = Some (xargs,s) ->
+            StringMap.find ϕ fenv.(funs) = Some (xargs,s) ->
             List.length zargs = List.length xargs ->
 
             let new := List.map (fun xzv => let '(i,x,z) := xzv in (ϴ i,x,z))

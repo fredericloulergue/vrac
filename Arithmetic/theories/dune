@@ -1,4 +1,4 @@
 (coq.theory
  (name RAC)
- (theories RecordUpdate MMaps)
+ (theories RecordUpdate MMaps Equations)
 )

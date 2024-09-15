@@ -1,5 +1,5 @@
 From Coq Require Import ZArith.ZArith String.
-From RAC Require Import Notations.
+From RAC Require Import Utils.
 From RAC.Languages Require Import MiniC.Syntax MiniGMP.Syntax.
 
 
@@ -43,6 +43,9 @@ with fsl_term :=
 Notation 𝔅 := predicate. (* predicates *)
 Notation ℨ := fsl_term. (* logical terms *)
 
+
+Definition 𝔉 : Type := StringMap.t (𝔏* ⨉ ℨ). (* logic functions *)
+Definition 𝔓 : Type := StringMap.t (𝔏* ⨉  𝔅). (* predicates *)
 
 
 Inductive _fsl_statement : Set := LAssert (p:predicate). (* logic assertion *)
