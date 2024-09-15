@@ -61,7 +61,8 @@ List.fold_right
 
 
 Module Translation (Oracle : Oracle).
-    Import Oracle FunctionalEnv.
+    Import Oracle.
+    Import FunctionalEnv.
 
     Definition Γᵥ := 𝔏 ⇀ 𝓥 ⨉ 𝐼. (* environment for logic bindings : variable and interval infered from it *)
 

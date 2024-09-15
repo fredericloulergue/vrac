@@ -13,8 +13,8 @@ Module Invariants(O: Oracle).
     Import RecordSetNotations.
 
     Module T := Translation(O).
-    Import O T FunctionalEnv FunctionalEnv.Domain.
-
+    Import FunctionalEnv FunctionalEnv.Domain.
+    Export O T.
     
     (* Section F  : INVARIANTS FOR ROUTINE TRANSLATION *)
 
@@ -61,8 +61,7 @@ Module Invariants(O: Oracle).
             (empty_env <| env;binds ::= p_map_addall_back vargs zargs |> |= b => z)%fsltsem fenv 
             <->
             exists Ω, 
-                (forall resf, (* fixme: get actual resf *) 
-                    Ω.(vars) resf = Some (Def (VInt (z ⁱⁿᵗ irz)))) 
+                    Ω.(vars) res_f = Some (Def (VInt (z ⁱⁿᵗ irz)))
                 /\ ( envᶠ |= s => envᶠ <| env; vars := Ω |>)%fslsem fenv
         | T_Ext Mpz =>
             forall s x1 v0 envᶠ,
