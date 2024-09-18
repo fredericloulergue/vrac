@@ -26,8 +26,9 @@ Module Theorems(O:Oracle).
 
     (* `if the generated program has a semantic [...]'  but no semantic given for a program   *)
     Lemma LD1_mpz_pointer_invariant : forall P fenv t_fenv env,
-        well_formed_pgrm  P env fenv ->
-        Forall_routines (T.translate_program P) ( fun _ _ b => 
+        well_formed_pgrm P env fenv ->
+        forall P', T.translate_program P = Some P' ->
+        Forall_routines P' ( fun _ _ b => 
             forall (renv renv' : Env),
             forall v, type_of_value (renv v) = Some (T_Ext Mpz) ->
             forall s, between <( init(v) )> s <( cl(v) )> b -> 
@@ -36,16 +37,16 @@ Module Theorems(O:Oracle).
         )
     .
     Proof.
-        intros P args env env' Hwf. unfold Forall_routines. apply List.Forall_forall. intros R Hr. destruct R eqn:REqn;[|trivial].
+        intros P args env env' Hwf. intros. unfold Forall_routines. apply List.Forall_forall. intros R Hr. destruct R eqn:REqn;[|trivial].
         intros renv renv' v Hv stmt Hstmt Hsem. 
         (* unroll translation... *)
-        destruct P as [Pdecls Pfuns]. destruct Pfuns eqn:PfunsEqn; simpl in Hr; [easy|]. 
-        destruct Pdecls eqn:PdeclsEqn; simpl in Hr. admit.
+        admit.
     Admitted.
 
     Lemma LD2_absence_of_aliasing : forall P fenv t_fenv env,
         well_formed_pgrm  P env fenv ->
-        Forall_routines (T.translate_program P) ( fun _ _ b => 
+        forall P', T.translate_program P = Some P' ->
+        Forall_routines P' ( fun _ _ b => 
             forall s (renv renv' : Env),
             (renv |= s => renv')%gmpssem t_fenv ->
             forall v (l:location), renv' v = Some (Def (VMpz l)) ->
@@ -54,17 +55,17 @@ Module Theorems(O:Oracle).
         )
     .
     Proof.
-        intros P args env env' Hwf. unfold Forall_routines. apply List.Forall_forall. intros R Hr. destruct R eqn:REqn;[|trivial].
+        intros P fenv args env env' P' Hwf. unfold Forall_routines. apply List.Forall_forall. intros R Hr. destruct R eqn:REqn;[|trivial].
         intros renv renv' v Hv stmt Hstmt Hsem. 
         (* unroll translation... *)
-        destruct P as [Pdecls Pfuns]. destruct Pfuns eqn:PfunsEqn; simpl in Hr; [easy|]. 
-        destruct Pdecls eqn:PdeclsEqn; simpl in Hr. admit.
+        admit.
     Admitted.
 
 
     Lemma LD3_preservation_of_control_flow : forall P fenv env,
         well_formed_pgrm  P env fenv ->
-        Forall_routines (translate_program P) ( fun _ _ b => 
+        forall P', T.translate_program P = Some P' ->
+        Forall_routines P' ( fun _ _ b => 
             forall decls s,
             In_stmt (S_Ext (GMP_Scope decls s)) b -> 
             (* passes through: how to represent control flow ?  *)
@@ -83,7 +84,8 @@ Module Theorems(O:Oracle).
 
     Lemma LD5_memory_transparency_of_generated_code : forall P fenv env,
         well_formed_pgrm  P env fenv ->
-        Forall_routines (translate_program P) ( fun _ _ b => 
+        forall P', T.translate_program P = Some P' ->
+        Forall_routines P' ( fun _ _ b => 
             forall decls s,
             In_stmt (S_Ext (GMP_Scope decls s)) b -> 
             (* todo: add decls tec *)
@@ -95,7 +97,8 @@ Module Theorems(O:Oracle).
 
     Theorem T61_absence_of_dangling_pointers : forall P fenv t_fenv env,
         well_formed_pgrm  P env fenv ->
-        Forall_routines (translate_program P) ( fun _ _ b => 
+        forall P', T.translate_program P = Some P' ->
+        Forall_routines P' ( fun _ _ b => 
             forall s (renv renv' : Env),
             (renv |= s => renv')%gmpssem t_fenv ->
             forall (l:location), renv'.(mstate) l <> None <->  exists! x, eq (renv' x) (Some (Def (VMpz l)))
@@ -105,7 +108,8 @@ Module Theorems(O:Oracle).
 
     Theorem T62_absence_of_memory_leak :  forall P args fenv env env',
         well_formed_pgrm  P env fenv ->
-        gmp_pgrm_sem env (T.translate_program P) args env' ->
+        forall P', T.translate_program P = Some P' ->
+        gmp_pgrm_sem env P' args env' ->
         env'.(mstate) = ⊥
     .
     Proof. 
@@ -146,11 +150,11 @@ Module Theorems(O:Oracle).
 
 
     Theorem T64_correctness_of_code_generation :  forall (P:fsl_pgrm) args,
-
+        forall P', T.translate_program P = Some P' ->
         exists  (e  e' : Ω),
         (fsl_pgrm_sem empty_env P args (empty_env <|env ; vars := e|>)
         <-> 
-        gmp_pgrm_sem empty_env (translate_program P) args (empty_env <|env ; vars := e'|>)
+        gmp_pgrm_sem empty_env P' args (empty_env <|env ; vars := e'|>)
         )
         /\ (e ⊑ e')%env.
 

@@ -178,13 +178,17 @@ Example test_dom : 2 ∉ (fun x => if x>?2 then Some (Z.mul x 2) else None).
 Proof. easy. Qed.
 
 #[local] Open Scope nat.
+
 (* monad *)
-Export CounterMonad.
+
+Module TMNotations := MonadNotations(TranslationMonad).
+
+Import TMNotations.
 (* Compute (exec (n <- fresh ;;; n)). *)
 
-Fixpoint test (x:  list bool) : state := match x with
-  | i::t => c <- (if i then fresh else ret 9) ;; let v := (i,c) in x <- test t ;;; v::x
-  | nil => ret nil 
+Fixpoint test (x:  list bool) := match x with
+  | i::t => c <- (if i then TranslationMonad.fresh else TranslationMonad.ret 9) ;; let v := (i,c) in x <- test t ;;; v::x
+  | nil => TranslationMonad.ret nil 
 end.
 (* Compute (exec (test (true::true::false::false::true::false::nil))). *)
 

@@ -14,10 +14,10 @@ Create HintDb rac_hint.
 
 Fixpoint fold_left2 {Acc A B : Type} (f : Acc -> A -> B -> Acc) (acc:Acc) (l1 : A*) (l2 : B*) : Acc := 
     match l1,l2 with
-      | nil,nil => acc
-      | cons b1 t1,cons b2 t2 => fold_left2 f (f acc b1 b2) t1 t2
-      | _,_ => acc (* both lists must have the same length,
-       otherwise computation will be interrupted when one of the list is empty but not the other *)
+    | nil,nil => acc
+    | cons b1 t1,cons b2 t2 => fold_left2 f (f acc b1 b2) t1 t2
+    | _,_ => acc (* both lists must have the same length,
+    otherwise computation will be interrupted when one of the list is empty but not the other *)
     end
 .
 
@@ -25,92 +25,92 @@ Fixpoint fold_left2 {Acc A B : Type} (f : Acc -> A -> B -> Acc) (acc:Acc) (l1 : 
 
 Module FunctionalEnv. (* used across the formalization to bind variables to values *)
 
-  Definition partial_function (X Y : Type) : Type := X -> option Y.
-  Infix "⇀" := partial_function : type_scope.
-  Definition empty_p {X Y:Type} := fun (_:X) => (None: option Y).
-  Notation "⊥" := empty_p : type_scope.
+Definition partial_function (X Y : Type) : Type := X -> option Y.
+Infix "⇀" := partial_function : type_scope.
+Definition empty_p {X Y:Type} := fun (_:X) => (None: option Y).
+Notation "⊥" := empty_p : type_scope.
 
 
-  Class EqDecC X := {eq_dec : EqDec X }.
+Class EqDecC X := {eq_dec : EqDec X }.
 
 
-  #[global] Instance z_eq_dec : EqDecC Z := {eq_dec := Z.eq_dec}.
-  #[global] Instance eqdec_v : EqDecC 𝓥 := {eq_dec := string_dec}.
-  #[global] Instance eqdec_l : EqDecC 𝔏 := {eq_dec := string_dec}.
+#[global] Instance z_eq_dec : EqDecC Z := {eq_dec := Z.eq_dec}.
+#[global] Instance eqdec_v : EqDecC 𝓥 := {eq_dec := string_dec}.
+#[global] Instance eqdec_l : EqDecC 𝔏 := {eq_dec := string_dec}.
 
-  Definition p_map_front {X Y : Type} `{EqDecC X}  (f: X -> option Y) (xy:X ⨉ Y)   : X -> option Y :=
-      fun i => if eq_dec (fst xy) i then Some (snd xy) else f i.
+Definition p_map_front {X Y : Type} `{EqDecC X}  (f: X -> option Y) (xy:X ⨉ Y)   : X -> option Y :=
+    fun i => if eq_dec (fst xy) i then Some (snd xy) else f i.
 
-  Definition p_map_back {X Y : Type} `{EqDecC X}  (xy:X ⨉ Y) (f: X -> option Y)  : X -> option Y :=
-      p_map_front f xy.
+Definition p_map_back {X Y : Type} `{EqDecC X}  (xy:X ⨉ Y) (f: X -> option Y)  : X -> option Y :=
+    p_map_front f xy.
 
-  #[global] Hint Unfold p_map_back : rac_hint.
+#[global] Hint Unfold p_map_back : rac_hint.
 
-  Notation "x '\' y" := (x,y) (in custom pmap at level 0, x constr, y constr) : utils_scope.
-  Notation "f { xy , .. , xy' }" :=  (p_map_front .. (p_map_front f xy') .. xy ) : utils_scope.
-  Notation "'{{' xy , .. , xy' '}}'" := (fun f => p_map_back xy' .. (p_map_back xy f) .. ) : utils_scope. (* fixme: make same as the other*)
+Notation "x '\' y" := (x,y) (in custom pmap at level 0, x constr, y constr) : utils_scope.
+Notation "f { xy , .. , xy' }" :=  (p_map_front .. (p_map_front f xy') .. xy ) : utils_scope.
+Notation "'{{' xy , .. , xy' '}}'" := (fun f => p_map_back xy' .. (p_map_back xy f) .. ) : utils_scope. (* fixme: make same as the other*)
 
 
 
-  Definition p_map_addall_back {X Y: Type} `{EqDecC X} (lx:list X) (ly : list Y) env :=
-      fold_left2 (fun f x y => f {x \ y}) env lx ly
-  .
+Definition p_map_addall_back {X Y: Type} `{EqDecC X} (lx:list X) (ly : list Y) env :=
+    fold_left2 (fun f x y => f {x \ y}) env lx ly
+.
 
-  Definition p_map_addall_front {X Y: Type} `{EqDecC X} env (lx:list X) (ly : list Y) :=
-      p_map_addall_back lx ly env
-  .
+Definition p_map_addall_front {X Y: Type} `{EqDecC X} env (lx:list X) (ly : list Y) :=
+    p_map_addall_back lx ly env
+.
 
 
    (* some facts *)
 
-  Fact p_map_single_back_front_eq {X Y : Type} `{EqDecC X} : 
-      forall f x (y:Y) z , f{x\y} z = {{x\y}}f z.
-  Proof. auto. Qed.
-  #[global] Hint Unfold p_map_addall_back : rac_hint.
+Fact p_map_single_back_front_eq {X Y : Type} `{EqDecC X} : 
+    forall f x (y:Y) z , f{x\y} z = {{x\y}}f z.
+Proof. auto. Qed.
+#[global] Hint Unfold p_map_addall_back : rac_hint.
 
 
-  Fact p_map_not_same {X T : Type } `{EqDecC X}: forall f (x x' : X) (v : T), x <> x' -> f{x'\v} x = f x.
-  Proof.
-      intros. unfold p_map_front. simpl. destruct eq_dec.
-      - now destruct H0. 
-      - easy.
-  Qed.
-  #[global] Hint Resolve p_map_not_same : rac_hint.
+Fact p_map_not_same {X T : Type } `{EqDecC X}: forall f (x x' : X) (v : T), x <> x' -> f{x'\v} x = f x.
+Proof.
+    intros. unfold p_map_front. simpl. destruct eq_dec.
+    - now destruct H0. 
+    - easy.
+Qed.
+#[global] Hint Resolve p_map_not_same : rac_hint.
 
 
-  Corollary p_map_not_same_eq {X T : Type } `{EqDecC X}: forall f (x x' : X) (v : T) (res : option T), x <> x' -> f{x'\v} x = res <-> f x = res.
-  Proof.
-      split. 
-      - intro H1. now rewrite p_map_not_same in H1.
-      - intro H1.  erewrite <- p_map_not_same in H1.
-          + apply H1.
-          + assumption.
-  Qed.
+Corollary p_map_not_same_eq {X T : Type } `{EqDecC X}: forall f (x x' : X) (v : T) (res : option T), x <> x' -> f{x'\v} x = res <-> f x = res.
+Proof.
+    split. 
+    - intro H1. now rewrite p_map_not_same in H1.
+    - intro H1.  erewrite <- p_map_not_same in H1.
+        + apply H1.
+        + assumption.
+Qed.
 
-  #[global] Hint Resolve p_map_not_same_eq : rac_hint.
+#[global] Hint Resolve p_map_not_same_eq : rac_hint.
 
-  Fact p_map_same {X T : Type } `{EqDecC X}: forall f (x : X) (v : T), f{x\v} x = Some v.
-  Proof.
-      intros. unfold p_map_front. simpl. now destruct eq_dec.
-  Qed.
+Fact p_map_same {X T : Type } `{EqDecC X}: forall f (x : X) (v : T), f{x\v} x = Some v.
+Proof.
+    intros. unfold p_map_front. simpl. now destruct eq_dec.
+Qed.
 
-  #[global] Hint Resolve p_map_same : rac_hint.
+#[global] Hint Resolve p_map_same : rac_hint.
 
-  Fact p_map_apply {X T T' : Type } `{EqDecC X} : forall env (x :X)  (v : T) (f : option T -> T'),  f (env{x\v} x)  = f (Some v).
-  Proof.
-      intros env x v f. f_equal. apply p_map_same.
-  Qed.
+Fact p_map_apply {X T T' : Type } `{EqDecC X} : forall env (x :X)  (v : T) (f : option T -> T'),  f (env{x\v} x)  = f (Some v).
+Proof.
+    intros env x v f. f_equal. apply p_map_same.
+Qed.
 
-  Fact p_map_domain {X Y : Type } `{EqDecC X} (env : X -> option Y) (z : X) :
-      forall x x' y z, env{x\y} x' = Some z -> x' = x \/ env x' = Some z.
-  Proof.
-      intros. destruct (eq_dec x' x).
-          + now left.
-          +  rewrite p_map_not_same in H0 ; auto.
-  Qed.
+Fact p_map_domain {X Y : Type } `{EqDecC X} (env : X -> option Y) (z : X) :
+    forall x x' y z, env{x\y} x' = Some z -> x' = x \/ env x' = Some z.
+Proof.
+    intros. destruct (eq_dec x' x).
+    + now left.
+    +  rewrite p_map_not_same in H0 ; auto.
+Qed.
 
 
-  Module Domain.
+    Module Domain.
 
     Definition in_domain { X Y : Type} (f: X ⇀ Y) (x:X) := exists y, f x = Some y.
     Notation "x ∈ E" := (in_domain E x) (at level 99) : utils_scope.
@@ -229,11 +229,11 @@ Definition string_of_nat (n : nat) : string :=
     let fix aux (time n : nat) (acc : string) : string :=
     let acc' := String (Ascii.ascii_of_nat ((n mod 10) + 48)) acc in
     match time with
-      | 0 => acc'
-      | S time' =>
+    | 0 => acc'
+    | S time' =>
         match n / 10 with
-          | 0 => acc'
-          | n' => aux time' n' acc'
+        | 0 => acc'
+        | n' => aux time' n' acc'
         end
     end in
     aux n n EmptyString.
@@ -278,33 +278,60 @@ Module MachineInteger(B:Bounds).
 End MachineInteger.
 
 
-Module CounterMonad.
-    (* 
-        todo: combine with option monad for use to signal errors in the translation
-        then, show the translation can't have error
-    *)
+Module Type Monad.
+
+    Parameter t : Type -> Type.
+
+    Parameter ret : forall a, a -> t a.
+
+    Parameter bind : forall a b (m: t a) (f: a -> t b), t b.
+
+End Monad.
 
 
-    Definition state {T : Type} : Type := nat -> T ⨉ nat.
+Module MonadNotations(M : Monad).
+    Import M.
+    Notation "x <- f ;; c" := (bind _ _ f (fun x => c)) (f at next level, at level 61, right associativity) .
+    Notation "x <- f ;;; c" := (bind _ _ f (fun x => ret _ c)) (f at next level, at level 61, right associativity) .
+    Notation "f ;; c" := (bind _ _ f (fun _ => c)) ( at level 61, right associativity).
+    Notation "f ;;; c" := (bind _ _ f (fun _ => ret _ c)) ( at level 61, right associativity).
+End MonadNotations.
 
 
-    Definition ret {A : Type} (a : A) : state (T:=A) := fun c => (a, c).
+Module MonadOps(M : Monad).
+    Fixpoint map {A B: Type} (f: A -> M.t B) (l: list A) : M.t (list B) := match l with
+    | nil => M.ret _ nil
+    | hd::tl => M.bind _ _ (f hd) (fun x => 
+        M.bind _ _ (map f tl) (fun l =>
+            M.ret _ (x::l)
+        )
+    )
+    end.
 
-    Definition bind {A B : Type} (m : state (T:=A)) (f : A -> state (T:=B)) : state (T:=B) :=
-        let f' := fun c => 
-            let (a, c') := m c in f a c' 
-        in f'.
+End MonadOps.
 
-    Notation "x <- f ;; c" := (bind f (fun x => c)) (f at next level, at level 61, right associativity) .
-    Notation "x <- f ;;; c" := (bind f (fun x => ret c)) (f at next level, at level 61, right associativity) .
-    Notation "f ;; c" := (bind f (fun _ => c)) ( at level 61, right associativity).
-    Notation "f ;;; c" := (bind f (fun _ => ret c)) ( at level 61, right associativity).
 
-    Definition tick : state := fun c => (tt, S c).
-    Definition getTick : state := fun c => (c, c).
-    Definition fresh := n <- getTick ;; tick ;;; n.
-    Definition exec {A:Type} (m: state (T:=A)) := fst (m 0).
+Module TranslationMonad <: Monad . (* option + state *)
+    Definition t {T : Type} : Type :=  nat -> @option T  ⨉ nat.
 
-End CounterMonad.
+
+    Definition ret {A : Type} (a : A) : t (T:=A) := fun c => (Some a, c).
+
+    Definition bind {A B : Type} (m : t (T:=A)) (f : A -> t (T:=B)) : t (T:=B) :=
+        fun c => 
+            let (a, c') := m c in match a with
+            | Some a => f a c'
+            | None => (None,c')
+    end
+    .
+
+    Definition tick : t := fun c => (Some tt, S c).
+    Definition getTick : t := fun c => (Some c, c).
+    Definition fresh := bind getTick (fun n : nat => bind tick (fun _ : unit => ret n)).
+    Definition exec {A:Type} (m: t (T:=A)) := fst (m 0).
+    Definition error {A : Type} : t (T:=A) := fun c => (None, c).
+
+End TranslationMonad.
+
 
 Close Scope utils_scope.
