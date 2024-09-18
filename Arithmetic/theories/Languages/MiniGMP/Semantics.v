@@ -70,14 +70,14 @@ Inductive _gmp_stmt_sem  (f : @fenv _gmp_statement _gmp_t) (ev:Env) : gmp_statem
 
     | S_Scope decls (s:@_c_statement _gmp_statement _gmp_t) ev_s ev_s':
         (*
-            - A scope has var declarations that gets dropped at the end. 
+            - A scope has var declarations that gets dropped at the end, except the memory state. 
             - This was missing in the original paper but required in the translation 
             as we must create a scope when we translate the assertions 
             - Note it complicate things because the statement are c instructions, not just gmp ones.
         *)
         declare_gmp_vars ev (list_to_ensemble decls) ev_s ->
         @generic_stmt_sem _gmp_statement _gmp_t Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars f ev_s s ev_s' -> 
-        (ev |= GMP_Scope decls s =>  ev) f
+        (ev |= GMP_Scope decls s =>  ev <| mstate := ev_s' |> ) f
 
 
 where "ev |= s => ev'" := (fun f => _gmp_stmt_sem f ev s ev') : ext_gmp_stmt_sem_scope.

@@ -1,4 +1,4 @@
-From Coq Require Import String FinFun Setoid.
+From Coq Require Import String FinFun Setoid ZArith.
 From RecordUpdate Require Import RecordUpdate.
 From RAC Require Import Utils.
 From RAC Require Export Environnement.
@@ -85,7 +85,7 @@ Qed.
 
 
 
-Fact strong_reverse_dom_same : forall (ev' ev : Env) x (v: 𝕍) (s rev : location -> location) 
+Fact strong_reverse_dom_same_env : forall (ev' ev : Env)  (x :𝓥) (v: 𝕍) (s rev : location -> location) 
     (H1 :forall x, rev (s x) = x ) (H2: forall y, s (rev y) = y),
 
     strong_env_mem_partial_order ev' ev 
@@ -111,6 +111,27 @@ Proof.
         destruct l; simpl in H4; try congruence.
 Qed.
 
+
+Fact strong_reverse_dom_same_mem : forall (ev' ev : Env) (x:location) (v: mpz_val) (s rev : location -> location) 
+    (H1 :forall x, rev (s x) = x ) (H2: forall y, s (rev y) = y),
+
+    strong_env_mem_partial_order ev' ev 
+        (exist (fun f => Bijective f) s
+                (ex_intro
+                    (fun g =>
+                        (forall x, g (s x) = x) /\ (forall y, s (g y) = y)
+                    )
+                    rev (conj H1 H2)
+                )
+        )%type ->
+    ev.(mstate) x = Some v ->
+    (dom ev'.(mstate))%utils (rev x) ->
+    ev'.(mstate) (rev x) = Some v
+.
+Proof.
+    intros ev' ev x v s rev H1 H2 [_ Hrmem] Hevx [v' Hdom]. red in Hrmem.  
+    specialize (Hrmem (rev x)). apply Hrmem in Hdom as H4.  simpl in *. congruence.
+Qed.
 
 
 

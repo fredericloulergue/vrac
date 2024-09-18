@@ -23,7 +23,9 @@ Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
         pose proof (mem_def_partial_order_add) as mpz_add;
         pose proof (env_partial_order_add ev₀ ev₀' sub Henvmem) as env_add.
         (* init *)
-        * clear weak_exp eq_defined eq_mpz env_add. exists (ev₀' <| env ; vars ::= {{x \ Def (VMpz (Some (proj1_sig sub l)))}} |> <| mstate ::= {{proj1_sig sub l \Defined 0}} |> ).
+        * clear weak_exp eq_defined eq_mpz env_add. 
+            exists (ev₀'    <| env ; vars ::= {{x \ Def (VMpz (Some (proj1_sig sub l)))}} |> 
+                            <| mstate ::= {{proj1_sig sub l \Defined 0}} |> ).
             split.
             + admit. (* now apply mpz_add. *)
             + clear mpz_add. apply S_init with u.
@@ -31,7 +33,8 @@ Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
                 ++ destruct Hstrenvmem as [e m]. now apply e in H0.
                     
         (* clear *)
-        * exists (ev₀' <| env ; vars ::= {{x\Def (VMpz None)}} |><| mstate ::= {{(proj1_sig sub) a \ Undefined u}} |>). split.
+        * exists (ev₀'  <| env ; vars ::= {{x\Def (VMpz None)}} |>
+                        <| mstate ::= {{(proj1_sig sub) a \ Undefined u}} |>). split.
             + admit. (* now apply mpz_add. *)
             + apply S_clear. now apply (eq_mpz x (Some a)).
 
@@ -69,44 +72,89 @@ Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
                 ++ now apply (eq_mpz y (Some ly)).
                 ++ now apply (eq_mpz r (Some lr)).
         (* scope*)
-        * eexists. split.
-            + admit.
-            + apply S_Scope with ev_s ev_s. inversion H.
-                ++ rewrite <- H1. admit.
-                ++ subst. constructor. admit.
+        *  admit.  (* fixme: missing induction hypothesis *)
 Admitted.
 
 (* Definition weakening_of_gmp_statements_semantics_1 := 
     weakening_of_statement_semantics_1 Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars _weakening_of_gmp_statements_semantics_1 . *)
- 
+
 Lemma _weakening_of_gmp_statements_semantics_2 : 
     _weakening_of_statement_semantics_2 Empty_exp_sem _gmp_stmt_sem env_mem_partial_order
 .
-Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
+Proof with unshelve eauto using refl_env_mem_partial_order with rac_hint ; try easy.
     intros  exp_sem stmt_sem f ev₀ ev₀' s ev₁ sub [Hderiv1 Hrel].
     generalize dependent ev₀'.
-    induction Hderiv1;  intros ev Henvmem ev' Hderiv.
-    - admit.     
-    - admit.  
-    - inversion Hderiv; subst; [|destruct bop; simpl in H1; discriminate]. split...
-        intros l Hnotused. destruct (eq_dec a0 (proj1_sig sub l)).
-        + subst. exfalso. specialize (Hnotused x). apply Hnotused. clear Hnotused. destruct Henvmem as [Henv _]. specialize (Henv x).
-            inversion Henv;  try congruence. rewrite H3 in H2. inversion H2. destruct sub. 
-            apply bijective_eq_iff_f_eq in H6... now subst.
-        +  symmetry. subst. now apply p_map_not_same.
+    assert (Hvars : 
+        forall (ev ev': Env) v v' val val' mem, 
+        ev v' = Some val' ->
+        v ∉ ev ->
+        ev' v = (ev' <| env; vars ::= {{v' \ Def val}} |> <|mstate := mem |>) v
+    ). {
+        intros. destruct (eq_dec v v').
+        - subst. exfalso. congruence.  
+        - symmetry. now apply p_map_not_same_eq. 
+    }
+    assert (Hlocs : 
+        forall (ev ev': Env) (v v' v'':location) val x e, 
+        env_mem_partial_order ev ev' sub ->
+        ev x = Some (Def (VMpz v'')) ->
+        ev' x = Some (Def (VMpz (Some v'))) ->
+        (forall v0 : 𝓥, ev v0 <> Some (Def (VMpz v))) ->
+        ev'.(mstate) (proj1_sig sub v) = (ev' <| env;vars ::=e |> <| mstate ::= {{v'\val}} |>).(mstate) (proj1_sig sub v)
+        ). {
+        intros ev ev' v v' v'' val x e Henvmem Hnotused Hev Hev'. destruct (eq_dec (proj1_sig sub v) v').
+        - subst. exfalso. destruct Henvmem as [Henv _]. specialize (Henv x). 
+            inversion Henv;  try congruence.  rewrite Hev in H0. inversion H0. destruct sub. simpl in *.
+            apply bijective_eq_iff_f_eq in H2...  subst. congruence.
+        - symmetry. now apply p_map_not_same_eq.
+    }
 
-    - inversion Hderiv; subst; [|destruct bop; simpl in H1; discriminate]. split...
-        intros l Hnotused.  destruct (eq_dec a0 (proj1_sig sub l)).
-        + subst. exfalso. specialize (Hnotused x). apply Hnotused. clear Hnotused. destruct Henvmem as [Henv _]. specialize (Henv x).
-            inversion Henv; subst;  try congruence.
-            ++ rewrite H3 in H4. inversion H4. destruct sub. apply bijective_eq_iff_f_eq in H8... now subst.
-            ++ now rewrite H3 in H4.
-        + symmetry. now apply p_map_not_same_eq.
+    induction Hderiv1;  intros ev Henvmem ev' Hderiv; specialize (Hvars ev₀ ev); specialize (Hlocs ev₀ ev);
+    inversion Hderiv; subst; try (destruct bop; simpl in H1; discriminate). 
+    
 
-    - admit.  
-    - admit.  
-    - admit.
-    - admit.
+    (* init *)
+    - split.
+        + intros. eapply Hvars... 
+        + intros l' Hnotused. destruct (eq_dec (proj1_sig sub l') l0).
+            * subst. exfalso.  admit. 
+                (* not provable, requires stronger Hnotused hypothesis *)
+            * symmetry. now apply p_map_not_same_eq.
+
+    (* clear *)
+    - split.
+        + intros. eapply Hvars...
+        + intros. eapply Hlocs...
+
+    (* set_i *)
+    -  split...
+        intros. eapply Hlocs... 
+
+    (* set_z *)
+    - split... intros. eapply Hlocs with (v'':= a)...
+    
+    (* get_int *)
+    - split...
+        intros v [Hnotused Hcomp]. destruct (eq_dec v x). 
+        * subst. admit. (* semantics doesn't give assignment restriction for x *)
+        * symmetry. now apply p_map_not_same_eq.
+        
+    (* set_s *)   
+    - split... intros. eapply Hlocs...
+
+    (* cmp *)
+    -  split...
+        intros v [Hnotused Hcomp]. destruct (eq_dec v c).
+        * subst. exfalso. admit. (* same issue as get_int *)
+        * symmetry. now apply p_map_not_same_eq.
+    
+    (* binop *)
+    - split... intros. eapply Hlocs...  destruct bop,bop0; simpl in H4; inversion H4; now subst. 
+    
+    (* scope *)
+    - split... intros. simpl. admit.
+
+    Unshelve. easy. easy. easy. easy. 
 Admitted.
 
 Definition weakening_of_gmp_statements_semantics_2 := 
@@ -115,48 +163,165 @@ Definition weakening_of_gmp_statements_semantics_2 :=
 
 
 Lemma _weakening_of_gmp_statements_semantics_3 : 
-    _weakening_of_statement_semantics_3 _gmp_stmt_sem _gmp_stmt_vars exist_strong_env_mem_partial_order
+    _weakening_of_statement_semantics_3 _gmp_stmt_sem _gmp_stmt_vars strong_env_mem_partial_order
 .
 Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
-    intros Hweak ev s ev1 Hderiv. 
-    induction Hderiv; intros ev' [ [sub [subrev [Hsub1 Hsub2]]] Hrel] [Henv Hmem].
+    intros fenv ev s ev1 [sub [subrev [Hsub1 Hsub2]]] Hderiv. 
+    induction Hderiv; intros ev' Hrel [Henv Hmem].
+    (* todo: factorize *)
+
+    (* init *)
     - exists (ev' <| env ; vars ::= {{x \ Def (VMpz (Some (subrev l)))}} |> <| mstate ::= {{subrev l \Defined 0}} |> ).
         apply S_init with u.
-        + intros. specialize (H v). admit.
+        + intros. specialize (H v). intros contra. destruct Hrel as [Hrel _]. specialize (Hrel v _ _ contra).  
+            inversion Hrel. congruence.
+
         +  assert (~(dom ev - dom ev')%utils x). {
-            intros contra. apply Henv in contra. apply contra. simpl. auto.
+            intros contra. apply Henv in contra. apply contra. simpl. StringSet.D.fsetdec. 
             }
             apply not_in_sub_domain_prop in H1;[|apply in_domain_dec| apply in_domain_dec]. destruct H1.
-            * now epose proof (strong_reverse_dom_same ev' ev x (UMpz u) sub subrev Hsub1 Hsub2 Hrel _ H1).
+            * now unshelve epose proof (strong_reverse_dom_same_env ev' ev x (UMpz u) sub subrev Hsub1 Hsub2 Hrel _ H1).
             * exfalso. apply H1. now exists (UMpz u).
     
+    (* clear *)
     -  exists (ev' <| env ; vars ::= {{x\Def (VMpz None)}} |><| mstate ::= {{subrev a \ Undefined u}} |>). apply S_clear.
         assert (~(dom ev - dom ev')%utils x). {
-            intros contra. apply Henv in contra. apply contra. simpl. auto.
+            intros contra. apply Henv in contra. apply contra. simpl. StringSet.D.fsetdec.
         }
         apply not_in_sub_domain_prop in H0;[|apply in_domain_dec| apply in_domain_dec]. destruct H0.
-        * now epose proof (strong_reverse_dom_same ev' ev x a sub subrev Hsub1 Hsub2 Hrel _ H0).
+        * now unshelve epose proof (strong_reverse_dom_same_env ev' ev x a sub subrev Hsub1 Hsub2 Hrel _ H0).
         * exfalso. apply H0. now exists a.
 
+    (* set_i *)
     - exists (ev' <| mstate ::= {{subrev a \ Defined (z) ̇}} |>). apply S_set_i.
         + assert (~(dom ev - dom ev')%utils x). {
-            intros contra. apply Henv in contra. apply contra. simpl. auto.
+            intros contra. apply Henv in contra. apply contra. simpl. StringSet.D.fsetdec.
         }
         apply not_in_sub_domain_prop in H1;[|apply in_domain_dec| apply in_domain_dec]. destruct H1.
-        * now epose proof (strong_reverse_dom_same ev' ev x a sub subrev Hsub1 Hsub2 Hrel _ H1).
+        * now unshelve epose proof (strong_reverse_dom_same_env ev' ev x a sub subrev Hsub1 Hsub2 Hrel _ H1).
         * exfalso. apply H1. now exists a.
 
-        + apply weakening_of_c_expression_semantics_3 with ev... 
-            * eexists...
-            * split. 
-                **intros v Hdom. apply Henv in Hdom. simpl in Hdom.  
-                apply Decidable.not_or in Hdom. now destruct Hdom.
-                ** intros l Hdom. apply Hmem in Hdom as [l' Hdom]. simpl in Hdom.  exists l'. destruct Hdom. split... 
-    - admit.  
-    - admit.  
-    - admit.  
-    - admit.  
-    - admit.
+        + eapply weakening_of_c_expression_semantics_3... split. 
+            * intros v Hdom. apply Henv in Hdom. simpl in Hdom. StringSet.D.fsetdec.
+            * intros l Hdom. apply Hmem in Hdom as [l' Hdom]. simpl in Hdom.  exists l'. destruct Hdom. split... 
+                StringSet.D.fsetdec.
+    
+    (* set_z *)
+    - exists (ev' <| mstate ::= {{subrev a \ Defined z}} |>). apply S_set_z with (subrev n).
+        + assert (~(dom ev - dom ev')%utils x). {
+            intros contra. apply Henv in contra. apply contra. simpl. StringSet.D.fsetdec.
+            }
+            apply not_in_sub_domain_prop in H2;[|apply in_domain_dec| apply in_domain_dec]. destruct H2.
+            * now unshelve epose proof (strong_reverse_dom_same_env ev' ev x a sub subrev Hsub1 Hsub2 Hrel _ H2).
+            * exfalso. apply H2. now exists a.
+        + assert (~(dom ev - dom ev')%utils y). {
+            intros contra. apply Henv in contra. apply contra. simpl. StringSet.D.fsetdec.
+            }
+            apply not_in_sub_domain_prop in H2;[|apply in_domain_dec| apply in_domain_dec]. destruct H2.
+            * now unshelve epose proof (strong_reverse_dom_same_env ev' ev y n sub subrev Hsub1 Hsub2 Hrel _ H2).
+            * exfalso. apply H2. now exists n.
+        + assert (~(dom ev.(mstate) - dom ev'.(mstate))%utils (subrev n)). {
+            intros contra. apply Hmem in contra. destruct contra. simpl in H2. destruct H2 as [H2 []].
+            rewrite Hsub2 in H2. assert (x0 = y). { admit. (* no aliasing *) } subst. StringSet.D.fsetdec.
+            } 
+            apply not_in_sub_domain_prop in H2;[|apply in_domain_dec| apply in_domain_dec]. destruct H2.
+            * now unshelve epose proof (strong_reverse_dom_same_mem ev' ev _ z sub subrev Hsub1 Hsub2 Hrel _ H2).
+            * destruct H2. admit.
+
+    - exists (ev' <| env ; vars ::= {{x\VInt (zy ⁱⁿᵗ ir) : 𝕍}} |>). apply S_get_int with (subrev ly).
+        + assert (~(dom ev - dom ev')%utils y). {
+            intros contra. apply Henv in contra. apply contra. simpl. StringSet.D.fsetdec.
+            }
+            apply not_in_sub_domain_prop in H1;[|apply in_domain_dec| apply in_domain_dec]. destruct H1.
+            * now  unshelve epose proof (strong_reverse_dom_same_env ev' ev y ly sub subrev Hsub1 Hsub2 Hrel _ H1).
+            * destruct H1. now exists ly.
+
+        + assert (~(dom ev.(mstate) - dom ev'.(mstate))%utils (subrev ly)). {
+            intros contra. apply Hmem in contra. destruct contra. simpl in H1. destruct H1 as [H1 []].
+            rewrite Hsub2 in H1. assert (x0 = y). { admit. (* no aliasing *) } subst. StringSet.D.fsetdec.
+            } 
+            apply not_in_sub_domain_prop in H1;[|apply in_domain_dec| apply in_domain_dec]. destruct H1.
+            * now unshelve epose proof (strong_reverse_dom_same_mem ev' ev _ zy sub subrev Hsub1 Hsub2 Hrel _ H1).
+            *  destruct H1. admit.
+    
+    - exists (ev' <| mstate ::= {{subrev lx\Defined zx}} |>). apply S_set_s...
+        assert (~(dom ev - dom ev')%utils x). {
+            intros contra. apply Henv in contra. apply contra. simpl. StringSet.D.fsetdec.
+            }
+            apply not_in_sub_domain_prop in H1;[|apply in_domain_dec| apply in_domain_dec]. destruct H1.
+            * now  unshelve epose proof (strong_reverse_dom_same_env ev' ev x lx sub subrev Hsub1 Hsub2 Hrel _ H1).
+            * destruct H1. now exists lx.
+
+
+    - exists (ev' <| env ; vars ::= {{c\b}} |>). eapply S_cmp with (subrev lx) (subrev ly) _ _...  
+        +  assert (~(dom ev - dom ev')%utils x). {
+            intros contra. apply Henv in contra. apply contra. simpl. StringSet.D.fsetdec.
+            }
+            apply not_in_sub_domain_prop in H4;[|apply in_domain_dec| apply in_domain_dec]. destruct H4.
+            * now  unshelve epose proof (strong_reverse_dom_same_env ev' ev x lx sub subrev Hsub1 Hsub2 Hrel _ H4).
+            * destruct H4. now exists lx.
+        + assert (~(dom ev - dom ev')%utils y). {
+            intros contra. apply Henv in contra. apply contra. simpl. StringSet.D.fsetdec.
+            }
+            apply not_in_sub_domain_prop in H4;[|apply in_domain_dec| apply in_domain_dec]. destruct H4.
+            * now  unshelve epose proof (strong_reverse_dom_same_env ev' ev y ly sub subrev Hsub1 Hsub2 Hrel _ H4).
+            * destruct H4. now exists ly.
+        + assert (~(dom ev.(mstate) - dom ev'.(mstate))%utils (subrev lx)). {
+            intros contra. apply Hmem in contra. destruct contra. simpl in H4. destruct H4 as [H4 []].
+            rewrite Hsub2 in H4. assert (x0 = y). { admit. (* no aliasing *) } subst. StringSet.D.fsetdec.
+            } 
+            apply not_in_sub_domain_prop in H4;[|apply in_domain_dec| apply in_domain_dec]. destruct H4.
+            * now unshelve epose proof (strong_reverse_dom_same_mem ev' ev _ zx sub subrev Hsub1 Hsub2 Hrel _ H4).
+            *  destruct H4. admit.
+        + assert (~(dom ev.(mstate) - dom ev'.(mstate))%utils (subrev ly)). {
+            intros contra. apply Hmem in contra. destruct contra. simpl in H4. destruct H4 as [H4 []].
+            rewrite Hsub2 in H4. assert (x0 = y). { admit. (* no aliasing *) } subst. StringSet.D.fsetdec.
+            } 
+            apply not_in_sub_domain_prop in H4;[|apply in_domain_dec| apply in_domain_dec]. destruct H4.
+            * now unshelve epose proof (strong_reverse_dom_same_mem ev' ev _ zy sub subrev Hsub1 Hsub2 Hrel _ H4).
+            *  destruct H4. admit.
+
+
+    - exists (ev'<| mstate ::= {{subrev lr\Defined (⋄ (□ bop) zx zy) }} |>). apply S_op with (subrev lx) (subrev ly).
+        + assert (~(dom ev - dom ev')%utils x). {
+            intros contra. apply Henv in contra. apply contra. simpl. destruct bop; simpl ; StringSet.D.fsetdec.
+            }
+            apply not_in_sub_domain_prop in H4;[|apply in_domain_dec| apply in_domain_dec]. destruct H4.
+            * now  unshelve epose proof (strong_reverse_dom_same_env ev' ev x lx sub subrev Hsub1 Hsub2 Hrel _ H4).
+            * destruct H4. now exists lx.
+
+        
+        + assert (~(dom ev - dom ev')%utils y). {
+            intros contra. apply Henv in contra. apply contra. simpl. destruct bop; simpl ; StringSet.D.fsetdec.
+            }
+            apply not_in_sub_domain_prop in H4;[|apply in_domain_dec| apply in_domain_dec]. destruct H4.
+            * now  unshelve epose proof (strong_reverse_dom_same_env ev' ev y ly sub subrev Hsub1 Hsub2 Hrel _ H4).
+            * destruct H4. now exists ly.
+
+        + assert (~(dom ev.(mstate) - dom ev'.(mstate))%utils (subrev lx)). {
+            intros contra. apply Hmem in contra. destruct contra. simpl in H4. destruct H4 as [H4 []].
+            rewrite Hsub2 in H4. assert (x0 = y). { admit. (* no aliasing *) } subst. destruct bop; simpl ; StringSet.D.fsetdec.
+            } 
+            apply not_in_sub_domain_prop in H4;[|apply in_domain_dec| apply in_domain_dec]. destruct H4.
+            * now unshelve epose proof (strong_reverse_dom_same_mem ev' ev _ zx sub subrev Hsub1 Hsub2 Hrel _ H4).
+            *  destruct H4. admit.
+
+        + assert (~(dom ev.(mstate) - dom ev'.(mstate))%utils (subrev ly)). {
+            intros contra. apply Hmem in contra. destruct contra. simpl in H4. destruct H4 as [H4 []].
+            rewrite Hsub2 in H4. assert (x0 = y). { admit. (* no aliasing *) } subst. destruct bop; simpl ; StringSet.D.fsetdec.
+            } 
+            apply not_in_sub_domain_prop in H4;[|apply in_domain_dec| apply in_domain_dec]. destruct H4.
+            * now unshelve epose proof (strong_reverse_dom_same_mem ev' ev _ zy sub subrev Hsub1 Hsub2 Hrel _ H4).
+            *  destruct H4. admit.
+        
+        + assert (~(dom ev - dom ev')%utils r). {
+            intros contra. apply Henv in contra. apply contra. simpl. destruct bop; simpl ; StringSet.D.fsetdec.
+            }
+            apply not_in_sub_domain_prop in H4;[|apply in_domain_dec| apply in_domain_dec]. destruct H4.
+            * now  unshelve epose proof (strong_reverse_dom_same_env ev' ev _ lr sub subrev Hsub1 Hsub2 Hrel _ H4).
+            * destruct H4. now exists lr.
+
+            
     - admit.
 Admitted.
 
@@ -165,5 +330,5 @@ Admitted.
 
 Definition weakening_of_gmp_statements_semantics_3 := 
     weakening_of_statement_semantics_3 Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars 
-    (weakening_of_empty_expression_semantics_3 exist_strong_env_mem_partial_order) 
+    (weakening_of_empty_expression_semantics_3 strong_env_mem_partial_order) 
     _weakening_of_gmp_statements_semantics_3.

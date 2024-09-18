@@ -67,8 +67,8 @@ Module Translation (Oracle : Oracle).
 
     Module 𝐼_as_OT <: OrderedType := PairOrderedType(Z_as_OT)(Z_as_OT).  
     (* maps of ordered maps over ordered type are ordered *)
-    Module TypingEnv_as_OT <: OrderedType := StringEnv.Decidable(𝐼_as_OT).
-    (* we get an ordered type for the product of 𝔏 and  StringEnv.t *)
+    Module TypingEnv_as_OT <: OrderedType := StringMap.Decidable(𝐼_as_OT).
+    (* we get an ordered type for the product of 𝔏 and  StringMap.t *)
     Module String_TypingEnv_as_OT <: OrderedType := PairOrderedType(String_as_OT)(TypingEnv_as_OT).
     (* finally, we get our environnement of global definitions *)
     Module GlobalDef := MMapsEnv(String_TypingEnv_as_OT).
@@ -443,7 +443,7 @@ Module Translation (Oracle : Oracle).
             let signature : list _c_decl   -> _c_statement -> gmp_routine := 
                 (* figure out the type and id of parameters *)
                 let params := map (fun p => 
-                    let i := match StringEnv.find p t_env with
+                    let i := match StringMap.find p t_env with
                         | Some i => i 
                         | None => 
                             (*fixme: use error monad (p must be in t_env )  *) 

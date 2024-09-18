@@ -143,7 +143,8 @@ Inductive param_env_partial_order (env env':Ω) (var: 𝓥) (f:σ) : Prop :=
 | Enone : env var = None -> param_env_partial_order env env' var f
 .
 
-Definition param_mem_partial_order (mem mem':𝓜)  (l: location) (f:σ) := forall i, mem l = Some i ->  (mem' (proj1_sig f l)) = Some i.
+Definition param_mem_partial_order (mem mem':𝓜)  (l: location) (f:σ) : Prop := 
+    forall i, mem l = Some i ->  (mem' (proj1_sig f l)) = Some i.
 
 
 (* stronger constraints *)

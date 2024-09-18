@@ -1,4 +1,4 @@
-From Coq Require Import Strings.String ZArith.ZArith Setoids.Setoid Eqdep_dec Logic.FinFun.
+From Coq Require Import Strings.String ZArith.ZArith Setoids.Setoid Eqdep_dec Logic.FinFun MSets MSetList. 
 From MMaps Require Import MMaps.
 From RAC Require Export Notations.
 
@@ -187,22 +187,41 @@ Module FunctionalEnv. (* used across the formalization to bind variables to valu
 End FunctionalEnv.
 
 Module MMapsEnv(K: OrderedType).
-   Import MMaps.   
+    Import MMaps.   
     
-   Module M  := OrdList.Make(K).
-   Include M.
+    Module M  := OrdList.Make(K).
+    Include M.
 
    (* extra operations *)
-   Definition add_all {V:Type} (lk:list K.t) (lv: list V) : t V -> t V :=  
-        List.fold_left (fun env kv => add (fst kv) (snd kv) env) (List.combine lk lv)
-   .
+    Definition add_all {V:Type} (lk:list K.t) (lv: list V) : t V -> t V :=  
+            List.fold_left (fun env kv => add (fst kv) (snd kv) env) (List.combine lk lv)
+    .
 
-   Include Facts.OrdProperties(K)(M).
+    Include Facts.OrdProperties(K)(M).
 
     Module Decidable(V:OrderedType) := Facts.OrderedMaps(K)(V)(M).
 
-   Notation "⊥" := M.empty : type_scope.
+    Notation "⊥" := M.empty : type_scope.
 End MMapsEnv.
+
+Module StringMap := MMapsEnv(String_as_OT).
+
+Module MSetEnv(T: OrderedType).    
+    Module S := MSetList.Make(T).
+    Include S.
+    Module D := MSetDecide.Decide(S).
+
+
+   (* extra operations *)
+    Definition union_list (lv: list t) : t -> t :=  
+        List.fold_left (fun s x => union x s) lv
+    .
+    
+
+    Notation "⊥" := S.empty : type_scope.
+End MSetEnv.
+
+Module StringSet := MSetEnv(String_as_OT).
 
 
 (* modified from http://poleiro.info/posts/2013-03-31-reading-and-writing-numbers-in-coq.html *)

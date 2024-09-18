@@ -103,7 +103,7 @@ where "ev '|=' e ⇝ z" := (get_int_exp ev e z).
 
 Lemma same_eval_macro :  forall (ev : Env) v l e z z', 
     no_aliasing ev ->
-    ~ List.In v (exp_vars e) ->
+    ~ StringSet.In v (exp_vars e) ->
     ev v = Some (Def (VMpz (Some l))) ->
     ev |= e ⇝ z ->
     ev <| mstate ::= {{l \ Defined z'}} |> |= e ⇝ z.
@@ -117,11 +117,11 @@ Proof.
     * subst. pose proof (mpz_exp_is_var e). apply H6 in H3 as [var].  subst. simpl in *.
     apply M_Mpz with l0; subst.
     + now simpl.
-    + apply Decidable.not_or_iff in H0 as [Hdiff _].
+    + simpl. rewrite StringSet.singleton_spec in H0. 
         destruct (eq_dec l l0).
         ++ subst. destruct H with v var l0 l0 ; congruence.
         ++ now simpl.
-    + apply Decidable.not_or_iff in H0 as [Hdiff _].
+    + rewrite StringSet.singleton_spec in H0. 
         destruct (eq_dec l l0).
         ++ subst. destruct H with v var l0 l0 ; congruence.
         ++  simpl. apply p_map_not_same_eq;auto.
@@ -209,7 +209,7 @@ Lemma LE4_semantics_of_the_cmp_macro :
 
 
     no_aliasing ev ->  (* not in paper proof *)
-    ~ List.In v1 (exp_vars e2) -> (* not in paper proof *)
+    ~ StringSet.In v1 (exp_vars e2) -> (* not in paper proof *)
     v1 <> v2 -> (* not in paper proof *)
     type_of_value (ev c) = Some C_Int (* not in paper proof *) /\ is_comp_var c = false (* added *) -> 
 
@@ -327,7 +327,7 @@ Lemma LE5_semantics_of_the_binop_macro_int :
     forall f (ev:Env) (op:fsl_binop_int) c r (e1 e2 : gmp_exp) v1 v2 z1 z2 (ir: Int.inRange (⋄ op z1 z2) ),
 
     no_aliasing ev ->  (* not in paper proof *)
-    ~ List.In v1 (exp_vars e2) -> (* not in paper proof *)
+    ~ StringSet.In v1 (exp_vars e2) -> (* not in paper proof *)
     v1 <> v2 -> (* not in paper proof *)
     type_of_value (ev c) = Some C_Int /\ is_comp_var c = false (* added *) -> 
 
@@ -408,7 +408,7 @@ Lemma LE5_semantics_of_the_binop_macro_mpz :
     forall f (ev:Env) (op:fsl_binop_int) c y r e1 e2 v1 v2 z1 z2,
 
     no_aliasing ev ->
-    ~ List.In v1 (exp_vars e2) -> (* not in paper proof *)
+    ~ StringSet.In v1 (exp_vars e2) -> (* not in paper proof *)
     type_of_value (ev c) = Some C_Int -> (* not in paper proof *)
     v1 <> v2 -> (* not in paper proof *)
 

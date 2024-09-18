@@ -75,7 +75,7 @@ Notation "Ω '|=' e => v"  := (c_exp_sem Ω e v) : c_sem_scope.
 Import FunctionalEnv.
 
 (* extensible statement semantic *)
-Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt_sem_sig S T} {ext_stmt_vars:  S -> list id} (f : @fenv S T) (ev:Env) : @_c_statement S T -> Env -> Prop := 
+Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt_sem_sig S T} {ext_stmt_vars:  S -> StringSet.t} (f : @fenv S T) (ev:Env) : @_c_statement S T -> Env -> Prop := 
     | S_skip  :  (ev |= <{ skip }> => ev) f
     | S_Assign x (z: Int.MI) (e : @_c_exp T) : 
         (* must not be a compiler variable i.e. function return value *)
@@ -105,18 +105,18 @@ Inductive generic_stmt_sem {S T: Set} {ext_exp: @exp_sem_sig T} {ext_stmt: @stmt
         (ev |= <{ s ; s' }> =>  ev'') f
 
     | S_FCall fname (b: @_c_statement S T) b_ev c xargs eargs (zargs : Int.MI*) z : 
-        let vargs := List.map (fun x => Def (VInt x)) zargs in 
         List.length xargs = List.length eargs ->
+        let vargs := List.map (fun x => Def (VInt x)) zargs in 
         f.(funs) fname = Some (xargs,b) ->
         List.Forall2 (@generic_exp_sem T ext_exp ev) eargs vargs ->
         (empty_env <| env ; vars ::= p_map_addall_back xargs vargs |> |= b => b_ev) f -> 
-        ~ List.In res_f (stmt_vars b ext_stmt_vars) -> 
+        ~ StringSet.In res_f (stmt_vars b ext_stmt_vars) -> 
         b_ev res_f = Some (Def (VInt z)) -> (* must be a defined integer value *)
         (ev |= (FCall c fname eargs) => ev <| env ; vars ::= {{c\Def z}} |> <| mstate := b_ev |>) f
 
     | S_PCall p b ev' xargs eargs (zargs : Int.MI*) : 
-        let vargs := List.map (fun x => Def (VInt x)) zargs  in 
         List.length xargs = List.length eargs ->
+        let vargs := List.map (fun x => Def (VInt x)) zargs  in 
         f.(procs) p = Some (xargs,b) ->
         List.Forall2 (@generic_exp_sem T ext_exp ev) eargs vargs ->
         (empty_env <| env ; vars ::= p_map_addall_back xargs vargs |> |= b => ev') f -> 
@@ -167,7 +167,7 @@ Definition declare_funs {F S T} : @fenv S T -> Ensemble (@_c_routine F S T) -> P
 
 
 Inductive generic_pgrm_sem {F S T:Set} 
-    {ext_ty_val: 𝕍 -> @_c_type T} {ext_exp : @exp_sem_sig T} {ext_stmt: @stmt_sem_sig S T} {ext_stmt_vars: S -> list id} 
+    {ext_ty_val: 𝕍 -> @_c_type T} {ext_exp : @exp_sem_sig T} {ext_stmt: @stmt_sem_sig S T} {ext_stmt_vars: S -> StringSet.t} 
     (ev:Env) (P : @_c_program F S T) (args:Int.MI* ) : Env -> Prop :=
 
     | P_Pgrm params b ret z ev_decls fenv  ev':
@@ -182,7 +182,7 @@ Inductive generic_pgrm_sem {F S T:Set}
         fenv.(funs) "main"%string = Some (params,b) ->
         List.length params = List.length vargs ->
         @generic_stmt_sem S T ext_exp ext_stmt ext_stmt_vars fenv (ev_decls <| env ; vars ::= p_map_addall_back params vargs |>)  b ev' -> 
-        ~ List.In res_f (stmt_vars b ext_stmt_vars) -> 
+        ~ StringSet.In res_f (stmt_vars b ext_stmt_vars) -> 
         ev' res_f = Some (Def (VInt z)) -> (* must be a defined integer value *)
 
         generic_pgrm_sem ev P args (ev' <| env; vars ::= {{ret\Def z}} |>)
@@ -191,7 +191,7 @@ Inductive generic_pgrm_sem {F S T:Set}
 
 Definition _untouched_var_same_eval_exp {T : Set} (exp_sem : @exp_sem_sig T) := 
     forall (ev:Env) (e: @_c_exp T) v x,
-    ~ List.In v (exp_vars e) -> 
+    ~ StringSet.In v (exp_vars e) -> 
     exp_sem ev e x ->
     (forall x', exp_sem (ev <| env ; vars ::= {{v\x'}} |>)  e x)
     /\ 
@@ -201,10 +201,10 @@ Definition _untouched_var_same_eval_exp {T : Set} (exp_sem : @exp_sem_sig T) :=
 
 
 
-Definition _untouched_var_same_eval_stmt {S T : Set} (exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) (ext_stmt_vars : S -> list id) := 
+Definition _untouched_var_same_eval_stmt {S T : Set} (exp_sem : @exp_sem_sig T) (stmt_sem : @stmt_sem_sig S T) (ext_stmt_vars : S -> StringSet.t) := 
     forall f ev ev' (s: @_c_statement S T) x, 
     stmt_sem f ev s ev' ->
-    ~ List.In x (stmt_vars s ext_stmt_vars) /\ is_comp_var x = false -> 
+    ~ StringSet.In x (stmt_vars s ext_stmt_vars) /\ is_comp_var x = false -> 
     ev x = ev' x
 .
 
@@ -284,14 +284,15 @@ Qed.
 
 
 (* required to prove _weakening_of_statement_semantics_3 *)
-Definition _weakening_of_expression_semantics_3 {T : Set} (exp_sem : @exp_sem_sig T)  (rel: Env -> Env -> Prop) := 
-    forall ev e z,
+Definition _weakening_of_expression_semantics_3 {T : Set} (exp_sem : @exp_sem_sig T)  (rel: Env -> Env -> σ -> Prop) := 
+    forall ev e z sub,
     exp_sem ev e z ->
-    forall ev', rel ev' ev ->
+    
+    forall ev', rel ev' ev sub ->
     (
-        (forall v, (dom ev - dom ev') v -> ~ List.In v (exp_vars e))
+        (forall v, (dom ev - dom ev') v -> ~ StringSet.In v (exp_vars e))
         /\
-        (forall x, (dom ev.(mstate) - dom ev'.(mstate)) x -> (exists v, ev v = Some (Def (VMpz x)) /\ ~ List.In v (exp_vars e)))
+        (forall x, (dom ev.(mstate) - dom ev'.(mstate)) x -> (exists v, ev v = Some (induced (proj1_sig sub) (Def (VMpz x))) /\ ~ StringSet.In v (exp_vars e)))
     ) ->
 
     exp_sem  ev' e z
@@ -305,16 +306,16 @@ Qed.
 
 
 
-Definition _weakening_of_statement_semantics_3  {S T : Set} (stmt_sem : @stmt_sem_sig S T) (ext_stmt_vars: S -> list id)
-    (rel: Env -> Env -> Prop)  := 
-    forall f ev₀  s ev₁,
+Definition _weakening_of_statement_semantics_3  {S T : Set} (stmt_sem : @stmt_sem_sig S T) (ext_stmt_vars: S -> StringSet.t)
+    (rel: Env -> Env -> σ -> Prop)  := 
+    forall f ev₀  s ev₁ sub,
     stmt_sem f ev₀ s ev₁ -> 
 
-    forall ev₀', rel ev₀' ev₀ ->
+    forall ev₀', rel ev₀' ev₀ sub ->
     (
-        (forall v, (dom ev₀ - dom ev₀') v -> ~ List.In v (stmt_vars s ext_stmt_vars))
+        (forall v, (dom ev₀ - dom ev₀') v -> ~ StringSet.In v (stmt_vars s ext_stmt_vars))
         /\
-        (forall x, (dom ev₀.(mstate) - dom ev₀'.(mstate)) x -> (exists v, ev₀ v = Some (Def (VMpz x)) /\ ~ List.In v (stmt_vars s ext_stmt_vars)))
+        (forall x, (dom ev₀.(mstate) - dom ev₀'.(mstate)) x -> (exists v, ev₀ v = Some (induced (proj1_sig sub) (Def (VMpz x))) /\ ~ StringSet.In v (stmt_vars s ext_stmt_vars)))
     ) ->
 
     exists ev₁', stmt_sem f ev₀' s ev₁'

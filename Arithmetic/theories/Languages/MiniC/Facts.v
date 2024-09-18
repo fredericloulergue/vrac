@@ -9,55 +9,46 @@ Fact untouched_var_same_eval_exp {T : Set} : forall exp_sem,
     _untouched_var_same_eval_exp (@generic_exp_sem T exp_sem).
 Proof with eauto with rac_hint.
     intros exp_sem Hext ev e v x Hnotin Hderiv. induction Hderiv ; simpl in Hnotin...
-    - split... constructor. simpl. apply p_map_not_same_eq...
-    - rewrite List.in_app_iff in Hnotin ; apply Decidable.not_or_iff in Hnotin as [Hxnotine Hxnotine'].  split ; 
+    - split... constructor. simpl. apply p_map_not_same_eq... StringSet.D.fsetdec.
+    - split ; 
         intro x';  econstructor...
-        + apply IHHderiv1...
-        + apply IHHderiv2...
-        + apply IHHderiv1...
-        + apply IHHderiv2...
-    - rewrite List.in_app_iff in Hnotin ; apply Decidable.not_or_iff in Hnotin as [Hxnotine Hxnotine'].  split ; 
+        + apply IHHderiv1. StringSet.D.fsetdec. 
+        + apply IHHderiv2. StringSet.D.fsetdec.
+        + apply IHHderiv1... StringSet.D.fsetdec. 
+        + apply IHHderiv2... StringSet.D.fsetdec. 
+    - split;
         intro x';  econstructor...
-        + apply IHHderiv1...
-        + apply IHHderiv2...
-        + apply IHHderiv1...
-        + apply IHHderiv2...
-    - rewrite List.in_app_iff in Hnotin ; apply Decidable.not_or_iff in Hnotin as [Hxnotine Hxnotine'].  split ; 
+        + apply IHHderiv1... StringSet.D.fsetdec. 
+        + apply IHHderiv2... StringSet.D.fsetdec. 
+        + apply IHHderiv1... StringSet.D.fsetdec. 
+        + apply IHHderiv2... StringSet.D.fsetdec. 
+    - split ; 
         intro x';  econstructor...
-        + apply IHHderiv1...
-        + apply IHHderiv2...
-        + apply IHHderiv1...
-        + apply IHHderiv2... 
+        + apply IHHderiv1... StringSet.D.fsetdec. 
+        + apply IHHderiv2... StringSet.D.fsetdec.  
+        + apply IHHderiv1... StringSet.D.fsetdec. 
+        + apply IHHderiv2... StringSet.D.fsetdec.  
 Qed.
 
 Fact untouched_var_same_eval_stmt {S T : Set} : 
     forall exp_sem stmt_sem ext_stmt_vars, 
     _untouched_var_same_eval_stmt exp_sem stmt_sem ext_stmt_vars ->
     _untouched_var_same_eval_stmt exp_sem (@generic_stmt_sem S T exp_sem stmt_sem ext_stmt_vars) ext_stmt_vars.
-Proof.
+Proof with auto with rac_hint.
     intros exp_sem stmt_sem ext_stmt_vars Hext f ev ev' s x Hderiv [Hnotin Huservar]. induction Hderiv ; simpl in Hnotin; trivial.
-    - subst. apply Decidable.not_or_iff in Hnotin as [Hdiffxresf]. simpl. autounfold with rac_hint. rewrite p_map_not_same.
-        * easy.
-        * congruence.
-    -  apply IHHderiv. 
-        intro Hcontra. apply Hnotin. apply List.in_app_iff. right. 
-        apply List.in_app_iff. now left.
-    - apply IHHderiv. intro Hcontra. apply Hnotin. apply List.in_app_iff. right. 
-        apply List.in_app_iff. now right.
-    - apply IHHderiv. simpl. intro contra. rewrite List.app_nil_r in contra. apply Hnotin. apply List.in_app_iff in contra as [Hine | Hinses].
-        * apply List.in_app_iff. now left.
-        * apply List.in_app_iff in Hinses as [Hins | Hins].
-            + apply List.in_app_iff. now right.
-            + assumption.
+    - simpl. autounfold with rac_hint. rewrite p_map_not_same... StringSet.D.fsetdec.
+    -  apply IHHderiv. StringSet.D.fsetdec.
+    - apply IHHderiv. StringSet.D.fsetdec. 
+    - apply IHHderiv.  simpl. StringSet.D.fsetdec.
     - destruct IHHderiv.
-        + intro Hcontra. apply Hnotin. apply  List.in_app_iff. now left.
-        + apply IHHderiv0. intro Hcontra. apply Hnotin. apply List.in_app_iff. now right.
-    - simpl. symmetry. apply p_map_not_same_eq ; auto.
+        + StringSet.D.fsetdec.
+        + apply IHHderiv0. StringSet.D.fsetdec. 
+    - simpl. symmetry. apply p_map_not_same_eq... StringSet.D.fsetdec.
     (* return *)
     - simpl. destruct (eq_dec res_f x). subst. 
         * discriminate.
-        * autounfold with rac_hint. symmetry. rewrite p_map_not_same_eq. auto. congruence.  
-    - eapply Hext in H ; eauto.
+        * autounfold with rac_hint. symmetry...
+    - eapply Hext in H...
 Qed.
 
 Fact determinist_exp_eval {T : Set}: 

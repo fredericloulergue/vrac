@@ -244,11 +244,9 @@ Qed.
 Module DummyOracle : Oracle.Oracle.
     Definition 𝐼 := Z ⨉ Z.
     
-    Module StringEnv := MMapsEnv(Structures.OrdersEx.String_as_OT).
+    Definition Γᵢ : Type :=  StringMap.t 𝐼. 
 
-    Definition Γᵢ : Type :=  StringEnv.t 𝐼. 
-
-    Definition get_Γᵢ : fsl_pgrm -> Γᵢ := fun _ => DummyOracle.StringEnv.empty.
+    Definition get_Γᵢ : fsl_pgrm -> Γᵢ := fun _ => StringMap.empty.
 
     Definition 𝓘 : ℨ -> Γᵢ -> 𝐼 := fun _ _ => (-10,10).
 
@@ -261,7 +259,7 @@ Module DummyOracle : Oracle.Oracle.
     f.(lfuns) fname = Some (xargs,b) ->
     forall te,
     List.Forall2 (fun e i => 𝓘 e te = i)%type targs iargs ->
-             𝒯 (T_Call fname targs) te = 𝒯 b (StringEnv.add_all xargs iargs StringEnv.empty).
+             𝒯 (T_Call fname targs) te = 𝒯 b (StringMap.add_all xargs iargs StringMap.empty).
 
     Inductive fits (z:Z) : 𝔗 -> Prop := 
     | InInt : Int.inRange z -> fits z C_Int

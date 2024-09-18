@@ -61,60 +61,63 @@ Fact eq_dec_gmp_t (x y : gmp_t) : {x = y} + {x <> y}. decide equality. apply eq_
 
 
 
-Fixpoint exp_vars {T:Set} (exp : @_c_exp T) : list id := match exp with 
-| Zm z => nil
-| C_Id v _ => v::nil
-| BinOpInt le _ re | BinOpBool le _ re => exp_vars le ++ exp_vars re
+Fixpoint exp_vars {T:Set} (exp : @_c_exp T) : StringSet.t := match exp with 
+| Zm z => StringSet.empty
+| C_Id v _ => StringSet.singleton v
+| BinOpInt le _ re | BinOpBool le _ re => StringSet.union (exp_vars le) (exp_vars re)
 end.
 
-Fixpoint stmt_vars {T S:Set} (stmt : @_c_statement T S) (ext_stmt_vars: T -> list id) : list id := match stmt with 
-| Skip => nil 
-| Assign var e => var::exp_vars e
-| FCall var f args => var::List.flat_map exp_vars args
-| PCall f args => List.flat_map exp_vars args
-| Seq s1 s2 =>  stmt_vars s1 ext_stmt_vars ++ stmt_vars s2 ext_stmt_vars
-| If cond then_ else_ =>  exp_vars cond ++ stmt_vars then_ ext_stmt_vars ++ stmt_vars else_ ext_stmt_vars
-| While cond s => exp_vars cond ++ stmt_vars s ext_stmt_vars
+
+Fixpoint stmt_vars {T S:Set} (stmt : @_c_statement T S) (ext_stmt_vars: T -> StringSet.t) : StringSet.t  := match stmt with 
+| Skip => StringSet.empty 
+| Assign var e => StringSet.add var (exp_vars e)
+| FCall var f args => StringSet.add var (StringSet.union_list (List.map exp_vars args) StringSet.empty)
+| PCall f args => StringSet.union_list (List.map exp_vars args) StringSet.empty
+| Seq s1 s2 =>  StringSet.union (stmt_vars s1 ext_stmt_vars) (stmt_vars s2 ext_stmt_vars)
+| If cond then_ else_ =>  StringSet.union (StringSet.union (exp_vars cond) (stmt_vars then_ ext_stmt_vars)) (stmt_vars else_ ext_stmt_vars)
+| While cond s => StringSet.union (exp_vars cond) (stmt_vars s ext_stmt_vars)
 | PAssert e | Return e => exp_vars e
 | S_Ext s => ext_stmt_vars s
 end.
 
 
 Unset Guard Checking. (* fixme *)
-Fixpoint _gmp_stmt_vars (stmt:_gmp_statement) : list id := match stmt with 
+Fixpoint _gmp_stmt_vars (stmt:_gmp_statement) : StringSet.t := match stmt with 
 | GMP_Scope _ s => stmt_vars s _gmp_stmt_vars
-| Init z | Set_s z _  | Clear z  => z::nil
-| Set_i z e  => z::exp_vars e
-| Set_z z1 z2 | Coerc z1 z2 => z1::z2::nil
-| GMP_Add l r res | GMP_Sub l r res | GMP_Mul l r res | GMP_Div l r res | Comp res l r => l::r::res::nil
+| Init z | Set_s z _  | Clear z  => StringSet.singleton z
+| Set_i z e  => StringSet.add z (exp_vars e)
+| Set_z z1 z2 | Coerc z1 z2 => StringSet.union (StringSet.singleton z1) (StringSet.singleton z2)
+| GMP_Add l r res | GMP_Sub l r res | GMP_Mul l r res | GMP_Div l r res | Comp res l r => 
+    StringSet.union (StringSet.union (StringSet.singleton l) (StringSet.singleton r)) (StringSet.singleton res)
 end.
 
 Set Guard Checking.
 
 
-Definition _fsl_stmt_vars (stmt:_fsl_statement) : list id := 
-  let _stmt_vars:= fix predicate_vars (p:predicate) : list id := match p with
-    | P_True | P_False => nil
-    | P_BinOp t1 _ t2 => term_vars t1 ++ term_vars t2
-    | P_Not p => predicate_vars p
-    | P_Disj p1 p2 => predicate_vars p1 ++ predicate_vars p2
-    | P_Call _ args => List.flat_map term_vars args
+Definition _fsl_stmt_vars (stmt:_fsl_statement) : StringSet.t := 
+    let _stmt_vars := fix predicate_vars (p:predicate) : StringSet.t := match p with
+        | P_True | P_False => StringSet.empty
+        | P_BinOp t1 _ t2 => StringSet.union (term_vars t1) (term_vars t2)
+        | P_Not p => predicate_vars p
+        | P_Disj p1 p2 => StringSet.union (predicate_vars p1) (predicate_vars p2)
+        | P_Call _ args => (StringSet.union_list (List.map term_vars args) StringSet.empty)
+    end 
+    with term_vars (t:fsl_term) : StringSet.t := match t with
+        | T_Z _ => StringSet.empty
+        | T_Id x _ => StringSet.singleton x
+        | T_BinOp t1 _ t2 => StringSet.union (term_vars t1) (term_vars t2)
+        | T_Cond p t1 t2 => StringSet.union (StringSet.union (predicate_vars p) (term_vars t1)) (term_vars t2)
+        | T_Call _ targs => (StringSet.union_list (List.map term_vars targs) StringSet.empty)
     end
-  with term_vars (t:fsl_term) : list id := match t with
-    | T_Z _ => nil
-    | T_Id x _ => x::nil
-    | T_BinOp t1 _ t2 => term_vars t1 ++ term_vars t2
-    | T_Cond p t1 t2 => predicate_vars p ++ term_vars t1 ++ term_vars t2
-    | T_Call _ targs => List.flat_map term_vars targs
+    for predicate_vars
+    in
+    match stmt with 
+    | LAssert p => _stmt_vars p
     end
-  for predicate_vars
-  in
-  match stmt with 
-  | LAssert p => _stmt_vars p
- end.
+.
 
 
-Definition Empty_ext_stmt_vars {T} : T -> list id := fun _ => nil.
+Definition Empty_ext_stmt_vars {T} : T -> StringSet.t  := fun _ => StringSet.empty.
 
 
 Definition c_stmt_vars s := stmt_vars (T:=Empty_set) (S:=Empty_set) s Empty_ext_stmt_vars.

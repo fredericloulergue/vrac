@@ -1,5 +1,4 @@
 From Coq Require Import ZArith.ZArith Strings.String Sets.Ensembles Sets.Finite_sets Orders Structures.OrdersEx.
-From MMaps Require Import MMaps.
 From RAC Require Import Utils Environnement.
 From RAC.Languages Require Import Syntax Semantics.
 
@@ -8,9 +7,8 @@ From RAC.Languages Require Import Syntax Semantics.
 Module Type Oracle.
 
     Definition 𝐼 : Type := Z ⨉ Z. (* interval *)
-   
-    Module StringEnv := MMapsEnv(String_as_OT).
-    Definition Γᵢ : Type :=  StringEnv.t 𝐼. (* typing env mapping logic binders to intervals *)
+
+    Definition Γᵢ : Type :=  StringMap.t 𝐼. (* typing env mapping logic binders to intervals *)
 
     Parameter get_Γᵢ : fsl_pgrm -> Γᵢ. (* static analysis *)
 
@@ -25,7 +23,7 @@ Module Type Oracle.
         f.(lfuns) fname = Some (xargs,b) ->
         forall te,
         List.Forall2 (fun e => eq (𝓘 e te)) targs iargs ->
-                    𝒯 (T_Call fname targs) te = 𝒯 b (StringEnv.add_all xargs iargs StringEnv.empty).
+                    𝒯 (T_Call fname targs) te = 𝒯 b (StringMap.add_all xargs iargs StringMap.empty).
 
 
     (* a term always fits in an mpz and only fits in a machine integer if it is in range *)

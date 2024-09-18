@@ -19,12 +19,12 @@ Module Invariants(O: Oracle).
     (* Section F  : INVARIANTS FOR ROUTINE TRANSLATION *)
 
     Definition in_interval (tenv:Γᵢ) x (n:Z) i :=
-        StringEnv.find x tenv = Some i /\
+        StringMap.find x tenv = Some i /\
         fst i  <= n <= snd i.
 
 
 
-    Definition Γdom (g:Γ) := (dom (fst g) + dom (fun k => StringEnv.find k (snd g)))%utils.
+    Definition Γdom (g:Γ) := (dom (fst g) + dom (fun k => StringMap.find k (snd g)))%utils.
     
     (* synchronicity invariant *)
     Definition I1 (env:Ω) (ienv:Γ) := 
