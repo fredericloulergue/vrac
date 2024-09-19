@@ -9,7 +9,7 @@ Import ListNotations.
 Import RecordSetNotations.
 
 
-Module TM := TranslationMonad. 
+Module TM := TranslationMonadNoError. 
 Module TMNotations := MonadNotations(TM).
 Module TMOps := MonadOps(TM).
 Import TMNotations.
@@ -20,8 +20,6 @@ Import TMNotations.
 #[local] Open Scope Z_scope.
 #[local] Open Scope mini_gmp_scope.
 #[local] Open Scope utils_scope.
-
-
 
 
 Definition var_list := (𝓥 ⨉ gmp_t)*.
@@ -62,7 +60,12 @@ List.fold_right
 
 
 Module Translation (Oracle : Oracle).
+
     Import Oracle.
+
+
+    (* Hypothesis WellFormedProgram : well_formed_pgrm. *)
+
 
     Definition Γᵥ := StringMap.t (𝓥 ⨉ 𝐼). (* environment for logic bindings : variable and interval infered from it *)
 
@@ -121,10 +124,10 @@ Module Translation (Oracle : Oracle).
         Import Nat.
 
 
-        Inductive logic_tr_proto : forall (A B C D E : Type), (A -> B -> C -> D -> E -> Type) -> Set :=
-        | tr_pred : logic_tr_proto (@fenv _fsl_statement Empty_set) Γᵥ Γᵢ ψ predicate (fun _ _ _ _ _ => @TM.t (@translated_statement gmp_statement))
-        | tr_term : logic_tr_proto (@fenv _fsl_statement Empty_set) Γᵥ Γᵢ ψ fsl_term (fun _ _ _ _ _ => @TM.t (@translated_statement gmp_statement))
-        | f_gen : logic_tr_proto (@fenv _fsl_statement Empty_set) Γᵥ Γᵢ ψ id (fun _ _ _ _ _ =>  @TM.t (@translation_result 𝓥))
+        Inductive logic_tr_proto : forall (A B C D : Type), (A -> B -> C -> D -> Type) -> Set :=
+        | tr_pred : logic_tr_proto fsl_prog_fenv Γ ψ predicate (fun _ _ _ _ => @TM.t (@translated_statement gmp_statement))
+        | tr_term : logic_tr_proto fsl_prog_fenv Γ ψ fsl_term (fun _ _ _ _ => @TM.t (@translated_statement gmp_statement))
+        | f_gen : logic_tr_proto fsl_prog_fenv Γ ψ id (fun _ _ _ _ =>  @TM.t (@translation_result 𝓥))
         .
 
         Derive Signature NoConfusion for logic_tr_proto.
@@ -161,16 +164,16 @@ Module Translation (Oracle : Oracle).
 
 
         (* todo: upper bound of ψ is the number of logic functions times the number of environnment for bindings *)
-        Definition Ψ_max (fenv: @fenv _fsl_statement Empty_set) (g:Γᵢ) :=  
+        Definition Ψ_max (fenv: fsl_prog_fenv) (g:Γᵢ) :=  
             (Nat.mul (StringMap.cardinal fenv.(lfuns)) (StringMap.cardinal g)).
 
 
 
 
-        Equations measure : (Σ A B C D E P (_ : A) (_ : B) (_ : C) (_ : D) (_ : E), logic_tr_proto A B C D E P) -> nat ⨉ nat :=
-            | (_,_,_,_,_,_, f_env,_,t_env,g,p,tr_pred) =>  pair 1 (pred_size p)
-            | (_,_,_,_,_,_, f_env,_,t_env,g,t,tr_term) => pair 1 (term_size t)
-            | (_,_,_,_,_,_, f_env,_,t_env,g,fname,f_gen)  =>  pair (GlobalDef.cardinal g) 0
+        Equations measure : (Σ A B C D P (_ : A) (_ : B) (_ : C) (_ : D), logic_tr_proto A B C D P) -> nat ⨉ nat :=
+            | (_,_,_,_,_, f_env,_,g,p,tr_pred) =>  pair 1 (pred_size p)
+            | (_,_,_,_,_, f_env,_,g,t,tr_term) => pair 1 (term_size t)
+            | (_,_,_,_,_, f_env,_,g,fname,f_gen)  =>  pair (GlobalDef.cardinal g) 0
         .
 
 
@@ -182,63 +185,75 @@ Module Translation (Oracle : Oracle).
 
 
         (* pack take the function and all its arguments *)
-        Definition pack {A B C D E} {P} (x1 : A) (x2 : B) (x3 : C) (x4 : D) (x5 : E) (t : logic_tr_proto A B C D E P) :=
-            (A,B,C,D,E,P, x1, x2, x3, x4, x5, t) : (Σ A B C D E P (_ : A) (_ : B) (_ : C) (_ : D) (_ : E), logic_tr_proto A B C D E P).
+        Definition pack {A B C D} {P} (x1 : A) (x2 : B) (x3 : C) (x4 : D) (t : logic_tr_proto A B C D P) :=
+            (A,B,C,D,P, x1, x2, x3, x4, t) : (Σ A B C D P (_ : A) (_ : B) (_ : C) (_ : D), logic_tr_proto A B C D P).
 
     End MutRec.
 
-    Notation "x 'eqn:' p" := (exist _ x p) (only parsing, at level 20).
+    #[local] Notation "x 'ins:' p" := (exist _ x p) (only parsing, at level 20).
 
     Hypothesis fixme : forall (last_env:ψ),  (Nat.lt (GlobalDef.cardinal last_env) 1 /\ Nat.lt 1 (GlobalDef.cardinal last_env)).
+
+    Hypothesis fixme2: forall n (f: fsl_prog_fenv),
+        StringMap.find n (preds f) <> None 
+        /\
+        StringMap.find n (funs f) <> None
+        /\
+        StringMap.find n (lfuns f) <> None
+        /\
+        StringMap.find n (procs f) <> None
+    .
+
+    Hypothesis fixme3: forall v (g:Γ), StringMap.find v (fst g) <> None /\ StringMap.find v (snd g) <> None.
 
 
     Local Obligation Tactic := 
     simpl in *; Tactics.program_simplify; CoreTactics.equations_simpl; try Tactics.program_solve_wf ;
     red ;red ; cbn ;  try (constructor 2; auto with arith); try now apply args_size_lt_in.
     
-    Equations? translate_fsl {A B C D E} {P} (t : logic_tr_proto A B C D E P) (f : A) (bindings:B) (t_env:C) (e: D) (x : E)  
-        : P f bindings t_env e x by wf (pack f bindings t_env e x t) rel  := 
+    Equations? translate_fsl {A B C D} {P} (t : logic_tr_proto A B C D P) (f : A) (g:B) (e: C) (x : D)  
+        : P f g e x by wf (pack f g e x t) rel  := 
 
     (* predicate translation *)
 
-    | tr_pred , _, _ , _ , _ , P_True => 
+    | tr_pred , _, _  , _ , P_True => 
             c <- fresh_variable ;;
             let decl := [(c,C_Int)] in
-            let code := <{ c = 1 }> in
+            let code := <{ (Assign c 1) }> in
             TM.ret (mkSTR gmp_statement (mkTR gmp_statement code e nil) decl (c,C_Int))
 
-    | tr_pred , _, _ , _ , _ , P_False => 
+    | tr_pred , _, _  , _ , P_False => 
             c <- fresh_variable ;; 
             let decl := [(c,C_Int)] in
-            let code := <{ c = 0 }> in
+            let code := <{ (Assign c 0) }> in
             TM.ret (mkSTR gmp_statement (mkTR gmp_statement code e nil) decl  (c, C_Int))
 
-    | tr_pred , _, _ , _ , _ , P_Not p =>             
+    | tr_pred , _, _  , _ , P_Not p =>             
             c <- fresh_variable ;; 
-            p_tr <- translate_fsl tr_pred f bindings t_env e p ;;;
+            p_tr <- translate_fsl tr_pred f g e p ;;;
             let _res := C_Id (fst p_tr.(res)) (snd p_tr.(res)) in
             let decl := (c,C_Int)::p_tr.(decls) in
-            let code := <{ (p_tr.(tr).(chunk gmp_statement)) ; if _res c = 0 else c = 1 }> in
+            let code := <{ (p_tr.(tr).(chunk gmp_statement)) ; if _res (Assign c 0) else (Assign c 1) }> in
             mkSTR gmp_statement (mkTR gmp_statement code p_tr.(tr).(tenv gmp_statement) nil) decl (c, C_Int)
         
-    | tr_pred , _, _ , _ , _ , P_Disj p1 p2 => 
+    | tr_pred , _, _  , _ , P_Disj p1 p2 => 
             c <- fresh_variable ;;
-            tr_p1 <- translate_fsl tr_pred f bindings t_env e p1 ;;
+            tr_p1 <- translate_fsl tr_pred f g e p1 ;;
             let p1_res := C_Id (fst tr_p1.(res)) (snd tr_p1.(res)) in
             let p1_code := tr_p1.(tr).(chunk gmp_statement) in
-            tr_p2 <- translate_fsl tr_pred f bindings t_env tr_p1.(tr).(tenv gmp_statement) p2 ;;;
+            tr_p2 <- translate_fsl tr_pred f g tr_p1.(tr).(tenv gmp_statement) p2 ;;;
             let p2_res := C_Id (fst tr_p2.(res)) (snd tr_p2.(res)) in
             let p2_code := tr_p2.(tr).(chunk gmp_statement) in
             let decl := (c,C_Int)::tr_p1.(decls) ++ tr_p2.(decls) in
-            let code := <{ p1_code ; if p1_res c = 1 else <{ p2_code ; <{c = p2_res}> }> }> 
+            let code := <{ p1_code ; if p1_res (Assign c 1) else <{ p2_code ; <{(Assign c p2_res)}> }> }> 
             in
             mkSTR gmp_statement (mkTR gmp_statement code tr_p2.(tr).(tenv gmp_statement) nil) decl  (c,C_Int)
 
-    | tr_pred , _, _ , _ , _ , P_BinOp t1 fsl_op t2 =>            
+    | tr_pred , _, _ , _ , P_BinOp t1 fsl_op t2 =>            
             c <- fresh_variable ;;
-            tr_t1 <- translate_fsl tr_term f bindings t_env e t1 ;;
+            tr_t1 <- translate_fsl tr_term f g e t1 ;;
             let t1_code := tr_t1.(tr).(chunk gmp_statement) in
-            tr_t2 <- translate_fsl tr_term f bindings t_env tr_t1.(tr).(tenv gmp_statement) t2 ;;
+            tr_t2 <- translate_fsl tr_term f g tr_t1.(tr).(tenv gmp_statement) t2 ;;
             let t2_code := tr_t2.(tr).(chunk gmp_statement) in
 
             let decl := ("v1", T_Ext Mpz)::("v2",T_Ext Mpz)::(c,C_Int)::tr_t1.(decls) ++ tr_t2.(decls) in
@@ -250,11 +265,11 @@ Module Translation (Oracle : Oracle).
             let code := <{ t1_code ; t2_code; comp ; (Assign c (BinOpBool (C_Id c C_Int) (◖fsl_op) 0)) }>  in
             TM.ret (mkSTR gmp_statement (mkTR gmp_statement code tr_t2.(tr).(tenv gmp_statement) []) decl  (c,C_Int))
 
-    | tr_pred , _, _ , _ , _ , P_Call pname args  =>  
+    | tr_pred , _, _ , _ , P_Call pname args  =>  
         match Logic.inspect (StringMap.find pname f.(preds)) with
-        | None eqn:_ =>  TM.error
+        | None ins:_ =>  False_rect _ _
 
-        | Some (params,_) eqn:HInpreds  => 
+        | Some (params,_) ins:HInpreds  => 
 
             (* value returned by the function call *)
             c <- fresh_variable ;;
@@ -289,7 +304,7 @@ Module Translation (Oracle : Oracle).
 
 
                 (* translate the argument *)
-                t_tr <- translate_fsl tr_term f bindings t_env curr_tr.(tenv) (proj1_sig arg) ;;
+                t_tr <- translate_fsl tr_term f g curr_tr.(tenv) (proj1_sig arg) ;;
 
                 let new_tr := curr_tr 
                     <| tenv := t_tr.(tr).(tenv) |> (* pass the updated env *)
@@ -299,7 +314,7 @@ Module Translation (Oracle : Oracle).
 
                 (* building the fresh binding env for parameters *)
                 v <- fresh_variable ;;;
-                let interval := 𝓘 (proj1_sig arg) t_env in
+                let interval := oracle (proj1_sig arg) (snd g) in
 
                 (* collect and append  *)
                 ( 
@@ -319,14 +334,14 @@ Module Translation (Oracle : Oracle).
             let last_env := f_tr.(tenv) in 
 
             (* get specialized function name, env and globals  *)
-            gf <- match GlobalDef.find (pname,t_env) e with
+            gf <- match GlobalDef.find (pname,(snd g)) e with
             (* function already exists for current binders, no generation required, 
                 env is the same as the current one 
                 no new globals 
             *)
             | Some name => TM.ret (name,e,[]) 
             | None => (* no function specialized for those binders, generate a new one *)
-                new_f <- translate_fsl f_gen f binds t_env last_env pname ;;;
+                new_f <- translate_fsl f_gen f (binds,(snd g)) last_env pname ;;;
                 (* one new global : the function declaration itself *)
                 (new_f.(chunk), new_f.(tenv), new_f.(glob))
             end ;;;
@@ -348,34 +363,34 @@ Module Translation (Oracle : Oracle).
 
     (* term translation *)
 
-    | tr_term , _, _ , _ , _ , T_Id v FSL_Int => 
+    | tr_term , _, _ , _ , T_Id v FSL_Int => 
          (* program variable *)
         TM.ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) nil (v,C_Int))
 
-    | tr_term , _, _ , _ , _ , T_Id v FSL_Integer with StringMap.find v bindings => (* logic var *)
+    | tr_term , _, _ , _ , T_Id v FSL_Integer with Logic.inspect (StringMap.find v (fst g)) => (* logic var *)
         {
-            | Some (x,i) => 
+            | Some (x,i) ins: HInG => 
                 TM.ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) nil (x,ϴ i))
-            | None => TM.error
+            | None ins:_ => False_rect _ _
         } 
 
-    | tr_term , _, _ , _ , _ , T_Z z =>
-            let τ := 𝒯 z t_env in
+    | tr_term , _, _ , _ , T_Z z =>
+            let τ := get_ty z (snd g) in
             c <- fresh_variable ;;
             let decl := [(c,τ)]  in 
-            let code := Z_ASSGN C_Int c z in
-            TM.ret (mkSTR gmp_statement (mkTR gmp_statement code e nil) decl (c,C_Int))
+            let code := Z_ASSGN τ c z in
+            TM.ret (mkSTR gmp_statement (mkTR gmp_statement code e nil) decl (c,τ))
 
-    | tr_term , _, _ , _ , _ , T_BinOp t1 _op t2 =>
-            let τ := 𝒯 (T_BinOp t1 _op t2) t_env in
+    | tr_term , _, _ , _ , T_BinOp t1 _op t2 =>
+            let τ := get_ty (T_BinOp t1 _op t2) (snd g) in
             c <- fresh_variable ;;
             v1 <- fresh_variable ;;
             v2 <- fresh_variable ;;
             r <- fresh_variable ;;
-            t1_tr <- translate_fsl tr_term f bindings t_env e t1  ;; 
+            t1_tr <- translate_fsl tr_term f g e t1  ;; 
             let t1_code := t1_tr.(tr).(chunk gmp_statement) in
             let t1_res := C_Id (fst t1_tr.(res)) (snd t1_tr.(res)) in
-            t2_tr <- translate_fsl tr_term f bindings t_env t1_tr.(tr).(tenv gmp_statement) t2  ;; 
+            t2_tr <- translate_fsl tr_term f g t1_tr.(tr).(tenv gmp_statement) t2  ;; 
             let t2_code := t2_tr.(tr).(chunk gmp_statement) in
             let t2_res :=  C_Id (fst t2_tr.(res)) (snd t2_tr.(res)) in
             let decl := (c,τ) :: (v1,T_Ext Mpz) :: (v2,T_Ext Mpz) :: (r,T_Ext Mpz) :: t1_tr.(decls) ++ t2_tr.(decls) in
@@ -383,14 +398,14 @@ Module Translation (Oracle : Oracle).
             let code := <{ t1_code ; t2_code ; assgn }> in
             TM.ret (mkSTR gmp_statement (mkTR gmp_statement code t2_tr.(tr).(tenv gmp_statement) nil) decl (c,C_Int))
 
-    | tr_term , _, _ , _ , _ ,T_Cond p t1 t2 =>
+    | tr_term , _, _ , _ ,T_Cond p t1 t2 =>
             c <- fresh_variable ;;
-            let τ := 𝒯  (T_Cond p t1 t2) t_env in
-            p_tr <- translate_fsl tr_pred f bindings t_env e p ;;
-            t1_tr <- translate_fsl tr_term f bindings t_env p_tr.(tr).(tenv gmp_statement) t1  ;; 
+            let τ := get_ty  (T_Cond p t1 t2) (snd g) in
+            p_tr <- translate_fsl tr_pred f g e p ;;
+            t1_tr <- translate_fsl tr_term f g p_tr.(tr).(tenv gmp_statement) t1  ;; 
             let t1_code := t1_tr.(tr).(chunk gmp_statement) in
             let t1_res := C_Id (fst t1_tr.(res)) (snd t1_tr.(res))  in
-            t2_tr <- translate_fsl tr_term f bindings t_env t1_tr.(tr).(tenv gmp_statement) t2  ;;;
+            t2_tr <- translate_fsl tr_term f g t1_tr.(tr).(tenv gmp_statement) t2  ;;;
             let t2_code := t2_tr.(tr).(chunk gmp_statement) in
             let t2_res := C_Id (fst t2_tr.(res)) (snd t2_tr.(res)) in
             let p_code  := p_tr.(tr).(chunk gmp_statement) in 
@@ -406,13 +421,13 @@ Module Translation (Oracle : Oracle).
                 }> in
             mkSTR gmp_statement (mkTR gmp_statement code t2_tr.(tr).(tenv gmp_statement) nil) decl  (c,C_Int)
 
-    | tr_term , _, _ , _ , _ , T_Call fname args with Logic.inspect (StringMap.find fname f.(lfuns)) =>  
+    | tr_term , _, _ , _ , T_Call fname args with Logic.inspect (StringMap.find fname f.(lfuns)) =>  
         {
-            | None eqn:_ => TM.error
+            | None ins:_ => False_rect _ _
 
-            | Some (params,_) eqn:HInlfuns =>
+            | Some (params,_) ins:HInlfuns =>
 
-                let rtype :=  𝒯 (T_Call fname args) t_env in 
+                let rtype :=  get_ty (T_Call fname args) (snd g) in 
                 
                 (* value returned by the function call *)
                 c <- fresh_variable ;;
@@ -436,7 +451,7 @@ Module Translation (Oracle : Oracle).
 
 
                     (* translate the argument *)
-                    t_tr <- translate_fsl tr_term f bindings t_env curr_tr.(tenv) (proj1_sig arg) ;;
+                    t_tr <- translate_fsl tr_term f g curr_tr.(tenv) (proj1_sig arg) ;;
 
                     let new_tr := curr_tr 
                         <| tenv := t_tr.(tr).(tenv) |> (* pass the updated env *)
@@ -446,7 +461,7 @@ Module Translation (Oracle : Oracle).
 
                     (* building the fresh binding env for parameters *)
                     v <- fresh_variable ;;;
-                    let interval := 𝓘 (proj1_sig arg) t_env  in
+                    let interval := oracle (proj1_sig arg) (snd g)  in
 
                     (* collect and append  *)
                     ( 
@@ -466,14 +481,14 @@ Module Translation (Oracle : Oracle).
                 let last_env := f_tr.(tenv) in 
 
                 (* get specialized function name, env and globals  *)
-                gf <- match GlobalDef.find (fname,t_env) e with
+                gf <- match GlobalDef.find (fname,(snd g)) e with
                 (* function already exists for current binders, no generation required, 
                     env is the same as the current one 
                     no new globals 
                 *)
                 | Some name => TM.ret (name,e,[]) 
                 | None => (* no function specialized for those binders, generate a new one *)
-                    new_f <- translate_fsl f_gen f binds t_env last_env fname ;;;
+                    new_f <- translate_fsl f_gen f (binds,(snd g)) last_env fname ;;;
                     (* one new global : the function declaration itself *)
                     (new_f.(chunk), new_f.(tenv), new_f.(glob))
                 end ;;
@@ -487,12 +502,12 @@ Module Translation (Oracle : Oracle).
                 let res := (c,C_Int) (*fixme : what type is c ? *) in 
 
                 (* create calling code *)
-                code  <- match rtype with
-                    | C_Int => TM.ret (FCall c gf_name params_id)
-                    | T_Ext (Mpz) => 
+                code <- match Logic.inspect rtype  with
+                    | C_Int ins:_ => TM.ret (FCall c gf_name params_id)
+                    | T_Ext (Mpz) ins:_ => 
                         let firstparam := C_Id (fst res) (snd res) in 
                         TM.ret (PCall gf_name (firstparam :: params_id))
-                    | _ => TM.error
+                    | _ ins:Hty => let _ := Hty in False_rect _ _
                 end ;;;
                 
                 mkSTR gmp_statement (mkTR _ code gf_env globs) decls res
@@ -501,20 +516,19 @@ Module Translation (Oracle : Oracle).
 
     (* function generation *)
                 
-    | f_gen, _,_,_,_,fname with Logic.inspect (StringMap.find fname f.(lfuns)) =>
+    | f_gen, _,_,_,fname with Logic.inspect (StringMap.find fname f.(lfuns)) =>
         {
-            | None eqn:_ => TM.error
-
-            | Some (params,b) eqn:HInlfuns => 
-            (* get the return type *)
-                let rtype := 𝒯 b t_env in
+            | None ins:_ =>  False_rect _ _
+            | Some (params,b) ins:HInlfuns => 
+                (* get the return type *)
+                let rtype := get_ty b (snd g) in
 
                 (* generate a fresh name for the new function *)
                 fres <- fresh_fname fname;;
 
                 (* process body *)
 
-                tr_b <- translate_fsl tr_term f bindings t_env e b ;;
+                tr_b <- translate_fsl tr_term f g e b ;;
 
                 (* global declarations generated by the body , appended before function declaration  *)
                 let globals := tr_b.(tr).(glob) in
@@ -523,71 +537,85 @@ Module Translation (Oracle : Oracle).
                     indexed by the original name of the function and what binders interval Γᵢ it is for ;
                     returns the unique generated function id for those binders
                 *)
-                let upd_binding := GlobalDef.add (fname,t_env) fres in
+                let upd_binding := GlobalDef.add (fname,(snd g)) fres in
 
                 let new_env := upd_binding tr_b.(tr).(tenv) in        
 
                 (* in case the result is too big to fit in a machine integer *)
                 let retvar := "_ret" in
 
-            (*  build the signature of the function *)
-            signature <- (
-                (* figure out the type and id of parameters *)
-                params <- TMOps.map (fun p => 
-                    i <- match StringMap.find p t_env with
-                        | Some i => TM.ret i 
-                        | None => TM.error
-                        end ;;
-                    (* get the corresponding id *)
-                    v <- match StringMap.find p bindings with 
-                        | Some (v,_) => TM.ret v  
-                        | None => TM.error
-                        end 
-                    ;;;
-                    C_Decl (ϴ i) v
-                ) params ;; 
+                 (*  build the signature of the function *)
+                signature <- (
+                    (* figure out the type and id of parameters *)
+                    params <- TMOps.map (fun p => 
+                        i <- match Logic.inspect (StringMap.find p (snd g)) with
+                            | Some i ins:_ => TM.ret i 
+                            | None ins:Hty => let _ := Hty in False_rect _ _
+                            end ;;
+                        (* get the corresponding id *)
+                        v <- match Logic.inspect (StringMap.find p (fst g)) with 
+                            | Some (v,_) ins:_ => TM.ret v  
+                            | None ins:Hty => let _ := Hty in False_rect _ _
+                            end 
+                        ;;;
+                        C_Decl (ϴ i) v
+                    ) params ;; 
 
-                match rtype with
-                | C_Int => 
-                    TM.ret (PFun C_Int fres params)
-                | T_Ext Mpz  => 
-                    (* if rtype is mpz, pass function result using first argument *)
-                    TM.ret (PFun Void fres ((C_Decl (T_Ext Mpz) retvar)::params))
-                | _ => TM.error
-                end 
-            ) ;;
-            
-            (* build the body *)
-            (* reprocess body with original ψ + new f entry *)
-            tr_b <- translate_fsl tr_term f bindings t_env (upd_binding e) b;;;
+                    match Logic.inspect rtype with
+                    | C_Int ins:_ => 
+                        TM.ret (PFun C_Int fres params)
+                    | T_Ext Mpz ins:_ => 
+                        (* if rtype is mpz, pass function result using first argument *)
+                        TM.ret (PFun Void fres ((C_Decl (T_Ext Mpz) retvar)::params))
+                    | _ ins:Hty => let _ := Hty in False_rect _ _
+                    end 
+                ) ;;
+                
+                (* build the body *)
+                (* reprocess body with original ψ + new f entry *)
+                tr_b <- translate_fsl tr_term f g (upd_binding e) b;;;
 
-            let '(body_res_id,body_res_ty) as bres := tr_b.(res) in 
-            (* body epilogue *)
-            let bdecls := DECLS [bres] in
-            let inits := INITS [bres] in 
+                let '(body_res_id,body_res_ty) as bres := tr_b.(res) in 
+                (* body epilogue *)
+                let bdecls := DECLS [bres] in
+                let inits := INITS [bres] in 
 
-            let code := tr_b.(tr).(chunk) in
-            
-            let rv := (C_Id body_res_id body_res_ty) in
-            let cl := CLEARS [bres] in
-            (* body prologue *)
-            let ret_and_cleanup := match rtype with
-            | C_Int =>  <{ cl ; return rv}>
-            | T_Ext Mpz => 
-                let setret : gmp_statement := Set_z retvar body_res_id
-                in <{ setret ;  cl }>
-            | _ => Skip end 
-            in
-            let body := <{ inits ; code ; ret_and_cleanup }> in 
-            let gen_f := signature bdecls body in
-            mkTR _ fres new_env (globals++[gen_f]) (* function declarations is put with the other globals *)
+                let code := tr_b.(tr).(chunk) in
+                
+                let rv := (C_Id body_res_id body_res_ty) in
+                let cl := CLEARS [bres] in
+                (* body prologue *)
+                let ret_and_cleanup := match rtype with
+                | C_Int =>  <{ cl ; return rv}>
+                | T_Ext Mpz => 
+                    let setret : gmp_statement := Set_z retvar body_res_id
+                    in <{ setret ;  cl }>
+                | _ => Skip end 
+                in
+                let body := <{ inits ; code ; ret_and_cleanup }> in 
+                let gen_f := signature bdecls body in
+                mkTR _ fres new_env (globals++[gen_f]) (* function declarations is put with the other globals *)
         }   
     .
     
     - constructor. apply fixme.
+    - now apply fixme2 in e1.
+    - now apply  fixme3 in e0.
     - constructor. apply fixme.
-    - constructor.  apply fixme.
+    - destruct get_ty eqn:Hget; try discriminate.  unfold get_ty in Hget. 
+        pose proof (ϴ_int_or_mpz (oracle (T_Call fname args) (snd g))) as [H|H]; congruence.
+    - destruct get_ty eqn:Hget; try discriminate. destruct t; try discriminate.
+        pose proof (ϴ_int_or_mpz (oracle (T_Call fname args) (snd g))) as [H|H]; subst;  unfold get_ty in Hget; congruence.
+    - now apply fixme2 in e0.
     - constructor. apply fixme.
+    - now apply fixme3 in e0.
+    - now apply fixme3 in e0.
+    - destruct get_ty eqn:Hget; try discriminate. unfold get_ty in Hget. 
+        pose proof (ϴ_int_or_mpz (oracle b (snd g))) as [H|H]; congruence.
+    - destruct get_ty eqn:Hget; try discriminate. destruct t; try discriminate.
+        pose proof (ϴ_int_or_mpz (oracle b (snd g))) as [H|H]; subst;  unfold get_ty in Hget; congruence.
+    - constructor. apply fixme.
+    - now apply  fixme2 in e0.
     Qed.
 
     (* Solve Obligations with 
@@ -597,172 +625,112 @@ Module Translation (Oracle : Oracle).
 
     Definition translate_term := translate_fsl tr_term.
     Definition translate_pred := translate_fsl tr_pred.
+    Definition generate_function := translate_fsl f_gen.
 
-    
-    Definition c_decl_to_gmp_decl (d:@_c_decl Empty_set) : gmp_decl := 
-        let '(C_Decl t id) := d in C_Decl (c_t_to_gmp_t t) id
+
+    (* translation of statements *)
+    Equations translate_statement (f:fsl_prog_fenv) (g:Γ) (env: ψ) (s : fsl_statement) : @TM.t (@translation_result gmp_statement) := 
+    | _,_,_, S_Ext (LAssert p)  =>
+        p_tr <- translate_fsl tr_pred f g env p;;;
+        let d := DECLS p_tr.(decls) in
+        let i := INITS p_tr.(decls) in
+        let c := p_tr.(tr).(chunk gmp_statement) in
+        let res := C_Id (fst p_tr.(res)) (snd p_tr.(res)) in
+        let asrt := PAssert res in
+        let clr := CLEARS p_tr.(decls) in 
+        p_tr.(tr) 
+            <| chunk := (GMP_Scope d <{i ;c ; asrt ; clr }> : gmp_statement) |> 
+            (* Before, we propagated declarations global declarations
+                because the syntax forbids declarations to be put in a statement.
+                It was a hack that required a different treatement inside translate_program might not have been correct.
+                Now, with GMP_Scope added to the gmp syntax, this is not necessary.
+
+                <| glob ::= fun l => l ++ (map GDecl d) |>
+            *)            
+        
+    | _,_,_, FCall x name args => 
+        let args := map c_exp_to_gmp_exp args in 
+        TM.ret (mkTR gmp_statement (FCall x name args) env nil)
+
+
+    | _,_,_, Seq s1 s2  => 
+        s1_tr <- translate_statement f g env s1 ;;
+        s2_tr <- translate_statement f g s1_tr.(tenv) s2 ;;;
+        s2_tr <| chunk := Seq s1_tr.(chunk) s2_tr.(chunk) |> <| glob ::= app s1_tr.(glob) |>
+
+    | _,_,_, If e s1 s2 => 
+        let e := c_exp_to_gmp_exp e in 
+        s1_tr <- translate_statement f g env s1 ;;
+        s2_tr <- translate_statement f g s1_tr.(tenv) s2 ;;;
+        s2_tr <| chunk := If e s1_tr.(chunk) s2_tr.(chunk) |> <| glob ::= app s1_tr.(glob) |>
+
+    | _,_,_, While e b =>  
+        let e := c_exp_to_gmp_exp e in 
+        tr <- translate_statement f g env b ;;; 
+        tr <| chunk := (While e tr.(chunk)) |>
+
+    | _,_,_, (Assign var e) => TM.ret (mkTR gmp_statement (Assign var (c_exp_to_gmp_exp e)) env nil)
+
+    | _,_,_, PAssert e => 
+        let e := c_exp_to_gmp_exp e in 
+        TM.ret (mkTR gmp_statement (PAssert e) env nil)
+    | _,_,_, Return e => 
+        let e := c_exp_to_gmp_exp e in 
+        TM.ret (mkTR gmp_statement (Return e) env nil)
+    | _,_,_, PCall name args => let args := map c_exp_to_gmp_exp args in TM.ret (mkTR gmp_statement (PCall name args) env nil)
+    | _,_,_, Skip => TM.ret (mkTR gmp_statement Skip env nil)
     .
 
-    Set Printing Implicit.
-    (* translation of statements *)
-    Fixpoint translate_statement (f:fenv) (bindings : Γᵥ) (t_env:Γᵢ) (env: ψ) (s : fsl_statement) : @TM.t (@translation_result gmp_statement) := 
-        match s with
-        | S_Ext (LAssert p)  => 
-            p_tr <- translate_fsl tr_pred f bindings t_env env p;;;
-            let d := DECLS p_tr.(decls) in
-            let i := INITS p_tr.(decls) in
-            let c := p_tr.(tr).(chunk gmp_statement) in
-            let res := C_Id (fst p_tr.(res)) (snd p_tr.(res)) in
-            let asrt := PAssert res in
-            let clr := CLEARS p_tr.(decls) in 
-            p_tr.(tr) 
-                <| chunk := (GMP_Scope d <{i ;c ; asrt ; clr }> : gmp_statement) |> 
-                (* Before, we propagated declarations global declarations
-                    because the syntax forbids declarations to be put in a statement.
-                    It was a hack that required a different treatement inside translate_program might not have been correct.
-                    Now, with GMP_Scope added to the gmp syntax, this is not necessary.
 
-                    <| glob ::= fun l => l ++ (map GDecl d) |>
-                *)            
-        
-        | FCall x f args => 
-            let args := map c_exp_to_gmp_exp args in 
-            TM.ret (mkTR gmp_statement (FCall x f args) env nil)
-
-
-        | Seq s1 s2  => 
-            s1_tr <- translate_statement f bindings t_env env s1 ;;
-            s2_tr <- translate_statement f bindings t_env s1_tr.(tenv) s2 ;;;
-            s2_tr <| chunk := Seq s1_tr.(chunk) s2_tr.(chunk) |> <| glob ::= app s1_tr.(glob) |>
-
-        | If e s1 s2 => 
-            let e := c_exp_to_gmp_exp e in 
-            s1_tr <- translate_statement f bindings t_env env s1 ;;
-            s2_tr <- translate_statement f bindings t_env s1_tr.(tenv) s2 ;;;
-            s2_tr <| chunk := If e s1_tr.(chunk) s2_tr.(chunk) |> <| glob ::= app s1_tr.(glob) |>
-
-        | While e b =>  
-            let e := c_exp_to_gmp_exp e in 
-            tr <- translate_statement f bindings t_env env b ;;; 
-            tr <| chunk := (While e tr.(chunk)) |>
-
-        | Assign id e => TM.ret (mkTR gmp_statement (Assign id (c_exp_to_gmp_exp e)) env nil)
-
-        | PAssert e => 
-            let e := c_exp_to_gmp_exp e in 
-            TM.ret (mkTR gmp_statement (PAssert e) env nil)
-        | Return e => 
-            let e := c_exp_to_gmp_exp e in 
-            TM.ret (mkTR gmp_statement (Return e) env nil)
-        | PCall id args => let args := map c_exp_to_gmp_exp args in TM.ret (mkTR gmp_statement (PCall id args) env nil)
-        | Skip => TM.ret (mkTR gmp_statement Skip env nil)
-    end.
-
-
-    Definition build_fenv (routines: list fsl_routine) : @fenv _fsl_statement Empty_set := 
-        let extract_c_args : _c_decl* -> 𝓥* := List.map (fun d => let 'C_Decl _ x := d in x) in
-        let extract_fsl_args : fsl_decl*-> 𝓥* := List.map (fun d => let 'FSL_Decl _ x := d in x) in
-        List.fold_left (fun fenv r => 
-        match r with 
-        | PFun rtype name args _ body => 
-            match rtype with 
-            | Void => 
-                (* procedure *)
-                {|  funs := fenv.(funs); 
-                    procs := StringMap.add name (extract_c_args args,body) fenv.(procs); 
-                    lfuns := fenv.(lfuns); 
-                    preds := fenv.(preds)
-                |}
-            | C_Int =>  
-                (* function *)
-                {|  funs := StringMap.add name (extract_c_args args,body) fenv.(funs); 
-                    procs := fenv.(procs); 
-                    lfuns := fenv.(lfuns); 
-                    preds := fenv.(preds)
-                |}
-            | T_Ext _ => 
-                (* PFun can't have T_Ext rtype *)
-                fenv
-            end
-        | F_Ext (LFun rtype name args body) => 
-            (* logic function *)
-            {|  funs := fenv.(funs); 
-                procs := fenv.(procs); 
-                lfuns := StringMap.add name (extract_fsl_args args,body) (fenv.(lfuns) : StringMap.t (𝓥 * ⨉ ℨ)); 
-                preds := fenv.(preds)
-            |}
-
-        | F_Ext (Predicate name args body) => 
-            (* predicate *)
-            {|
-                funs := fenv.(funs); 
-                procs := fenv.(procs); 
-                lfuns := fenv.(lfuns); 
-                preds := StringMap.add name (extract_fsl_args args,body) fenv.(preds)
-            |}
-        end
-        ) routines {|funs := StringMap.empty ; 
-                    procs := StringMap.empty ; 
-                    lfuns := StringMap.empty; 
-                    preds := StringMap.empty|}
-        .
-
-    Definition translate_program (p: fsl_pgrm) : option rac_pgrm := 
-
-        let '(decls,routines) := p in  
+    Equations translate_program : fsl_pgrm -> rac_pgrm := 
+    | (decls,routines) =>
 
         (* gather all routines definitions in fenv *)
-        let fenv := build_fenv routines in 
+        let fenv := build_fsl_fenv routines in 
 
         (* perform the static analysis *)
-        let t_env := Oracle.get_Γᵢ p in
+        let t_env := Oracle.get_Γᵢ (decls,routines) in
 
-        (* begin by converting c decls to gmp_decls *)
+
+        (* generate from left to right the globals and function definitions *)
+        let res := TMOps.fold (aux fenv t_env) routines ([], [], GlobalDef.empty)
+        in
+        let '((gen_f,tr_f),_) := TM.exec res in
+        (*  convert c decls to gmp_decls *)
         let gmp_decls := map c_decl_to_gmp_decl decls in
+        (gmp_decls,gen_f++tr_f) (* first the generated functions and then the translated ones *)
+    
+    where 
+    aux (fenv : fsl_prog_fenv) (t_env : Γᵢ) (done : (gmp_routine* ⨉ gmp_routine* ⨉ ψ)%type) : fsl_routine -> @TM.t (gmp_routine* ⨉ gmp_routine* ⨉ ψ) := 
+    | _,_,_, PFun rtype name args pdecls body =>
+
+        let '(gen_f,tr_f, env) := done in 
 
         (* for each new function, reset binders  *)
         let empty_bindings := StringMap.empty in
 
-        (* generate from left to right the globals and function definitions *)
-        let res := List.fold_left (
-            fun (done : @TM.t ((gmp_routine* ⨉ gmp_routine*) ⨉ ψ)%type) (doing:fsl_routine)  => 
-                (* get the generated functions, translated functions and last ψ computed so far *)
-                done_res <- done ;;
+        (* arguments and declarations are untouched *)
+        let args := map c_decl_to_gmp_decl args in 
+        let pdecls := map c_decl_to_gmp_decl pdecls in 
 
-                let '(gen_f,tr_f, env) := done_res in 
+        (* translate the body of the function, passing to it the last ψ *)
+        body_tr <- translate_statement fenv (empty_bindings,t_env) env body ;;; 
+        
+        let tr_res := mkTR gmp_routine 
+            (PFun (c_t_to_gmp_t rtype) name args pdecls body_tr.(chunk))  
+            body_tr.(tenv) 
+            body_tr.(glob) in
 
-                match doing with 
-                | PFun rtype name args decls body =>
-                    (* arguments and declarations are untouched *)
-                    let args := map c_decl_to_gmp_decl args in 
-                    let decls := map c_decl_to_gmp_decl decls in 
+        (* append to the end of the other functions the newly translated one *)
+        let tr_f := tr_f++[tr_res.(chunk)] in  
+        
+        (* append the newly generated functions associated to the end of the others *)
+        let gen_f := gen_f++tr_res.(glob) in
 
-                    (* translate the body of the function, passing to it the last ψ *)
-                    body_tr <- translate_statement fenv empty_bindings t_env env body ;;; 
-                    
-                    let tr_res := mkTR gmp_routine 
-                        (PFun (c_t_to_gmp_t rtype) name args decls body_tr.(chunk))  
-                        body_tr.(tenv) 
-                        body_tr.(glob) in
+        (gen_f,tr_f, tr_res.(tenv))
+    | _,_,_, _ => 
+        (* entry point is c functions only *)
+        TM.ret done
+.
 
-                    (* append to the end of the other functions the newly translated one *)
-                    let tr_f := tr_f++[tr_res.(chunk)] in  
-                    
-                    (* append the newly generated functions associated to the end of the others *)
-                    let gen_f := gen_f++tr_res.(glob) in
-
-                    (gen_f,tr_f, tr_res.(tenv))
-
-                | _ => 
-                    (* entry point is c functions only *)
-                    TM.ret done_res
-                end
-                
-        ) routines (TM.ret ([], [], GlobalDef.empty))
-        in
-        option_map (fun res =>
-            let '(gen_f,tr_f) := fst  res (* discard generation_env *) in 
-            (gmp_decls,gen_f++tr_f) (* first the generated functions and then the translated ones *)
-        ) (TM.exec res) 
-    .
 End Translation.

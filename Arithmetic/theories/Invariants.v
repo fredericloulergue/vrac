@@ -7,6 +7,7 @@ From RAC.Languages Require Import Syntax Semantics.
 #[local] Open Scope Z_scope.
 #[local] Open Scope list_scope.
 #[local] Open Scope utils_scope.
+#[local] Open Scope domain_scope.
 
 
 Module Invariants(O: Oracle).    
@@ -24,7 +25,7 @@ Module Invariants(O: Oracle).
 
 
 
-    Definition Γdom (g:Γ) := ( dom (fun k => StringMap.find k (fst g))  + dom (fun k => StringMap.find k (snd g)))%utils.
+    Definition Γdom (g:Γ) := dom (fun k => StringMap.find k (fst g)) + dom (fun k => StringMap.find k (snd g)).
     
     (* synchronicity invariant *)
     Definition I1 (env:Ω) (ienv:Γ) := 
@@ -38,7 +39,7 @@ Module Invariants(O: Oracle).
 
 
     (* ϕ is suitable to represent f in Γ  *)
-    Inductive suitable (fenv: @fenv _fsl_statement Empty_set) (tenv : Γ) (ϕ f:id) : Prop := 
+    Inductive suitable (fenv: fsl_prog_fenv) (tenv : Γ) (ϕ f:id) : Prop := 
     | Suite_L (z:Z) :
         forall vargs b zargs iargs xargs,
         
@@ -47,7 +48,7 @@ Module Invariants(O: Oracle).
         List.length zargs = List.length iargs ->
         List.Forall2 (fun v zi => in_interval (snd tenv) v (fst zi) (snd zi)) vargs (List.combine zargs iargs) ->
 
-        match  𝒯 b (snd tenv) with
+        match  get_ty b (snd tenv) with
         | C_Int =>
             forall s envᶠ irz,
             StringMap.find ϕ fenv.(funs) = Some (xargs,s) ->

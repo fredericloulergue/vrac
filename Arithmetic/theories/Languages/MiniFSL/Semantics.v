@@ -10,7 +10,7 @@ Import RecordSetNotations FunctionalEnv.
 #[local] Open Scope Z_scope.
 
 
-Inductive fsl_term_sem (f: @fenv _fsl_statement Empty_set) (ev:Env) : ℨ -> Z -> Prop :=
+Inductive fsl_term_sem (f: fsl_prog_fenv) (ev:Env) : ℨ -> Z -> Prop :=
     | S_T_Int z : fsl_term_sem f ev (T_Z z) z 
     
     | S_T_LVar x z : ev.(binds) x = Some z -> fsl_term_sem f ev (T_Id x FSL_Integer) z
@@ -41,7 +41,7 @@ Inductive fsl_term_sem (f: @fenv _fsl_statement Empty_set) (ev:Env) : ℨ -> Z -
         fsl_term_sem f ev (T_Call fname targs) z 
 
 
-with fsl_pred_sem (f: @fenv _fsl_statement Empty_set) (ev:Env) :  𝔅 -> 𝔹 -> Prop :=
+with fsl_pred_sem (f: fsl_prog_fenv) (ev:Env) :  𝔅 -> 𝔹 -> Prop :=
     | S_P_True : fsl_pred_sem f ev P_True BTrue
     | S_P_False : fsl_pred_sem f ev P_False BFalse
 
@@ -115,6 +115,7 @@ Delimit Scope fsl_sem_scope with fslsem.
 Notation "ev |= s => ev'"  := (fun f => fsl_stmt_sem f ev s ev') : fsl_sem_scope.
 
 
-Definition fsl_pgrm_sem := @generic_pgrm_sem _fsl_routine _fsl_statement Empty_set (fun _ => Void) Empty_exp_sem _fsl_assert_sem _fsl_stmt_vars. 
+Definition fsl_pgrm_sem := 
+    @generic_pgrm_sem _fsl_routine _fsl_statement Empty_set (fun _ => Void) Empty_exp_sem _fsl_assert_sem _fsl_stmt_vars build_fsl_fenv. 
 
 

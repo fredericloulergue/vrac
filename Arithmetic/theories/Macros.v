@@ -28,7 +28,7 @@ Definition int_ASSGN v (e: gmp_exp) : gmp_statement := match ty e with
                     | _ => Skip (* cannot happen *)
                     end
     
-    | C_Int =>  <{ v = e }>
+    | C_Int =>  <{(Assign v e)}>
     | _ => Skip
 end.
 
@@ -39,7 +39,7 @@ Definition τ_ASSGN (t:gmp_t) := match t with
     end.
 
 Definition Z_ASSGN (τz:gmp_t) v (z:Z) : gmp_statement := match τz with
-    | C_Int => <{ v = z }>
+    | C_Int => <{(Assign v z )}>
     | T_Ext Mpz => <( set_s(v, (BinaryString.of_Z z) ) )>
     | _ => Skip (* cannot happen  *)
 end.
@@ -50,9 +50,9 @@ end.
 Definition CMP c (e₁ e₂ : gmp_exp) v₁ v₂ : gmp_statement := match ty e₁, ty e₂ with
     |  C_Int,C_Int => 
         <{ 
-            if (e₁ < e₂) c = 0-1
-            else if (e₁ > e₂) c = 1
-            else c = 0
+            if (e₁ < e₂) (Assign c (-1))
+            else if (e₁ > e₂) (Assign c 1)
+            else (Assign c 0)
         }>
     | _,_ => 
         let a1 := mpz_ASSGN v₁ e₁ in 
@@ -66,7 +66,7 @@ end
 Definition binop_ASSGN (fsl_op:fsl_binop_int) (v:𝓥 ⨉ gmp_t) e₁ e₂ (r:id) v₁ v₂ : gmp_statement := 
     let (c,τ) := v in
     match τ,(ty e₁),(ty e₂) with
-    | C_Int,C_Int,C_Int =>  let res := BinOpInt e₁ (□ fsl_op) e₂ in <{ c = res }>
+    | C_Int,C_Int,C_Int =>  let res := BinOpInt e₁ (□ fsl_op) e₂ in <{ (Assign c res) }>
     | _,_,_ => 
         let s1 :=  mpz_ASSGN v₁ e₁ in
         let s2 :=  mpz_ASSGN v₂ e₂ in
@@ -296,7 +296,7 @@ Proof with try easy ; auto with rac_hint ; unshelve eauto using Z.ltb_irrefl,Z.g
                 ++ now apply ty_int_gmp_c_exp_equiv.
                 ++ now apply ty_int_gmp_c_exp_equiv.
                 ++ apply Z.ltb_lt. apply cmp.
-            + inversion inf'. constructor...  apply (C_E_BinOpInt ev 0 1 0 1) with zeroinRange oneinRange...
+            + inversion inf'. constructor...
 
         (* z1 = z2 *)
         * assert (cmp := eq'). rewrite <- eq in eq'. clear eq inf sup. subst.

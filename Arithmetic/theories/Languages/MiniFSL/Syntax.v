@@ -40,6 +40,9 @@ with fsl_term :=
     | T_Call (name:string) (args:fsl_term*) (* logic function call *)
 .
 
+Scheme predicate_mut := Induction for predicate Sort Prop 
+with term_mut := Induction for fsl_term Sort Prop.
+
 Notation 𝔅 := predicate. (* predicates *)
 Notation ℨ := fsl_term. (* logical terms *)
 

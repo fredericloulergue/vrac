@@ -1,4 +1,5 @@
 From Coq Require Import Strings.String ZArith.ZArith Setoids.Setoid Eqdep_dec Logic.FinFun MSets MSetList. 
+From Equations Require Import Equations.
 From MMaps Require Import MMaps.
 From RAC Require Export Notations.
 
@@ -130,36 +131,42 @@ Proof.
 Qed.
 
 
-    Module Domain.
+Module Domain.
+    Declare Scope domain_scope.
+    Delimit Scope domain_scope with dom_.
+
+    #[local] Open Scope domain_scope.
 
     Definition in_domain { X Y : Type} (f: X ⇀ Y) (x:X) := exists y, f x = Some y.
-    Notation "x ∈ E" := (in_domain E x) (at level 99) : utils_scope.
-    Notation "'dom' f" := (in_domain f) : utils_scope.
     #[global] Hint Unfold in_domain : rac_hint.
 
     Definition not_in_domain { X Y : Type} (f: X ⇀ Y) (x:X) := f x = None.
-    Notation "x ∉ E" := (not_in_domain E x) (at level 99) : utils_scope.
 
     Definition in_codomain { X Y : Type} (f: X ⇀ Y) (y:Y) := exists x, f x = Some y.
     Definition not_in_codomain { X Y : Type} (f: X ⇀ Y) (y:Y) := forall x, f x <> Some y.
 
-
     Definition domain_incl_prop { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) := forall (x:X), (dom1 x -> dom2 x).
-    Infix "⊂" := domain_incl_prop (at level 99) : utils_scope.
     #[global] Hint Unfold domain_incl_prop : rac_hint.
 
-    Definition eq_domain_prop { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) := (dom1 ⊂ dom2) /\ (dom2 ⊂ dom1).
-    Infix "=" := eq_domain_prop : utils_scope.
+    Definition eq_domain_prop { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) := (domain_incl_prop dom1 dom2) /\ (domain_incl_prop dom2 dom1).
     #[global] Hint Unfold eq_domain_prop : rac_hint.
 
 
     Definition sub_domain_prop { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) (x:X) := dom1 x /\ ~ dom2 x.
-    Infix "-" := sub_domain_prop : utils_scope.
     #[global] Hint Unfold sub_domain_prop : rac_hint.
 
     Definition add_domain { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) (x:X) := dom1 x \/ dom2 x.
-    Infix "+" := add_domain : utils_scope.
     #[global] Hint Unfold add_domain : rac_hint.
+
+
+    Infix "+" := add_domain : domain_scope.
+    Infix "-" := sub_domain_prop : domain_scope.
+    Infix "=" := eq_domain_prop : domain_scope.
+    Infix "⊂" := domain_incl_prop (at level 99) : domain_scope.
+    Notation "x ∉ E" := (not_in_domain E x) (at level 99) : domain_scope.
+    Notation "'dom' f" := (in_domain f) : domain_scope.
+    Notation "x ∈ E" := (in_domain E x) (at level 99) : domain_scope.
+
 
     Fact not_in_equiv { X Y : Type} (f: X ⇀ Y) (x:X) : (x ∉ f) <-> ~(x ∈ f).
     Proof. 
@@ -201,7 +208,8 @@ Qed.
         intros f contra. inversion contra. inversion H. destruct H1. assumption.
     Qed.
 
-  End Domain.
+
+End Domain.
 
 
 End FunctionalEnv.
@@ -319,15 +327,20 @@ End MonadNotations.
 
 
 Module MonadOps(M : Monad).
-    Fixpoint map {A B: Type} (f: A -> M.t B) (l: list A) : M.t (list B) := match l with
-    | nil => M.ret _ nil
-    | hd::tl => M.bind _ _ (f hd) (fun x => 
+    Equations map {A B: Type} (f: A -> M.t B) (l: list A) : M.t (list B) := 
+    | _,nil => M.ret _ nil
+    | _,hd::tl => M.bind _ _ (f hd) (fun x => 
         M.bind _ _ (map f tl) (fun l =>
             M.ret _ (x::l)
         )
     )
-    end.
+    .
 
+
+    Equations fold {A B : Type} (f: B -> A -> M.t B) (l: list A) (e: B) : M.t B :=
+    | _,nil,_ => M.ret _ e
+    | _,hd::tl,_ => M.bind _ _ (fold f tl e) (fun res => f res hd)
+    .
 End MonadOps.
 
 
@@ -347,11 +360,28 @@ Module TranslationMonad <: Monad . (* option + state *)
 
     Definition tick : t := fun c => (Some tt, S c).
     Definition getTick : t := fun c => (Some c, c).
-    Definition fresh := bind getTick (fun n : nat => bind tick (fun _ : unit => ret n)).
-    Definition exec {A:Type} (m: t (T:=A)) := fst (m 0).
+    Definition fresh : t := bind getTick (fun n : nat => bind tick (fun _ : unit => ret n)).
+    Definition exec {A:Type} (m: t (T:=A)) : option A := fst (m 0).
     Definition error {A : Type} : t (T:=A) := fun c => (None, c).
 
 End TranslationMonad.
+
+
+Module TranslationMonadNoError <: Monad . (*  state *)
+    Definition t {T : Type} : Type :=  nat -> T  ⨉ nat.
+
+
+    Definition ret {A : Type} (a : A) : t (T:=A) := fun c =>  (a, c).
+
+    Definition bind {A B : Type} (m : t (T:=A)) (f : A -> t (T:=B)) : t (T:=B) :=
+        fun c =>  let (a, c') := m c in f a c'
+    .
+
+    Definition tick : t := fun c => (tt, S c).
+    Definition getTick : t := fun c => (c, c).
+    Definition fresh : t := bind getTick (fun n : nat => bind tick (fun _ : unit => ret n)).
+    Definition exec {A:Type} (m: t (T:=A)) : A := fst (m 0).
+End TranslationMonadNoError.
 
 
 Close Scope utils_scope.

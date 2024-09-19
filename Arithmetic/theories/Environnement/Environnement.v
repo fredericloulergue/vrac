@@ -1,4 +1,5 @@
 From Coq Require Import ZArith.ZArith Strings.String Logic.FinFun Sets.Ensembles Sets.Finite_sets.
+From Equations Require Import Equations.
 From RecordUpdate Require Import RecordUpdate.
 From RAC Require Import Utils.
 From RAC.Languages Require Import Syntax. 
@@ -15,6 +16,66 @@ Record fenv {S T : Set} := mk_fenv {
     lfuns : StringMap.t (𝔏* ⨉ ℨ) ;
     preds : StringMap.t (𝔏* ⨉ 𝔅) ;
 }.
+
+Definition empty_fenv {S T : Set} := (mk_fenv S T  StringMap.empty  StringMap.empty  StringMap.empty  StringMap.empty). 
+
+
+Definition fsl_prog_fenv : Type := @fenv _fsl_statement Datatypes.Empty_set.
+Definition rac_prog_fenv : Type := @fenv _gmp_statement _gmp_t.
+
+#[export] Instance eta_fsl_prog_fenv : Settable fsl_prog_fenv := 
+    settable! mk_fenv _fsl_statement Datatypes.Empty_set <funs ; procs; lfuns; preds>.
+#[export] Instance eta_rac_prog_fenv : Settable rac_prog_fenv := 
+    settable!  mk_fenv _gmp_statement _gmp_t <funs ; procs; lfuns; preds>.
+
+
+Definition build_fsl_fenv (routines: list fsl_routine) : fsl_prog_fenv := 
+
+    List.fold_left (fun fenv r => 
+    match r with 
+    | PFun rtype name args _ body => 
+        match rtype with 
+        | Void => 
+            (* procedure *) 
+            fenv <| procs := StringMap.add name (extract_c_args args,body) fenv.(procs) |>
+        | C_Int =>  
+            (* function *)
+            fenv <| funs := StringMap.add name (extract_c_args args,body) fenv.(funs) |>
+
+        | T_Ext _ => 
+            (* PFun can't have T_Ext rtype *)
+            fenv
+        end
+    | F_Ext (LFun rtype name args body) => 
+        (* logic function *)
+        fenv <| lfuns := StringMap.add name (extract_fsl_args args,body) fenv.(lfuns) |>
+        
+
+    | F_Ext (Predicate name args body) => 
+        (* predicate *)
+        fenv <| preds := StringMap.add name (extract_fsl_args args,body) fenv.(preds) |>
+
+    end
+    ) routines empty_fenv
+.
+
+
+
+Equations build_rac_fenv (routines: list gmp_routine) : rac_prog_fenv := 
+| routines => 
+    List.fold_left aux routines empty_fenv
+
+where aux : rac_prog_fenv -> gmp_routine -> rac_prog_fenv := 
+| fenv,PFun rtype name args decls body  with rtype => 
+    {
+        | C_Int => fenv <| funs ::= StringMap.add name (extract_c_args args,body) |>
+        | C_Void => fenv <| procs ::= StringMap.add name (extract_c_args args,body) |>
+    }
+.
+
+
+
+
 
 Module Int16Bounds.
     Definition m_int := (-32768)%Z.

@@ -7,6 +7,7 @@ Import FunctionalEnv Domain.
 Import RecordSetNotations.
 
 #[local] Open Scope utils_scope.
+#[local] Open Scope domain_scope.
 
 (* σ-equivalence facts *)
 
@@ -96,7 +97,7 @@ Fact strong_reverse_dom_same_env : forall (ev' ev : Env)  (x :𝓥) (v: 𝕍) (s
                     )
                     rev (conj H1 H2)
                 )
-        )%type ->
+        ) ->
     ev x = Some v ->
     (dom ev')%utils x ->
     ev' x = Some (induced rev v)
@@ -123,7 +124,7 @@ Fact strong_reverse_dom_same_mem : forall (ev' ev : Env) (x:location) (v: mpz_va
                     )
                     rev (conj H1 H2)
                 )
-        )%type ->
+        ) ->
     ev.(mstate) x = Some v ->
     (dom ev'.(mstate))%utils (rev x) ->
     ev'.(mstate) (rev x) = Some v

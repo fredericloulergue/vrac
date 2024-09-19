@@ -64,7 +64,8 @@ Definition Forall_routines {F S T } (pgrm : @_c_program F S T)
     - all functions defined before called
     - well typed
 *)
-Definition well_formed_pgrm (P : fsl_pgrm) (env : Env) (fenv: @fenv _fsl_statement Empty_set) := 
+Definition well_formed_pgrm (P : fsl_pgrm) :=
+    forall (env : Env) (fenv: fsl_prog_fenv),
     Forall_routines P ( fun args decls b =>
         (* all used variables are declared *)
         (forall v, StringSet.In v (fsl_stmt_vars b) -> v ∈ env) /\ 
@@ -75,5 +76,5 @@ Definition well_formed_pgrm (P : fsl_pgrm) (env : Env) (fenv: @fenv _fsl_stateme
         
         ) /\
         True (* fixme: well typed ? *)
-    )
+    )%dom_
 .

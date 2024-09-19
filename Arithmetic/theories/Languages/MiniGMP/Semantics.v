@@ -17,7 +17,7 @@ Delimit Scope gmp_stmt_sem_scope with gmpssem.
 Definition declare_gmp_vars := @declare_vars _gmp_t (fun x => T_Ext Mpz).
 
 
-Inductive _gmp_stmt_sem  (f : @fenv _gmp_statement _gmp_t) (ev:Env) : gmp_statement -> Env -> Prop := 
+Inductive _gmp_stmt_sem  (f : rac_prog_fenv) (ev:Env) : gmp_statement -> Env -> Prop := 
     | S_init x (l:location) u:
         (forall v, ev v <> Some (Def (VMpz (Some l)))) ->
         ev x = Some (Undef (UMpz u)) ->
@@ -88,4 +88,5 @@ where "ev |= s => ev'" := (fun f => _gmp_stmt_sem f ev s ev') : ext_gmp_stmt_sem
 Definition gmp_stmt_sem := @generic_stmt_sem _gmp_statement _gmp_t Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars.
 Notation "ev |= s => ev'" := (fun f => gmp_stmt_sem f ev s ev') : gmp_stmt_sem_scope.
 
-Definition gmp_pgrm_sem := @generic_pgrm_sem Empty_set _gmp_statement _gmp_t (fun _ => T_Ext Mpz) Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars.
+Definition gmp_pgrm_sem := 
+    @generic_pgrm_sem Empty_set _gmp_statement _gmp_t (fun _ => T_Ext Mpz) Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars build_rac_fenv.

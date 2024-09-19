@@ -174,8 +174,11 @@ Proof.
 Qed. *)
 
 
+#[local] Open Scope domain_scope.
 Example test_dom : 2 ∉ (fun x => if x>?2 then Some (Z.mul x 2) else None).
 Proof. easy. Qed.
+Close Scope domain_scope.
+
 
 #[local] Open Scope nat.
 
@@ -252,31 +255,34 @@ Module DummyOracle : Oracle.Oracle.
 
     Definition get_Γᵢ : fsl_pgrm -> Γᵢ := fun _ => StringMap.empty.
 
-    Definition 𝓘 : ℨ -> Γᵢ -> 𝐼 := fun _ _ => (-10,10).
+    Definition oracle : ℨ -> Γᵢ -> 𝐼 := fun _ _ => (-10,10).
 
     Definition ϴ : 𝐼 -> 𝔗 := fun _ => Mpz. 
 
-    Definition 𝒯 : ℨ -> Γᵢ -> 𝔗 := fun t τᵢ =>  ϴ (𝓘 t τᵢ).
+    Definition get_ty : ℨ -> Γᵢ -> 𝔗 := fun t τᵢ =>  ϴ (oracle t τᵢ).
 
     Parameter ty_funcall_is_ty_body: 
-    forall S (f : @fenv _fsl_statement S) fname xargs (targs:list ℨ) (iargs:list 𝐼) b, 
+    forall (f : fsl_prog_fenv) fname xargs (targs:list ℨ) (iargs:list 𝐼) b, 
     StringMap.find fname f.(lfuns) = Some (xargs,b) ->
     forall te,
-    List.Forall2 (fun e i => 𝓘 e te = i)%type targs iargs ->
-             𝒯 (T_Call fname targs) te = 𝒯 b (StringMap.add_all xargs iargs StringMap.empty).
+    List.Forall2 (fun e i => oracle e te = i) targs iargs ->
+             get_ty (T_Call fname targs) te = get_ty b (StringMap.add_all xargs iargs StringMap.empty).
 
     Inductive fits (z:Z) : 𝔗 -> Prop := 
     | InInt : Int.inRange z -> fits z C_Int
     | InMpz : fits z (T_Ext Mpz)
     .
 
+    Parameter ϴ_int_or_mpz : forall i, ϴ i = C_Int \/  ϴ i = T_Ext Mpz.
+
+
     Parameter type_soundness : forall env te f t z, 
-    fsl_term_sem f env t z -> fits z (𝒯 t te).
+    fsl_term_sem f env t z -> fits z (get_ty t te).
 
     Parameter convergence_of_lfuns_ty : 
     forall fname (targs:list ℨ) (iargs:list 𝐼), 
     forall (typing_envs : Ensembles.Ensemble Γᵢ)  (fe:Γᵢ), Ensembles.In Γᵢ typing_envs fe ->
-    (exists ty te, 𝒯 (T_Call fname targs) te = ty)%type -> 
+    (exists ty te, get_ty (T_Call fname targs) te = ty) -> 
     Finite_sets.Finite _ typing_envs
     .
 

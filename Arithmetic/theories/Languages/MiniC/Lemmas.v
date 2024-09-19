@@ -8,11 +8,11 @@ Import FunctionalEnv Domain.
 #[local] Open Scope utils_scope.
 
 
-Lemma weakening_of_expression_semantics {T} : 
+Lemma LC1_weakening_of_expression_semantics {T} : 
     forall exp_sem, 
-    (_weakening_of_expression_semantics exp_sem exist_env_mem_partial_order)
+    (_LC1_weakening_of_expression_semantics exp_sem exist_env_mem_partial_order)
     ->
-    _weakening_of_expression_semantics (@generic_exp_sem T exp_sem) exist_env_mem_partial_order
+    _LC1_weakening_of_expression_semantics (@generic_exp_sem T exp_sem) exist_env_mem_partial_order
 .
 Proof with (eauto using refl_env_mem_partial_order with rac_hint).
     split...  intro Hderiv. induction Hderiv; intros...
@@ -20,18 +20,18 @@ Proof with (eauto using refl_env_mem_partial_order with rac_hint).
 Qed.
 
 
-Definition weakening_of_c_expression_semantics {T} := weakening_of_expression_semantics (@Empty_exp_sem T) weakening_of_empty_expression_semantics. 
+Definition weakening_of_c_expression_semantics {T} := LC1_weakening_of_expression_semantics (@Empty_exp_sem T) weakening_of_empty_expression_semantics. 
 
 
 
-Lemma weakening_of_statement_semantics_1 {S T : Set} : 
+Lemma LC21_weakening_of_expression_semantics {S T : Set} : 
     forall exp_sem stmt_sem ext_stmt_vars, 
-    _weakening_of_statement_semantics_1 exp_sem stmt_sem env_mem_partial_order
-    -> _weakening_of_statement_semantics_1 exp_sem (@generic_stmt_sem S T exp_sem stmt_sem ext_stmt_vars) env_mem_partial_order
+    _LC21_weakening_of_expression_semantics exp_sem stmt_sem env_mem_partial_order
+    -> _LC21_weakening_of_expression_semantics exp_sem (@generic_stmt_sem S T exp_sem stmt_sem ext_stmt_vars) env_mem_partial_order
 .
 Proof with eauto using refl_env_mem_partial_order, env_partial_order_add with rac_hint.
     intros exp_sem stmt_sem ext_stmt_vars Hext_stmt Hext_exp f ev₀ s ev₁. 
-    pose proof (weakening_of_expression_semantics exp_sem Hext_exp) as exp_weak.
+    pose proof (LC1_weakening_of_expression_semantics exp_sem Hext_exp) as exp_weak.
     intro Hderiv. induction Hderiv ; intros ev₀' sub Henvmem.
         (* skip *)
         * exists ev₀'. split...
@@ -105,18 +105,18 @@ Proof with eauto using refl_env_mem_partial_order, env_partial_order_add with ra
 Qed.
 
 Definition weakening_of_c_statements_semantics_1 {S T} := 
-    weakening_of_statement_semantics_1 (@Empty_exp_sem T) (@Empty_stmt_sem S T) Empty_ext_stmt_vars (weakening_of_empty_statement_semantics_1 env_mem_partial_order).  
+    LC21_weakening_of_expression_semantics (@Empty_exp_sem T) (@Empty_stmt_sem S T) Empty_ext_stmt_vars (weakening_of_empty_statement_semantics_1 env_mem_partial_order).  
 
-Lemma weakening_of_statement_semantics_2 {S T : Set} : 
+Lemma LC22_weakening_of_expression_semantics {S T : Set} : 
     forall exp_sem stmt_sem ext_stmt_vars, 
-    _weakening_of_statement_semantics_2 exp_sem stmt_sem env_mem_partial_order
-    -> _weakening_of_statement_semantics_2 exp_sem (@generic_stmt_sem S T exp_sem stmt_sem ext_stmt_vars) env_mem_partial_order
+    _LC22_weakening_of_expression_semantics exp_sem stmt_sem env_mem_partial_order
+    -> _LC22_weakening_of_expression_semantics exp_sem (@generic_stmt_sem S T exp_sem stmt_sem ext_stmt_vars) env_mem_partial_order
 .
 Proof with auto with rac_hint.
     intros  exp_sem stmt_sem ext_stmt_vars Hext_stmt Hdeter Hext_exp  f ev₀ ev₀' s ev₁ sub [Hderiv1 Hrel]. 
-    pose proof (weakening_of_expression_semantics exp_sem Hext_exp) as exp_weak.
-    unfold _weakening_of_statement_semantics_2 in Hext_stmt. 
-    unfold _weakening_of_expression_semantics in Hext_exp.    
+    pose proof (LC1_weakening_of_expression_semantics exp_sem Hext_exp) as exp_weak.
+    unfold _LC22_weakening_of_expression_semantics in Hext_stmt. 
+    unfold _LC1_weakening_of_expression_semantics in Hext_exp.    
     generalize dependent ev₀'. generalize dependent sub.
     induction Hderiv1 ; intros sub ev₀' Hrel ev₁' Hderiv2 ; inversion Hderiv2 ; subst ; try easy...
 
@@ -157,19 +157,19 @@ Admitted.
 
 
 Definition weakening_of_c_statements_semantics_2 {S T} := 
-    weakening_of_statement_semantics_2 (@Empty_exp_sem T) (@Empty_stmt_sem S T) Empty_ext_stmt_vars 
+    LC22_weakening_of_expression_semantics (@Empty_exp_sem T) (@Empty_stmt_sem S T) Empty_ext_stmt_vars 
     (weakening_of_empty_statement_semantics_2 env_mem_partial_order). 
 
 
-Fact weakening_of_expression_semantics_3 {T : Set} : forall exp_sem, 
-    _weakening_of_expression_semantics_3 exp_sem strong_env_mem_partial_order
-    -> _weakening_of_expression_semantics_3 (@generic_exp_sem T exp_sem) strong_env_mem_partial_order
+Fact LC1_weakening_of_expression_semantics_3 {T : Set} : forall exp_sem, 
+    _LC1_weakening_of_expression_semantics_3 exp_sem strong_env_mem_partial_order
+    -> _LC1_weakening_of_expression_semantics_3 (@generic_exp_sem T exp_sem) strong_env_mem_partial_order
 .
 Proof with eauto with rac_hint.
     intros exp Hextweak ev e v sub Hderiv.
     induction Hderiv; intros ev' Henvmem [HnotinEnv HnotinMem].
     - constructor.
-    - assert (HxnotinEnv: ~ (dom ev - dom ev') x). {
+    - assert (HxnotinEnv: ~ (dom ev - dom ev')%dom_ x). {
         intros contra.  apply (HnotinEnv x contra); now left.
         }  
         apply not_in_sub_domain_prop in HxnotinEnv;[|apply in_domain_dec| apply in_domain_dec].
@@ -221,19 +221,19 @@ Proof with eauto with rac_hint.
 Qed.
 
 Definition weakening_of_c_expression_semantics_3 {T} := 
-    weakening_of_expression_semantics_3 (@Empty_exp_sem T) (weakening_of_empty_expression_semantics_3 strong_env_mem_partial_order). 
+    LC1_weakening_of_expression_semantics_3 (@Empty_exp_sem T) (weakening_of_empty_expression_semantics_3 strong_env_mem_partial_order). 
 
 
-Lemma weakening_of_statement_semantics_3 {S T : Set} : 
+Lemma LC23_weakening_of_expression_semantics {S T : Set} : 
     forall exp_sem stmt_sem ext_stmt_vars, 
-    _weakening_of_expression_semantics_3 exp_sem strong_env_mem_partial_order
-    -> _weakening_of_statement_semantics_3 stmt_sem ext_stmt_vars  strong_env_mem_partial_order
-    -> _weakening_of_statement_semantics_3 (@generic_stmt_sem S T exp_sem stmt_sem ext_stmt_vars) ext_stmt_vars strong_env_mem_partial_order
+    _LC1_weakening_of_expression_semantics_3 exp_sem strong_env_mem_partial_order
+    -> _LC23_weakening_of_expression_semantics stmt_sem ext_stmt_vars  strong_env_mem_partial_order
+    -> _LC23_weakening_of_expression_semantics (@generic_stmt_sem S T exp_sem stmt_sem ext_stmt_vars) ext_stmt_vars strong_env_mem_partial_order
 .
 
 Proof with eauto with rac_hint; try easy.
     intros exp_sem stmt_sem ext_stmt_vars ext_exp_weak ext_stmt_weak.
-    epose proof (weakening_of_expression_semantics_3 exp_sem ext_exp_weak) as exp_weak.
+    epose proof (LC1_weakening_of_expression_semantics_3 exp_sem ext_exp_weak) as exp_weak.
     intros f ev₀ s ev₁ sub Hderiv. 
 
     induction Hderiv; intros ev₀' Hrel [Henv Hmem]. 
@@ -243,7 +243,7 @@ Proof with eauto with rac_hint; try easy.
     (* assign *)
     -  exists (ev₀' <| env ; vars ::= {{x\Def z}} |>). apply S_Assign...
         +  apply env_same_ty with ev... left. pose proof strong_env_mem_stronger. exists sub. now apply H2. 
-        + eapply weakening_of_expression_semantics_3... split. 
+        + eapply LC1_weakening_of_expression_semantics_3... split. 
             * intros v Hdom. apply Henv in Hdom. simpl in Hdom. StringSet.D.fsetdec.
             * intros l Hdom. apply Hmem in Hdom as [l' Hdom]. simpl in Hdom. exists l'. destruct Hdom.  split...
                 StringSet.D.fsetdec. 
@@ -255,7 +255,7 @@ Proof with eauto with rac_hint; try easy.
             + intros x H. specialize (Hmem x H). simpl in Hmem.
             destruct Hmem as [v [Hmpz Hmem]]. exists v. split... StringSet.D.fsetdec.
         * exists x. apply S_IfTrue with z...
-            split... eapply weakening_of_expression_semantics_3... split.
+            split... eapply LC1_weakening_of_expression_semantics_3... split.
             + intros v Hdom. apply Henv in Hdom. simpl in Hdom. StringSet.D.fsetdec.
             + intros l Hdom. apply Hmem in Hdom as [l' Hdom]. simpl in Hdom.  exists l'. destruct Hdom. split...
                 StringSet.D.fsetdec.
@@ -268,7 +268,7 @@ Proof with eauto with rac_hint; try easy.
             + intros x Hdom. specialize (Hmem x Hdom). simpl in Hmem.
             destruct Hmem as [v [Hmpz Hmem]]. exists v. split... StringSet.D.fsetdec.
 
-        * exists x. apply S_IfFalse... eapply weakening_of_expression_semantics_3... split.
+        * exists x. apply S_IfFalse... eapply LC1_weakening_of_expression_semantics_3... split.
             + intros v Hdom. apply Henv in Hdom. simpl in Hdom. StringSet.D.fsetdec. 
             + intros l Hdom. apply Hmem in Hdom as [l' Hdom]. simpl in Hdom.  exists l'. destruct Hdom. split...
                 StringSet.D.fsetdec.
@@ -295,7 +295,7 @@ Proof with eauto with rac_hint; try easy.
         * clear IHHderiv. exists (ev₀' <| env ; vars ::= {{c\Def z}} |> <| mstate := x |>). econstructor...
             + eapply (List.Forall2_impl (R1:=generic_exp_sem ev) (generic_exp_sem ev₀'))...
                 intros. assert (List.In a eargs) by admit. 
-                eapply weakening_of_expression_semantics_3... split.
+                eapply LC1_weakening_of_expression_semantics_3... split.
                 ++ intros. apply Henv in H8. intros contra. apply H8. simpl. admit.
                 ++ intros. apply Hmem in H8. destruct H8 as [v [Hev Hnotin]]. exists v. split... 
                     intros contra. apply Hnotin. simpl. admit.
@@ -314,26 +314,26 @@ Proof with eauto with rac_hint; try easy.
         * clear IHHderiv. exists (ev₀' <| mstate := x |>). econstructor...
             + eapply (List.Forall2_impl (R1:=generic_exp_sem ev) (generic_exp_sem ev₀'))...
                 intros. assert (List.In a eargs) by admit. 
-                eapply weakening_of_expression_semantics_3... split.
+                eapply LC1_weakening_of_expression_semantics_3... split.
                 ++ intros. apply Henv in H6. intros contra. apply H6. simpl. admit.
                 ++ intros. apply Hmem in H6. destruct H6 as [v [Hev Hnotin]]. exists v. split... 
                     intros contra. apply Hnotin. simpl. admit.
 
     (* return *)
     - exists (ev₀' <| env ; vars ::= {{res_f\Def z}} |>). apply S_Return.
-        eapply weakening_of_expression_semantics_3 in H...
+        eapply LC1_weakening_of_expression_semantics_3 in H...
         
     (* assert *)
     - exists ev₀'. apply S_PAssert with z...         
 
     (* other cases *)
-    - unfold _weakening_of_statement_semantics_3 in ext_stmt_weak.
+    - unfold _LC23_weakening_of_expression_semantics in ext_stmt_weak.
         specialize (ext_stmt_weak f  ev (S_Ext s) _  sub H ev₀' Hrel).
         destruct ext_stmt_weak as [ev'' Hd]... 
 Admitted.
 
 Definition weakening_of_c_statements_semantics_3 {S T}  := 
-    weakening_of_statement_semantics_3 
+    LC23_weakening_of_expression_semantics 
     (@Empty_exp_sem T) (@Empty_stmt_sem S T) Empty_ext_stmt_vars 
     (weakening_of_empty_expression_semantics_3 strong_env_mem_partial_order) 
     (weakening_of_empty_statement_semantics_3 Empty_ext_stmt_vars strong_env_mem_partial_order). 

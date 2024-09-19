@@ -8,7 +8,7 @@ From RAC.Languages Require Export MiniC.Facts MiniC.Lemmas MiniGMP.Facts MiniGMP
 
 (* Additionnal facts *)
 
-Fact mpz_exp_is_var : forall (e:_c_exp), ty e = T_Ext Mpz ->  exists x, (e = C_Id x (T_Ext Mpz))%type.
+Fact mpz_exp_is_var : forall (e:_c_exp), ty e = T_Ext Mpz ->  exists x, e = C_Id x (T_Ext Mpz).
 Proof. 
     intros. destruct e eqn:E.
     3,4: simpl in H ; destruct (ty _c1); try congruence; destruct (ty _c2); congruence.  

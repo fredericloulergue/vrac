@@ -6,13 +6,12 @@ From RAC.Languages Require Import Syntax Semantics MiniC.Lemmas MiniGMP.Facts.
 Import FunctionalEnv Domain.
 Import Environnement.Facts.
 
-
 #[local] Open Scope utils_scope.
 #[local] Open Scope Z_scope. 
 
 
 Lemma _weakening_of_gmp_statements_semantics_1 : 
-    _weakening_of_statement_semantics_1 Empty_exp_sem _gmp_stmt_sem strong_env_mem_partial_order
+    _LC21_weakening_of_expression_semantics Empty_exp_sem _gmp_stmt_sem strong_env_mem_partial_order
 .
 Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
     intros _ f ev₀ s ev₁ Hderiv. 
@@ -76,10 +75,10 @@ Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
 Admitted.
 
 (* Definition weakening_of_gmp_statements_semantics_1 := 
-    weakening_of_statement_semantics_1 Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars _weakening_of_gmp_statements_semantics_1 . *)
+    LC21_weakening_of_expression_semantics Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars _weakening_of_gmp_statements_semantics_1 . *)
 
 Lemma _weakening_of_gmp_statements_semantics_2 : 
-    _weakening_of_statement_semantics_2 Empty_exp_sem _gmp_stmt_sem env_mem_partial_order
+    _LC22_weakening_of_expression_semantics Empty_exp_sem _gmp_stmt_sem env_mem_partial_order
 .
 Proof with unshelve eauto using refl_env_mem_partial_order with rac_hint ; try easy.
     intros  exp_sem stmt_sem f ev₀ ev₀' s ev₁ sub [Hderiv1 Hrel].
@@ -87,7 +86,7 @@ Proof with unshelve eauto using refl_env_mem_partial_order with rac_hint ; try e
     assert (Hvars : 
         forall (ev ev': Env) v v' val val' mem, 
         ev v' = Some val' ->
-        v ∉ ev ->
+        (v ∉ ev)%dom_ ->
         ev' v = (ev' <| env; vars ::= {{v' \ Def val}} |> <|mstate := mem |>) v
     ). {
         intros. destruct (eq_dec v v').
@@ -158,12 +157,12 @@ Proof with unshelve eauto using refl_env_mem_partial_order with rac_hint ; try e
 Admitted.
 
 Definition weakening_of_gmp_statements_semantics_2 := 
-    weakening_of_statement_semantics_2 Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars _weakening_of_gmp_statements_semantics_2.
+    LC22_weakening_of_expression_semantics Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars _weakening_of_gmp_statements_semantics_2.
 
 
 
 Lemma _weakening_of_gmp_statements_semantics_3 : 
-    _weakening_of_statement_semantics_3 _gmp_stmt_sem _gmp_stmt_vars strong_env_mem_partial_order
+    _LC23_weakening_of_expression_semantics _gmp_stmt_sem _gmp_stmt_vars strong_env_mem_partial_order
 .
 Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
     intros fenv ev s ev1 [sub [subrev [Hsub1 Hsub2]]] Hderiv. 
@@ -176,7 +175,7 @@ Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
         + intros. specialize (H v). intros contra. destruct Hrel as [Hrel _]. specialize (Hrel v _ _ contra).  
             inversion Hrel. congruence.
 
-        +  assert (~(dom ev - dom ev')%utils x). {
+        +  assert (~(dom ev - dom ev')%dom_ x). {
             intros contra. apply Henv in contra. apply contra. simpl. StringSet.D.fsetdec. 
             }
             apply not_in_sub_domain_prop in H1;[|apply in_domain_dec| apply in_domain_dec]. destruct H1.
@@ -185,7 +184,7 @@ Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
     
     (* clear *)
     -  exists (ev' <| env ; vars ::= {{x\Def (VMpz None)}} |><| mstate ::= {{subrev a \ Undefined u}} |>). apply S_clear.
-        assert (~(dom ev - dom ev')%utils x). {
+        assert (~(dom ev - dom ev')%dom_ x). {
             intros contra. apply Henv in contra. apply contra. simpl. StringSet.D.fsetdec.
         }
         apply not_in_sub_domain_prop in H0;[|apply in_domain_dec| apply in_domain_dec]. destruct H0.
@@ -194,7 +193,7 @@ Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
 
     (* set_i *)
     - exists (ev' <| mstate ::= {{subrev a \ Defined (z) ̇}} |>). apply S_set_i.
-        + assert (~(dom ev - dom ev')%utils x). {
+        + assert (~(dom ev - dom ev')%dom_ x). {
             intros contra. apply Henv in contra. apply contra. simpl. StringSet.D.fsetdec.
         }
         apply not_in_sub_domain_prop in H1;[|apply in_domain_dec| apply in_domain_dec]. destruct H1.
@@ -208,19 +207,19 @@ Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
     
     (* set_z *)
     - exists (ev' <| mstate ::= {{subrev a \ Defined z}} |>). apply S_set_z with (subrev n).
-        + assert (~(dom ev - dom ev')%utils x). {
+        + assert (~(dom ev - dom ev')%dom_ x). {
             intros contra. apply Henv in contra. apply contra. simpl. StringSet.D.fsetdec.
             }
             apply not_in_sub_domain_prop in H2;[|apply in_domain_dec| apply in_domain_dec]. destruct H2.
             * now unshelve epose proof (strong_reverse_dom_same_env ev' ev x a sub subrev Hsub1 Hsub2 Hrel _ H2).
             * exfalso. apply H2. now exists a.
-        + assert (~(dom ev - dom ev')%utils y). {
+        + assert (~(dom ev - dom ev')%dom_ y). {
             intros contra. apply Henv in contra. apply contra. simpl. StringSet.D.fsetdec.
             }
             apply not_in_sub_domain_prop in H2;[|apply in_domain_dec| apply in_domain_dec]. destruct H2.
             * now unshelve epose proof (strong_reverse_dom_same_env ev' ev y n sub subrev Hsub1 Hsub2 Hrel _ H2).
             * exfalso. apply H2. now exists n.
-        + assert (~(dom ev.(mstate) - dom ev'.(mstate))%utils (subrev n)). {
+        + assert (~(dom ev.(mstate) - dom ev'.(mstate))%dom_ (subrev n)). {
             intros contra. apply Hmem in contra. destruct contra. simpl in H2. destruct H2 as [H2 []].
             rewrite Hsub2 in H2. assert (x0 = y). { admit. (* no aliasing *) } subst. StringSet.D.fsetdec.
             } 
@@ -229,14 +228,14 @@ Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
             * destruct H2. admit.
 
     - exists (ev' <| env ; vars ::= {{x\VInt (zy ⁱⁿᵗ ir) : 𝕍}} |>). apply S_get_int with (subrev ly).
-        + assert (~(dom ev - dom ev')%utils y). {
+        + assert (~(dom ev - dom ev')%dom_ y). {
             intros contra. apply Henv in contra. apply contra. simpl. StringSet.D.fsetdec.
             }
             apply not_in_sub_domain_prop in H1;[|apply in_domain_dec| apply in_domain_dec]. destruct H1.
             * now  unshelve epose proof (strong_reverse_dom_same_env ev' ev y ly sub subrev Hsub1 Hsub2 Hrel _ H1).
             * destruct H1. now exists ly.
 
-        + assert (~(dom ev.(mstate) - dom ev'.(mstate))%utils (subrev ly)). {
+        + assert (~(dom ev.(mstate) - dom ev'.(mstate))%dom_ (subrev ly)). {
             intros contra. apply Hmem in contra. destruct contra. simpl in H1. destruct H1 as [H1 []].
             rewrite Hsub2 in H1. assert (x0 = y). { admit. (* no aliasing *) } subst. StringSet.D.fsetdec.
             } 
@@ -245,7 +244,7 @@ Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
             *  destruct H1. admit.
     
     - exists (ev' <| mstate ::= {{subrev lx\Defined zx}} |>). apply S_set_s...
-        assert (~(dom ev - dom ev')%utils x). {
+        assert (~(dom ev - dom ev')%dom_ x). {
             intros contra. apply Henv in contra. apply contra. simpl. StringSet.D.fsetdec.
             }
             apply not_in_sub_domain_prop in H1;[|apply in_domain_dec| apply in_domain_dec]. destruct H1.
@@ -254,26 +253,26 @@ Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
 
 
     - exists (ev' <| env ; vars ::= {{c\b}} |>). eapply S_cmp with (subrev lx) (subrev ly) _ _...  
-        +  assert (~(dom ev - dom ev')%utils x). {
+        +  assert (~(dom ev - dom ev')%dom_ x). {
             intros contra. apply Henv in contra. apply contra. simpl. StringSet.D.fsetdec.
             }
             apply not_in_sub_domain_prop in H4;[|apply in_domain_dec| apply in_domain_dec]. destruct H4.
             * now  unshelve epose proof (strong_reverse_dom_same_env ev' ev x lx sub subrev Hsub1 Hsub2 Hrel _ H4).
             * destruct H4. now exists lx.
-        + assert (~(dom ev - dom ev')%utils y). {
+        + assert (~(dom ev - dom ev')%dom_ y). {
             intros contra. apply Henv in contra. apply contra. simpl. StringSet.D.fsetdec.
             }
             apply not_in_sub_domain_prop in H4;[|apply in_domain_dec| apply in_domain_dec]. destruct H4.
             * now  unshelve epose proof (strong_reverse_dom_same_env ev' ev y ly sub subrev Hsub1 Hsub2 Hrel _ H4).
             * destruct H4. now exists ly.
-        + assert (~(dom ev.(mstate) - dom ev'.(mstate))%utils (subrev lx)). {
+        + assert (~(dom ev.(mstate) - dom ev'.(mstate))%dom_ (subrev lx)). {
             intros contra. apply Hmem in contra. destruct contra. simpl in H4. destruct H4 as [H4 []].
             rewrite Hsub2 in H4. assert (x0 = y). { admit. (* no aliasing *) } subst. StringSet.D.fsetdec.
             } 
             apply not_in_sub_domain_prop in H4;[|apply in_domain_dec| apply in_domain_dec]. destruct H4.
             * now unshelve epose proof (strong_reverse_dom_same_mem ev' ev _ zx sub subrev Hsub1 Hsub2 Hrel _ H4).
             *  destruct H4. admit.
-        + assert (~(dom ev.(mstate) - dom ev'.(mstate))%utils (subrev ly)). {
+        + assert (~(dom ev.(mstate) - dom ev'.(mstate))%dom_ (subrev ly)). {
             intros contra. apply Hmem in contra. destruct contra. simpl in H4. destruct H4 as [H4 []].
             rewrite Hsub2 in H4. assert (x0 = y). { admit. (* no aliasing *) } subst. StringSet.D.fsetdec.
             } 
@@ -283,7 +282,7 @@ Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
 
 
     - exists (ev'<| mstate ::= {{subrev lr\Defined (⋄ (□ bop) zx zy) }} |>). apply S_op with (subrev lx) (subrev ly).
-        + assert (~(dom ev - dom ev')%utils x). {
+        + assert (~(dom ev - dom ev')%dom_ x). {
             intros contra. apply Henv in contra. apply contra. simpl. destruct bop; simpl ; StringSet.D.fsetdec.
             }
             apply not_in_sub_domain_prop in H4;[|apply in_domain_dec| apply in_domain_dec]. destruct H4.
@@ -291,14 +290,14 @@ Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
             * destruct H4. now exists lx.
 
         
-        + assert (~(dom ev - dom ev')%utils y). {
+        + assert (~(dom ev - dom ev')%dom_ y). {
             intros contra. apply Henv in contra. apply contra. simpl. destruct bop; simpl ; StringSet.D.fsetdec.
             }
             apply not_in_sub_domain_prop in H4;[|apply in_domain_dec| apply in_domain_dec]. destruct H4.
             * now  unshelve epose proof (strong_reverse_dom_same_env ev' ev y ly sub subrev Hsub1 Hsub2 Hrel _ H4).
             * destruct H4. now exists ly.
 
-        + assert (~(dom ev.(mstate) - dom ev'.(mstate))%utils (subrev lx)). {
+        + assert (~(dom ev.(mstate) - dom ev'.(mstate))%dom_ (subrev lx)). {
             intros contra. apply Hmem in contra. destruct contra. simpl in H4. destruct H4 as [H4 []].
             rewrite Hsub2 in H4. assert (x0 = y). { admit. (* no aliasing *) } subst. destruct bop; simpl ; StringSet.D.fsetdec.
             } 
@@ -306,7 +305,7 @@ Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
             * now unshelve epose proof (strong_reverse_dom_same_mem ev' ev _ zx sub subrev Hsub1 Hsub2 Hrel _ H4).
             *  destruct H4. admit.
 
-        + assert (~(dom ev.(mstate) - dom ev'.(mstate))%utils (subrev ly)). {
+        + assert (~(dom ev.(mstate) - dom ev'.(mstate))%dom_ (subrev ly)). {
             intros contra. apply Hmem in contra. destruct contra. simpl in H4. destruct H4 as [H4 []].
             rewrite Hsub2 in H4. assert (x0 = y). { admit. (* no aliasing *) } subst. destruct bop; simpl ; StringSet.D.fsetdec.
             } 
@@ -314,7 +313,7 @@ Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
             * now unshelve epose proof (strong_reverse_dom_same_mem ev' ev _ zy sub subrev Hsub1 Hsub2 Hrel _ H4).
             *  destruct H4. admit.
         
-        + assert (~(dom ev - dom ev')%utils r). {
+        + assert (~(dom ev - dom ev')%dom_ r). {
             intros contra. apply Henv in contra. apply contra. simpl. destruct bop; simpl ; StringSet.D.fsetdec.
             }
             apply not_in_sub_domain_prop in H4;[|apply in_domain_dec| apply in_domain_dec]. destruct H4.
@@ -329,6 +328,6 @@ Admitted.
 
 
 Definition weakening_of_gmp_statements_semantics_3 := 
-    weakening_of_statement_semantics_3 Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars 
+    LC23_weakening_of_expression_semantics Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars 
     (weakening_of_empty_expression_semantics_3 strong_env_mem_partial_order) 
     _weakening_of_gmp_statements_semantics_3.

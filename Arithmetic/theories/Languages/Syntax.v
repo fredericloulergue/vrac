@@ -190,3 +190,6 @@ Fixpoint c_exp_to_gmp_exp (e:c_exp) : gmp_exp := match e with
         BinOpBool le op re
     end
 .
+
+Definition extract_c_args {T} : @_c_decl T * -> 𝓥* := List.map (fun d => let 'C_Decl _ x := d in x).
+Definition extract_fsl_args : fsl_decl*-> 𝓥* := List.map (fun d => let 'FSL_Decl _ x := d in x).
