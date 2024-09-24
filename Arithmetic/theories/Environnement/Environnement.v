@@ -170,8 +170,8 @@ Definition apply_mem (a : Ω) (l : 𝔏) : option Z := a.(binds) l.
 (* Coercion apply_mem : Ω >-> Funclass. *) (* can't use same coercion path *)
 
 
-Definition σ : Type := {f : location -> location | Bijective f}.
 
+Definition σ : Type := {f : location -> location | Bijective f}.
 
 Definition induced (f: location -> location) : 𝕍 -> 𝕍 := fun value => match value with
 | Def (VMpz (Some l)) => Def (VMpz (Some (f l)))
@@ -258,7 +258,7 @@ Definition no_aliasing (ev : Ω) : Prop :=
     l <> l'.
 
 
-Definition _type_of_value {T:Set} (ext_valty : 𝕍 -> @_c_type T) : option 𝕍 -> option (@_c_type T) := fun v => match v with
+Definition _type_of_value {T:Set} (ext_valty : 𝕍 -> @c_type T) : option 𝕍 -> option (@c_type T) := fun v => match v with
 | Some (VInt _) | Some (UInt _) => Some C_Int
 | Some t => Some (ext_valty t)
 | None => None

@@ -7,8 +7,6 @@ From RAC Require Import Utils.
 
 Import StringMap.
 
-Inductive _c_type {T:Set} := C_Int | Void | T_Ext (t:T).  (* program types τc *)
-
 Inductive c_binop_bool :=  C_Lt | C_Le | C_Gt | C_Ge | C_Eq | C_NEq.
 Definition c_binop_bool_model (x:c_binop_bool) : Z -> Z -> bool := match x with
     | C_Lt => Z.ltb
@@ -29,48 +27,55 @@ Definition c_binop_int_model (x:c_binop_int) : Z -> Z -> Z := match x with
 end.
 Notation "⋄" := c_binop_int_model.
 
-#[warnings="-uniform-inheritance"] 
-Inductive _c_exp {T : Set}  :=
-    | Zm (z : Z) :> _c_exp (* machine integer *) (* can only be of type int *)
-    | C_Id (var : id) (ty : @_c_type T) (* variable access *) (* can be either int or mpz *)
-    | BinOpInt (le : _c_exp) (op:c_binop_int) (re : _c_exp) (* can only be of type int *)
-    | BinOpBool (le : _c_exp) (op:c_binop_bool) (re : _c_exp) (* can only be of type int *)
-.
-#[global] Hint Constructors _c_exp  : rac_hint.
+Section GenericSyntax.
+
+    Context {F S T : Set}.
+
+    Inductive c_type := C_Int | Void | T_Ext (t:T).  (* program types τc *)
+
+    #[warnings="-uniform-inheritance"] 
+    Inductive c_exp : Set :=
+        | Zm (z : Z) :> c_exp (* machine integer *) (* can only be of type int *)
+        | C_Id (var : id) (ty : @c_type) (* variable access *) (* can be either int or mpz *)
+        | BinOpInt (le : c_exp) (op:c_binop_int) (re : c_exp) (* can only be of type int *)
+        | BinOpBool (le : c_exp) (op:c_binop_bool) (re : c_exp) (* can only be of type int *)
+    .
+
+    #[warnings="-uniform-inheritance"] 
+    Inductive c_statement : Set :=
+        | Skip (* empty statement *)
+        | Assign (var:id) (e: c_exp) (* assignment *)
+        | FCall (var:id) (fname:string) (args: c_exp*) (* function call *)
+        | PCall  (fname:string) (args: c_exp*) (* procedure call *)
+        | Seq (s1 : c_statement) (s2 : c_statement) (* sequence *)
+        | If (cond:c_exp) (_then:c_statement) (_else:c_statement) (* conditional *)
+        | While (cond:c_exp) (body:c_statement) (* loop *) 
+        | PAssert (e: c_exp) (* program assertion *)
+        | Return (e: c_exp) 
+        (* | Decl (d: @_c_decl T) :> c_statement *)
+        | S_Ext (stmt:S)
+    .
 
 
-#[warnings="-uniform-inheritance"] 
-Inductive _c_statement {S T : Set} :=
-    | Skip (* empty statement *)
-    | Assign (var:id) (e: @_c_exp T) (* assignment *)
-    | FCall (var:id) (fname:string) (args: @_c_exp T*) (* function call *)
-    | PCall  (fname:string) (args: @_c_exp T*) (* procedure call *)
-    | Seq (s1 : _c_statement) (s2 : _c_statement) (* sequence *)
-    | If (cond:@_c_exp T) (_then:_c_statement) (_else:_c_statement) (* conditional *)
-    | While (cond:@_c_exp T) (body:_c_statement) (* loop *) 
-    | PAssert (e:@_c_exp T) (* program assertion *)
-    | Return (e:@_c_exp T) 
-    (* | Decl (d: @_c_decl T) :> _c_statement *)
-    | S_Ext (stmt:S)
-.
-#[global] Hint Constructors _c_statement  : rac_hint.
-
-
-Definition 𝓕 {S T : Set} := StringMap.t (𝓥 * ⨉ @_c_statement S T). (* program functions *)
-Definition 𝓟 {S T : Set} := StringMap.t (𝓥 * ⨉ @_c_statement S T). (* program procedures *)
+    Definition 𝓕 : Type := StringMap.t (𝓥 * ⨉ c_statement). (* program functions *)
+    Definition 𝓟 : Type := StringMap.t (𝓥 * ⨉ c_statement). (* program procedures *)
 
 
 
-Inductive _c_decl {T:Set} :=  C_Decl (type: @_c_type T) (name:id). (* program declaration *)
+    Inductive c_decl :=  C_Decl (type: c_type) (name:id). (* program declaration *)
 
-Inductive _c_routine {F S T : Set} :=
-| PFun (rtype: @_c_type T) (name:id) (args: @_c_decl T*) (b_decl: @_c_decl T*) (body: @_c_statement S T) (* program function *)
-| F_Ext (f:F)
-.
+    Inductive c_routine :=
+    | PFun (rtype: c_type) (name:id) (args: c_decl*) (b_decl: c_decl*) (body: c_statement) (* program function *)
+    | F_Ext (f:F)
+    .
 
-Definition _c_program {F S T : Set} : Type := @_c_decl T* ⨉ @_c_routine F S T*. 
+    Definition c_program : Type := c_decl* ⨉ c_routine*. 
 
-Definition c_exp := @_c_exp Empty_set.
+End GenericSyntax.
+
+
+#[global] Hint Constructors c_exp  : rac_hint.
+#[global] Hint Constructors c_statement  : rac_hint.
 
 
 (***** Printing *****)

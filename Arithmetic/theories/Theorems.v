@@ -97,9 +97,9 @@ Module Theorems(Or:Oracle).
     Proof. 
     Admitted.   
 
-    Theorem T62_absence_of_memory_leak :  forall P args env env',
+    Theorem T62_absence_of_memory_leak :  forall P env env',
         well_formed_pgrm  P ->
-        gmp_pgrm_sem env (T.translate_program P) args env' ->
+        gmp_pgrm_sem env (T.translate_program P) env' ->
         env'.(mstate) = ⊥
     .
     Proof. 
@@ -255,7 +255,8 @@ Module Theorems(Or:Oracle).
 
     .
     Proof.
-        induction t; intros fenv e g p HI1 HI2 env_g Henvg env_gt  Henvgt z'; split; intros Htsem.
+    {
+        induction t; intros fenv e g p HI1 HI2 env_g Henvg env_gt Henvgt z'; split; intros Htsem.
 
         (* t is an integer *)
         -  remember (get_ty z' (snd g)) as ty. destruct ty; simpl in *; inversion Henvgt; inversion H0; inversion Htsem; subst; simp translate_fsl in *; cbn in *; specialize (H (get_ty  z' (snd g))).
@@ -288,9 +289,7 @@ Module Theorems(Or:Oracle).
         - admit.
 
         (* t is a program/logic variable *)
-        - inversion Htsem; subst;  simp translate_fsl in *.  cbn in *.
-                
-
+        - inversion Htsem; subst;  simp translate_fsl in *;  cbn in *.
             (* logic variable *)
                 + {
                     assert (Hsome :
@@ -327,11 +326,26 @@ Module Theorems(Or:Oracle).
 
 
         (* t is the application of an operation *)
-        - 
-            
-            (* assert (Hgt1: ((env_Γ_t fenv e g p (T_BinOp t1 op t2) env_gt1) ⊑ (env_Γ_t fenv e g p (T_BinOp t1 op t2) env_gt))%envmem ). *)
+        - (* assert (Hgt1: ((env_Γ_t fenv e g p (T_BinOp t1 op t2) env_gt1) ⊑ (env_Γ_t fenv e g p (T_BinOp t1 op t2) env_gt))%envmem ). *)
         
-        specialize (IHt1 fenv e g p HI1 HI2 env_g Henvg env_gt).  inversion Htsem. subst. 
+            specialize (IHt1 fenv e g p HI1 HI2 env_g Henvg env_gt).  inversion Htsem. subst.  admit.
+        - admit.
+
+        (* t is a conditional *)
+        - admit.
+        - admit.
+
+        (* t is a call *)
+        - admit.
+        - admit.
+    }
+
+    {
+        admit.
+    }
+    {
+        admit.
+    }
     Admitted.
 
 
@@ -377,13 +391,13 @@ Module Theorems(Or:Oracle).
             pose proof (S_Scope (build_rac_fenv (glob (tr t))) (env <| mstate := ⊥ |>) (DECLS (decls t)) instrs env_g env') as Scope. 
             simpl in Scope. 
             assert (env'.(mstate) = ⊥) by admit.   (* T62_absence_of_memory_leak *) rewrite H in Scope.
-            constructor. subst scope instrs var assert_res. apply Scope. clear Scope.
+            constructor. subst scope instrs var assert_res. apply Scope; clear Scope.
             + admit.
             + econstructor.
                 * admit.
                 * econstructor.
-                    ** admit.
-                    ** admit.
+                    -- admit.
+                    -- admit.
         
         - intros Htrans. destruct H as [_ H]. apply H. clear H. destruct Htrans as [env' Henv]. exists (mkEnv env' ⊥). split.
             + admit.
@@ -405,40 +419,44 @@ Module Theorems(Or:Oracle).
 
 
 
-    Theorem T63_correctness_of_code_generation : forall (P:fsl_pgrm) args,
+    Fact correctness_of_routine_translation : forall (P:fsl_pgrm),
+        forall (e:Ω),
+        fsl_pgrm_sem empty_env P (empty_env <|env ; vars := e|>) <->
+        forall fenv t_env routines,
+        TMOps.fold (translate_routine fenv t_env) routines (nil, nil, GlobalDef.empty) = TM.ret (nil,nil,GlobalDef.empty).
+    Proof.
+    Admitted.
+
+
+    Theorem T63_correctness_of_code_generation : forall (P:fsl_pgrm),
         forall  (e  : Ω),
-        fsl_pgrm_sem empty_env P args (empty_env <|env ; vars := e|>)
+        fsl_pgrm_sem empty_env P (empty_env <|env ; vars := e|>)
         <-> 
         exists (e': Ω),
-        gmp_pgrm_sem empty_env (T.translate_program P) args (empty_env <|env ; vars := e'|>)
+        gmp_pgrm_sem empty_env (T.translate_program P) (empty_env <|env ; vars := e'|>)
         /\ 
         (e ⊑ e')%env
         
     .
     Proof.
         pose proof (translate_program_elim (fun p p' => 
-         forall args (e:Ω),
-            fsl_pgrm_sem empty_env p args (empty_env <| env; vars := e |>) <->
-            (exists e' : Ω, gmp_pgrm_sem empty_env p' args (empty_env <| env; vars := e' |>) /\ (e ⊑ e')%env)
+        forall (e:Ω),
+            fsl_pgrm_sem empty_env p (empty_env <| env; vars := e |>) <->
+            (exists e' : Ω, gmp_pgrm_sem empty_env p' (empty_env <| env; vars := e' |>) /\ (e ⊑ e')%env)
         
-        )). apply H with (fun decls routines fsl_prog gi done r t => True) ; clear H.
+        )). eapply H (* with (fun decls routines fenv gi done r t => True) *) ; clear H.
 
-        - intros decls routines H. generalize dependent decls. induction routines as [|r]. simpl.
-            + intros decls Hind args e. split.
-                (* there must exist at least one functino (main) *)
+        - intros decls routines e. generalize dependent decls. induction routines as [|r] ; simpl in *.
+            + intros decls. split.
+                (* there must exist at least one function (main) *)
+                * intros Hsem. inversion Hsem. simpl in *. remember fe. subst fe. admit.
+                * intros [e' [Htrans  _]]. destruct Htrans. cbn in *.   autorewrite with build_rac_fenv fold in *.     
+                    simpl in *. inversion H0. admit.
 
-                * intros Hsem. inversion Hsem. simpl in *. destruct fenv. inversion H3.
-
-                * intros [e' [Htrans  _]]. destruct Htrans. cbn in *. subst vargs fenv.  autorewrite with build_rac_fenv fold in *.     
-                    simpl in *. inversion H0.
-
-            + simpl in *. edestruct IHroutines as [Hr1 Hr2]; clear IHroutines.
-                * intros done f. admit.
-                * split.
-                    -- intros Hsem. admit.
-                    -- intros [e' [Hpsem Hrel]]. admit.
-        - intros. admit.
-
-        - intros. admit.
+            + simpl in *. edestruct IHroutines as [Hr1 Hr2]; clear IHroutines. split.
+                * intros Hsem. inversion Hsem. simpl in *. eexists. subst fe. split.
+                    --  unfold TM.exec, TM.bind. simpl. autorewrite with fold. simpl. admit.  
+                    -- admit.
+                * intros [e' [Hpsem Hrel]]. admit.
     Admitted.
 End Theorems.

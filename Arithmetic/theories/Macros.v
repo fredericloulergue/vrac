@@ -110,21 +110,19 @@ Lemma same_eval_macro :  forall (ev : Env) v l e z z',
 
 Proof.
     intros. inversion H2.
-   *  subst. constructor 1;auto. apply untouched_var_same_eval_exp with v ; auto.
-        - easy.
-        - now rewrite gmp_exp_c_exp_same_exp_vars. 
+    - subst. constructor 1;auto. apply untouched_var_same_eval_exp with v ; auto. 
+        now rewrite gmp_exp_c_exp_same_exp_vars. 
 
-    * subst. pose proof (mpz_exp_is_var e). apply H6 in H3 as [var].  subst. simpl in *.
-    apply M_Mpz with l0; subst.
-    + now simpl.
-    + simpl. rewrite StringSet.singleton_spec in H0. 
-        destruct (eq_dec l l0).
-        ++ subst. destruct H with v var l0 l0 ; congruence.
-        ++ now simpl.
-    + rewrite StringSet.singleton_spec in H0. 
-        destruct (eq_dec l l0).
-        ++ subst. destruct H with v var l0 l0 ; congruence.
-        ++  simpl. apply p_map_not_same_eq;auto.
+    - subst. pose proof (mpz_exp_is_var e). apply H6 in H3 as [var].  subst. simpl in *.
+        apply M_Mpz with l0; subst.
+        + now simpl.
+        + simpl. rewrite StringSet.singleton_spec in H0. 
+            destruct (eq_dec l l0).
+            * subst. destruct H with v var l0 l0 ; congruence.
+            * now simpl.
+        + rewrite StringSet.singleton_spec in H0. destruct (eq_dec l l0).
+            * subst. destruct H with v var l0 l0 ; congruence.
+            * simpl. apply p_map_not_same_eq;auto.
 Qed.
 
 
@@ -144,17 +142,17 @@ Proof.
     intros. 
     unfold mpz_ASSGN. destruct (ty e) eqn:TY.  
     - inversion H ; constructor. 
-        * now apply S_set_i.
-        * now rewrite H1 in TY. 
+        + now apply S_set_i.
+        + now rewrite H1 in TY. 
     - inversion H.
-        * now rewrite H1 in TY.
-        * now rewrite H1 in TY. 
+        + now rewrite H1 in TY.
+        + now rewrite H1 in TY. 
     -  inversion H.
-        * now rewrite H1 in TY.
-        * rewrite TY in H1. subst. inversion H1. destruct e; simpl in TY ; subst; try discriminate.
-            + constructor.  apply S_set_z with l;auto. 
-            +  destruct (ty e1); try congruence. destruct (ty e2); congruence.
-            +  destruct (ty e1); try congruence. destruct (ty e2); congruence.
+        + now rewrite H1 in TY.
+        + rewrite TY in H1. subst. inversion H1. destruct e; simpl in TY ; subst; try discriminate.
+            * constructor.  apply S_set_z with l;auto. 
+            *  destruct (ty e1); try congruence. destruct (ty e2); congruence.
+            *  destruct (ty e1); try congruence. destruct (ty e2); congruence.
 Qed.
 
 Lemma LE2_semantics_of_the_int_assgn_macro :
@@ -173,11 +171,11 @@ Proof with eauto with rac_hint.
         + apply ty_int_gmp_c_exp_equiv ;[assumption|]. now rewrite Int.x_of_mi_to_mi_x.
         +  now rewrite H1 in EqTY.
     - inversion H.
-        * now rewrite H1 in EqTY.
-        * now rewrite H1 in EqTY. 
-    - inversion H. subst.
         + now rewrite H1 in EqTY.
-        + subst. destruct t. 
+        + now rewrite H1 in EqTY. 
+    - inversion H; subst.
+        + now rewrite H1 in EqTY.
+        +  destruct t. 
             * now rewrite EqTY in H1.
             * destruct e; simpl in EqTY ;try discriminate.
                 2,3:  destruct (ty e1); try congruence; destruct (ty e2); congruence.
@@ -264,17 +262,17 @@ Proof with try easy ; auto with rac_hint ; unshelve eauto using Z.ltb_irrefl,Z.g
         - intros v [Hvneqv1 Hvneqv2] n Hv. repeat rewrite p_map_not_same...
         - intros Ha He1 He2.  
             apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |>).
-            * apply LE1_semantics_of_the_mpz_assgn_macro...
-            * apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |> <| mstate ::= {{l2\Defined z2}} |> ). 
-                + apply LE1_semantics_of_the_mpz_assgn_macro...  inversion_clear He2 ; subst. 
-                    ++ constructor... eapply untouched_var_same_eval_exp... now rewrite gmp_exp_c_exp_same_exp_vars.
-                    ++ econstructor... apply p_map_not_same_eq... destruct e2; try discriminate. 
-                        +++ simpl in H. subst. simpl in H0. destruct (eq_dec var v1)...
+            + apply LE1_semantics_of_the_mpz_assgn_macro...
+            + apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |> <| mstate ::= {{l2\Defined z2}} |> ). 
+                * apply LE1_semantics_of_the_mpz_assgn_macro...  inversion_clear He2 ; subst. 
+                    -- constructor... eapply untouched_var_same_eval_exp... now rewrite gmp_exp_c_exp_same_exp_vars.
+                    -- econstructor... apply p_map_not_same_eq... destruct e2; try discriminate. 
+                        ++ simpl in H. subst. simpl in H0. destruct (eq_dec var v1)...
                             subst. exfalso. apply Hv1NotIne2. simpl. now left.
-                        +++ exfalso. simpl in H. destruct (ty e2_1) , (ty e2_2); simpl in H; discriminate.  
-                        +++  exfalso. simpl in H. destruct (ty e2_1) , (ty e2_2); simpl in H; discriminate.  
+                        ++ exfalso. simpl in H. destruct (ty e2_1) , (ty e2_2); simpl in H; discriminate.  
+                        ++  exfalso. simpl in H. destruct (ty e2_1) , (ty e2_2); simpl in H; discriminate.  
 
-                + constructor.
+                * constructor.
                     replace  (_ <| env; vars ::= _ |><| mstate := _ |>)
                     with (ev <| mstate := ev.(mstate) {l2 \Defined z2, l1 \Defined z1} |><| env; vars ::= {{c \Def a}} |> ) 
                     by reflexivity.
@@ -283,41 +281,47 @@ Proof with try easy ; auto with rac_hint ; unshelve eauto using Z.ltb_irrefl,Z.g
     unfold CMP. destruct (ty e1) eqn:T1, (ty e2) eqn:T2; try apply NotInt. clear NotInt.
     
     (* both ty(e1) = int and ty(e2) = int *)
-    - exists ev.(mstate). split ; [auto|]. intros (inf & eq & sup) He1 He2. inversion He1; inversion He2; 
+    exists ev.(mstate). split ; [auto|]. intros (inf & eq & sup) He1 He2. inversion He1; inversion He2; 
         try match goal with
         | mpz: ty ?e = (gmp_t_ext Mpz), int : ty ?e = C_Int  |- _ => now rewrite mpz in int end. 
-        
-        destruct (Z.lt_trichotomy z1 z2) as [inf' | [ eq' | sup']].
-        
-        (* z1 < z2 *)
-        * assert (cmp := inf'). apply <- inf in inf'. clear eq inf sup. subst. 
-            destruct x,x0. simpl in *.  apply S_IfTrue with one.
-            + split ; [| easy]. apply C_E_BinOpTrue with x x0 i i0. 
-                ++ now apply ty_int_gmp_c_exp_equiv.
-                ++ now apply ty_int_gmp_c_exp_equiv.
-                ++ apply Z.ltb_lt. apply cmp.
-            + inversion inf'. constructor...
+    
+    destruct (Z.lt_trichotomy z1 z2) as [inf' | [ eq' | sup']].
+    
+    (* z1 < z2 *)
+    - assert (cmp := inf'). apply <- inf in inf'. clear eq inf sup. subst. 
+        destruct x,x0. simpl in *.  apply S_IfTrue with one.
+        + split ; [| easy]. apply C_E_BinOpTrue with x x0 i i0. 
+            * now apply ty_int_gmp_c_exp_equiv.
+            * now apply ty_int_gmp_c_exp_equiv.
+            * apply Z.ltb_lt. apply cmp.
+        + inversion inf'. constructor...
 
-        (* z1 = z2 *)
-        * assert (cmp := eq'). rewrite <- eq in eq'. clear eq inf sup. subst.
-            destruct x,x0. apply Int.mi_eq in cmp. injection cmp as cmp. inversion eq'. subst. simpl in *. constructor.
-            + econstructor... apply ty_int_gmp_c_exp_equiv... apply ty_int_gmp_c_exp_equiv...
-            + constructor. econstructor...  apply ty_int_gmp_c_exp_equiv... apply ty_int_gmp_c_exp_equiv... constructor...
+    (* z1 = z2 *)
+    - assert (cmp := eq'). rewrite <- eq in eq'. clear eq inf sup. subst.
+        destruct x,x0. apply Int.mi_eq in cmp. injection cmp as cmp. inversion eq'. subst. simpl in *. constructor.
+        + econstructor... 
+            * apply ty_int_gmp_c_exp_equiv...
+            * apply ty_int_gmp_c_exp_equiv...
+        + constructor.
+            * econstructor...
+                -- apply ty_int_gmp_c_exp_equiv... 
+                -- apply ty_int_gmp_c_exp_equiv...
+            * constructor...
 
 
-        (* z1 > z2 *)
-        * assert (cmp := sup').  apply Z.lt_gt in sup'. apply <- sup in sup'.  clear inf eq sup. subst.
-            destruct x, x0. subst. constructor ; simpl in *.
-            + apply C_E_BinOpFalse with x x0 i i0.
-                ++ apply ty_int_gmp_c_exp_equiv...
-                ++ apply ty_int_gmp_c_exp_equiv...
-                ++ apply Z.ltb_ge. auto with zarith. 
-            + inversion sup'. subst. apply S_IfTrue with one.
-                ++  subst. split; [|easy]. apply C_E_BinOpTrue with x x0 i i0.
-                    +++ apply ty_int_gmp_c_exp_equiv...
-                    +++ apply ty_int_gmp_c_exp_equiv...
-                    +++ now apply Z.gtb_lt.
-                ++  constructor...
+    (* z1 > z2 *)
+    - assert (cmp := sup').  apply Z.lt_gt in sup'. apply <- sup in sup'.  clear inf eq sup. subst.
+        destruct x, x0. subst. constructor ; simpl in *.
+        + apply C_E_BinOpFalse with x x0 i i0.
+            * apply ty_int_gmp_c_exp_equiv...
+            * apply ty_int_gmp_c_exp_equiv...
+            * apply Z.ltb_ge. auto with zarith. 
+        + inversion sup'. subst. apply S_IfTrue with one.
+            *  subst. split; [|easy]. apply C_E_BinOpTrue with x x0 i i0.
+                -- apply ty_int_gmp_c_exp_equiv...
+                -- apply ty_int_gmp_c_exp_equiv...
+                -- now apply Z.gtb_lt.
+            *  constructor...
 Qed.
 
 
@@ -381,10 +385,10 @@ Proof with eauto with rac_hint.
             + apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |> <| mstate ::= {{l2\Defined z2}} |> ). 
                 * apply LE1_semantics_of_the_mpz_assgn_macro... apply same_eval_macro with v1...
                 * apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |> <| mstate ::= {{l2\Defined z2}}  |> <| mstate ::= {{lr\Defined (⋄ op z1 z2)}} |>).
-                    ** constructor. apply S_op with l1 l2...  
-                        *** simpl.  apply p_map_not_same_eq...
-                        *** simpl. apply p_map_same. 
-                    ** replace (ev <| env; vars ::= _ |> <| mstate :=  _ |>)
+                    -- constructor. apply S_op with l1 l2...  
+                        ++ simpl.  apply p_map_not_same_eq...
+                        ++ simpl. apply p_map_same. 
+                    -- replace (ev <| env; vars ::= _ |> <| mstate :=  _ |>)
                         with (ev <| mstate := ev.(mstate) {lr \Defined (⋄ op z1 z2), l2 \Defined z2, l1 \ Defined z1} |> 
                                 <| env; vars ::= {{c \Def (VInt (((⋄ op z1 z2) ⁱⁿᵗ) ir))}} |>
                         ) 
@@ -397,10 +401,10 @@ Proof with eauto with rac_hint.
     exists ev.(mstate). split ; [auto|]. intros  He1 He2. inversion He1; inversion He2; 
         try match goal with
         | mpz: ty ?e = (gmp_t_ext Mpz), int : ty ?e = C_Int  |- _ => now rewrite mpz in int end. 
-        (* both ty(e1) = int and ty(e2) = int *)
-        subst. constructor... destruct x,x0. econstructor.
-        + eapply ty_int_gmp_c_exp_equiv in H0...
-        + eapply ty_int_gmp_c_exp_equiv in H3...
+    (* both ty(e1) = int and ty(e2) = int *)
+    subst. constructor... destruct x,x0. econstructor.
+    - eapply ty_int_gmp_c_exp_equiv in H0...
+    - eapply ty_int_gmp_c_exp_equiv in H3...
 Qed.
 
 
@@ -439,10 +443,10 @@ Proof with eauto using p_map_same with rac_hint.
     
     - intros He1 He2.  unfold binop_ASSGN.
         apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |>).
-        * apply LE1_semantics_of_the_mpz_assgn_macro...
-        * apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |> <| mstate ::= {{l2\Defined z2}} |>). 
-            + apply LE1_semantics_of_the_mpz_assgn_macro... apply same_eval_macro with v1...
-            + constructor.  
+        + apply LE1_semantics_of_the_mpz_assgn_macro...
+        + apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |> <| mstate ::= {{l2\Defined z2}} |>). 
+            * apply LE1_semantics_of_the_mpz_assgn_macro... apply same_eval_macro with v1...
+            * constructor.  
                 replace  (ev <| mstate := ev.(mstate) {y \Defined (⋄ op z1 z2), l2 \Defined z2, l1 \Defined z1} |>)
                 with (ev <| mstate ::= {{l1 \Defined z1}} |> 
                     <| mstate ::= {{l2 \Defined z2}} |>

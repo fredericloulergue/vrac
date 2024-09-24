@@ -1,8 +1,21 @@
 From Coq Require Import Strings.String ZArith.
 
+
+#[export] Set Printing Projections. (* use r.(Field) notation for record projection *)
+(* #[export] Set Loose Hint Behavior "Strict". don't allow not imported hint to be used *)
+#[export] Set Default Proof Using "Type". (* Enable async proof-checking of sections. *)
+#[export] Set Suggest Proof Using. (* suggest using annotation if none provided *)
+#[export] Set Default Goal Selector "!". (* enforce proof structure *)
+
+
+
+(* some notations *)
 Declare Custom Entry pmap.
 
 Notation id := Strings.String.string.
+
+Implicit Type v : id.
+
 Notation ℤ := Z.
 Notation "A *" := (list A) (at level 20) : type_scope.
 Infix "⨉" := prod (at level 99) : type_scope. 

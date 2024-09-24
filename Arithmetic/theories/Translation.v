@@ -276,7 +276,7 @@ Module Translation (Oracle : Oracle).
 
             (* for each pair of function argument and parameter *)
             f_res <- fold_left2_in args params ( fun 
-                (done: @TM.t (var_list ⨉ list _c_exp ⨉ translation_result ⨉ StringMap.t (id ⨉ 𝐼))) 
+                (done: @TM.t (var_list ⨉ list c_exp ⨉ translation_result ⨉ StringMap.t (id ⨉ 𝐼))) 
                 (arg : {x | In x args})
                 (param : {x : 𝔏 | In x params}) => 
 
@@ -324,7 +324,7 @@ Module Translation (Oracle : Oracle).
                     StringMap.add (proj1_sig param) (v,interval) binds (* the updated bindings *)
                 ) 
 
-            ) (TM.ret ([(c,C_Int)], ([] : list _c_exp), mkTR gmp_statement Skip e [], StringMap.empty)) 
+            ) (TM.ret ([(c,C_Int)], ([] : list c_exp), mkTR gmp_statement Skip e [], StringMap.empty)) 
             
             ;;
 
@@ -434,7 +434,7 @@ Module Translation (Oracle : Oracle).
 
                 (* for each pair of function argument and parameter *)
                 f_res <- fold_left2_in args params ( fun 
-                    (done: @TM.t (var_list ⨉ list _c_exp ⨉ translation_result ⨉ StringMap.t (id ⨉ 𝐼))) 
+                    (done: @TM.t (var_list ⨉ list c_exp ⨉ translation_result ⨉ StringMap.t (id ⨉ 𝐼))) 
                     (arg : {x | In x args})
                     (param : {x : 𝔏 | In x params}) => 
 
@@ -471,7 +471,7 @@ Module Translation (Oracle : Oracle).
                         StringMap.add (proj1_sig param) (v,interval) binds (* the updated bindings *)
                     )
 
-                ) (TM.ret ([(c,rtype)], ([] : list _c_exp), mkTR gmp_statement Skip e [], StringMap.empty)) 
+                ) (TM.ret ([(c,rtype)], ([] : list c_exp), mkTR gmp_statement Skip e [], StringMap.empty)) 
 
                 ;;
 
@@ -681,27 +681,7 @@ Module Translation (Oracle : Oracle).
     | _,_,_, Skip => TM.ret (mkTR gmp_statement Skip env nil)
     .
 
-
-    Equations translate_program : fsl_pgrm -> rac_pgrm := 
-    | (decls,routines) =>
-
-        (* gather all routines definitions in fenv *)
-        let fenv := build_fsl_fenv routines in 
-
-        (* perform the static analysis *)
-        let t_env := Oracle.get_Γᵢ (decls,routines) in
-
-
-        (* generate from left to right the globals and function definitions *)
-        let res := TMOps.fold (aux fenv t_env) routines ([], [], GlobalDef.empty)
-        in
-        let '((gen_f,tr_f),_) := TM.exec res in
-        (*  convert c decls to gmp_decls *)
-        let gmp_decls := map c_decl_to_gmp_decl decls in
-        (gmp_decls,gen_f++tr_f) (* first the generated functions and then the translated ones *)
-    
-    where 
-    aux (fenv : fsl_prog_fenv) (t_env : Γᵢ) (done : (gmp_routine* ⨉ gmp_routine* ⨉ ψ)%type) : fsl_routine -> @TM.t (gmp_routine* ⨉ gmp_routine* ⨉ ψ) := 
+    Equations translate_routine (fenv : fsl_prog_fenv) (t_env : Γᵢ) (done : (gmp_routine* ⨉ gmp_routine* ⨉ ψ)%type) : fsl_routine -> @TM.t (gmp_routine* ⨉ gmp_routine* ⨉ ψ) := 
     | _,_,_, PFun rtype name args pdecls body =>
 
         let '(gen_f,tr_f, env) := done in 
@@ -731,6 +711,26 @@ Module Translation (Oracle : Oracle).
     | _,_,_, _ => 
         (* entry point is c functions only *)
         TM.ret done
+    .
+
+
+    Equations translate_program : fsl_pgrm -> rac_pgrm := 
+    | (decls,routines) =>
+
+        (* gather all routines definitions in fenv *)
+        let fenv := build_fsl_fenv routines in 
+
+        (* perform the static analysis *)
+        let t_env := Oracle.get_Γᵢ (decls,routines) in
+
+
+        (* generate from left to right the globals and function definitions *)
+        let res := TMOps.fold (translate_routine fenv t_env) routines ([], [], GlobalDef.empty)
+        in
+        let '((gen_f,tr_f),_) := TM.exec res in
+        (*  convert c decls to gmp_decls *)
+        let gmp_decls := map c_decl_to_gmp_decl decls in
+        (gmp_decls,gen_f++tr_f) (* first the generated functions and then the translated ones *)
 .
 
 End Translation.

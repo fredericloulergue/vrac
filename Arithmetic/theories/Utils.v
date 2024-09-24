@@ -1,7 +1,7 @@
 From Coq Require Import Strings.String ZArith.ZArith Setoids.Setoid Eqdep_dec Logic.FinFun MSets MSetList. 
 From Equations Require Import Equations.
 From MMaps Require Import MMaps.
-From RAC Require Export Notations.
+From RAC Require Export Prelude.
 
 
 

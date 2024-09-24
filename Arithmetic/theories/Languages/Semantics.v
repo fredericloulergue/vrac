@@ -9,14 +9,14 @@ From RAC.Languages Require Export MiniC.Semantics MiniGMP.Semantics MiniFSL.Sema
 
 Import FunctionalEnv Domain.
 
-Fixpoint flatten {S T}  (s: @_c_statement S T) : list (@_c_statement S T) := match s with
+Fixpoint flatten {S T}  (s: @c_statement S T) : list (@c_statement S T) := match s with
 | Seq s1 s2 => flatten s1 ++ flatten s2
 | Skip => nil
 | _ => s::nil
 end
 .
 
-Definition unflatten {S T}  : list (@_c_statement S T) -> @_c_statement S T := fun l =>
+Definition unflatten {S T}  : list (@c_statement S T) -> @c_statement S T := fun l =>
     List.fold_left (fun new_s  s => Seq new_s s) l Skip
 .
 
@@ -40,11 +40,11 @@ Inductive between : gmp_statement -> gmp_statement -> gmp_statement -> gmp_state
 
 
 
-Definition In_stmt {S T} (s s' : @_c_statement S T) : Prop := List.In s (flatten s').
+Definition In_stmt {S T} (s s' : @c_statement S T) : Prop := List.In s (flatten s').
 
 
-Definition Forall_routines {F S T } (pgrm : @_c_program F S T) 
-    (PFuns : @_c_decl T * -> @_c_decl T * -> @_c_statement S T  -> Prop)
+Definition Forall_routines {F S T } (pgrm : @c_program F S T) 
+    (PFuns : @c_decl T * -> @c_decl T * -> @c_statement S T  -> Prop)
     (* (PLFun : fsl_statement -> Prop)
     (PPred : fsl_statement -> Prop) *)
     : Prop :=

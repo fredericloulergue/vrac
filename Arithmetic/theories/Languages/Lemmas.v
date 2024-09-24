@@ -8,10 +8,10 @@ From RAC.Languages Require Export MiniC.Facts MiniC.Lemmas MiniGMP.Facts MiniGMP
 
 (* Additionnal facts *)
 
-Fact mpz_exp_is_var : forall (e:_c_exp), ty e = T_Ext Mpz ->  exists x, e = C_Id x (T_Ext Mpz).
+Fact mpz_exp_is_var : forall (e:c_exp), ty e = T_Ext Mpz ->  exists x, e = C_Id x (T_Ext Mpz).
 Proof. 
     intros. destruct e eqn:E.
-    3,4: simpl in H ; destruct (ty _c1); try congruence; destruct (ty _c2); congruence.  
+    3,4: simpl in H ; destruct (ty c1); try congruence; destruct (ty c2); congruence.  
     - now exists EmptyString. 
     - exists var. unfold Syntax.ty in H. now rewrite H. 
 Qed.
@@ -20,9 +20,9 @@ Qed.
 From Coq Require Import Program.Equality. (* axiom eq_rect_eq *)
 
 
-Fact ty_int_gmp_c_exp_equiv {ext_exp} (e:gmp_exp): forall env v, 
+Fact ty_int_gmp_c_exp_equiv (e:gmp_exp): forall env v, 
     ty e = C_Int -> 
-    (env |= gmp_exp_to_c_exp e => v)%csem <-> generic_exp_sem env e v (ext_exp:=ext_exp).
+    (env |= gmp_exp_to_c_exp e => v)%csem <-> generic_exp_sem env e v.
 Proof with eauto with rac_hint.
     intros env v Hint. split; intro H.
     - dependent induction H; destruct e eqn:E; simpl in *; subst; try congruence; injection x as Hz; subst.
@@ -40,10 +40,10 @@ Qed.
 Fact flatten_noseq_noskip {S T} s : List.Forall (fun i => i <> Skip /\ forall s1 s2, i <> @Seq S T s1 s2) (@flatten S T s).
 Admitted.
 
-Fact flatten_unflatten {S T} {ext_exp} {ext_stmt} {ext_stmt_vars} : forall f e e' s, 
+(* Fact flatten_unflatten {S T} {ext_exp} {ext_stmt} {ext_stmt_vars} : forall f e e' s, 
     @generic_stmt_sem S T ext_exp ext_stmt ext_stmt_vars f e s e' ->
     @generic_stmt_sem S T ext_exp ext_stmt ext_stmt_vars f e (unflatten (flatten s)) e.
-Admitted.
+Admitted. 
 
 Fact flatten_unique {S T} {ext_exp} {ext_stmt} {ext_stmt_vars} : forall s s' f e e', 
     flatten s = flatten s' ->
@@ -51,8 +51,10 @@ Fact flatten_unique {S T} {ext_exp} {ext_stmt} {ext_stmt_vars} : forall s s' f e
     @generic_stmt_sem S T ext_exp ext_stmt ext_stmt_vars f e s' e'.
 Proof.
 Admitted.
+*)
 
-Fact gmp_exp_c_exp_same_exp_vars e : exp_vars (gmp_exp_to_c_exp e) = exp_vars e.
+
+Fact gmp_exp_c_exp_same_exp_vars e {T} : @exp_vars T (gmp_exp_to_c_exp e) = exp_vars e.
 Proof. 
     induction e.
     - reflexivity.

@@ -141,15 +141,16 @@ Qed.
 Fact _refl_env_partial_order : reflexive Ω (fun e e' => env_partial_order e e' (exist _ _ id_bijective)).
 
 Proof.
-    intros [v l] var. destruct (v var) as [val |] eqn:res. destruct val.
-    - destruct v0.
-        * now apply EsameInt with n.
-        * destruct l0 as [l0|].
-            ** now apply EsameMpz with l0. 
-            ** now apply ENullPtr.
-    - destruct uv.
-        * apply EundefInt with u; eauto.
-        * apply EundefMpz with u; eauto.
+    intros [v l] var. destruct (v var) as [val |] eqn:res.
+    - destruct val.
+        + destruct v0.
+            * now apply EsameInt with n.
+            * destruct l0 as [l0|].
+                -- now apply EsameMpz with l0. 
+                -- now apply ENullPtr.
+        + destruct uv.
+            * apply EundefInt with u; eauto.
+            * apply EundefMpz with u; eauto.
     - apply Enone ; auto.
 Qed.
 
@@ -164,18 +165,18 @@ Fact _trans_env_partial_order : forall (x y z:Ω) f1 f2,
     env_partial_order x z (exist _ _ (bijective_comp_bijective f1 f2)).
 Proof.
     intros  e e' e''  sub1 sub2 Hrel1 Hrel2 var. destruct Hrel1 with var ; specialize (Hrel2 var).
-    * apply EsameInt with n. easy. inversion Hrel2 ; congruence.
-    * apply EsameMpz with l ; inversion Hrel2; simpl in * ; try congruence.
-        ** rewrite H0 in H1. inversion H1. now subst.
-        ** now rewrite H1 in H0. 
-    * apply ENullPtr;[easy|]. inversion Hrel2; simpl in *; try congruence. now  rewrite H0 in H1.
-    * apply EundefInt with u.
+    - apply EsameInt with n;[easy|]. inversion Hrel2 ; congruence.
+    - apply EsameMpz with l ; inversion Hrel2; simpl in * ; try congruence.
+        + rewrite H0 in H1. inversion H1. now subst.
+        + now rewrite H1 in H0. 
+    - apply ENullPtr;[easy|]. inversion Hrel2; simpl in *; try congruence. now  rewrite H0 in H1.
+    - apply EundefInt with u.
         + assumption.
         + inversion Hrel2 ; destruct H0 ; eauto ; try congruence ; try (destruct H0 ; congruence).
-    * apply EundefMpz with u;[easy|].  inversion Hrel2; destruct H0; try congruence || (destruct H0 ; congruence) ;simpl in *.
+    - apply EundefMpz with u;[easy|].  inversion Hrel2; destruct H0; try congruence || (destruct H0 ; congruence) ;simpl in *.
         + right. now exists (proj1_sig sub2 l).
-        + destruct H0. right. now  exists None.
-    * now apply Enone.
+        + destruct H0. right. now exists None.
+    - now apply Enone.
 Qed.
 
 
@@ -193,8 +194,7 @@ Fact antisym_env_partial_order : forall env env',
 Proof.
     intros env env' [[[f1 Hf1] H1] [[f2 Hf2] H2]] v. specialize (H1 v). inversion H1.
     - congruence. 
-    - destruct H2 with v; try congruence. clear H1. clear H2. simpl in *.
-       admit.
+    - destruct H2 with v; try congruence. clear H1. clear H2. simpl in *. admit.
     - congruence.
     - destruct H0 ; destruct H0;  destruct H2 with v; congruence.
     - destruct H0 ; destruct H0;  destruct H2 with v; congruence.
@@ -255,7 +255,7 @@ Qed. *)
 Fact _refl_env_mem_partial_order : reflexive Env (fun e e' => env_mem_partial_order e e' (exist _ _ id_bijective))%envmem.
 Proof.
     intros e.  split.
-    -  apply _refl_env_partial_order.
+    - apply _refl_env_partial_order.
     - apply _refl_mem_partial_order.
 Qed.
 

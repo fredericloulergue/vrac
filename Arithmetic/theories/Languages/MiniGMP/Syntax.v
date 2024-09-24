@@ -1,24 +1,24 @@
 From Coq Require Import Strings.String.
-From RAC Require Import Notations.
+From RAC Require Import Prelude.
 From RAC.Languages Require Import MiniC.Syntax.
 
 Inductive _gmp_t := String | Mpz. 
-Coercion gmp_t_ext (t:_gmp_t) : _c_type := T_Ext t.
+Coercion gmp_t_ext (t:_gmp_t) : c_type := T_Ext t.
 
-Definition gmp_t := @_c_type _gmp_t.  (* type extension τ *)
+Definition gmp_t := @c_type _gmp_t.  (* type extension τ *)
 Notation 𝔗 := gmp_t. (* minigmp types *)
 
 
 (* a gmp expression is a regular c_expression where a variable can additionally be of type String or Mpz *)
-Definition gmp_exp := @_c_exp _gmp_t.
+Definition gmp_exp := @c_exp _gmp_t.
 
-Definition gmp_decl := @_c_decl _gmp_t.
+Definition gmp_decl := @c_decl _gmp_t.
 
 
 
 Inductive _gmp_statement := 
     | Init (name:id) (* mpz allocation *)
-    | Set_i (name:id) (i: c_exp) (* assignment from an int *)
+    | Set_i (name:id) (i: @c_exp Empty_set) (* assignment from an int *)
     | Set_s (name:id) (l:string) (* assignment from a string literal *)
     | Set_z (name z:id)(* assignment from a mpz *)
     | Clear (name:id) (* mpz de-allocation *)
@@ -33,11 +33,11 @@ Inductive _gmp_statement :=
         GMP_Scope added because translation creates a scope per translated assertion within which lies 
         the assertion and its required declarations. 
     *)
-    | GMP_Scope (decls: list gmp_decl) (s:@_c_statement _gmp_statement _gmp_t) 
+    | GMP_Scope (decls: list gmp_decl) (s:@c_statement _gmp_statement _gmp_t) 
 .
 
 #[global] Hint Constructors _gmp_statement  : rac_hint.
-Definition gmp_routine := @_c_routine Empty_set _gmp_statement _gmp_t.
+Definition gmp_routine := @c_routine Empty_set _gmp_statement _gmp_t.
 
 
 Declare Scope mini_gmp_scope.  

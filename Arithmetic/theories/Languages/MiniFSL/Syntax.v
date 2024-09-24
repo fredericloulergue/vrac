@@ -77,7 +77,7 @@ Inductive _fsl_routine : Set :=
 | Predicate (name:id) (args:fsl_decl*) (p:predicate) (* predicate *)
 .
 
-Definition fsl_routine := @_c_routine _fsl_routine _fsl_statement Empty_set.
+Definition fsl_routine := @c_routine _fsl_routine _fsl_statement Empty_set.
 
 
 Definition fsl_to_gmp_op (x:fsl_binop_int) :  id -> id -> id -> _gmp_statement  :=

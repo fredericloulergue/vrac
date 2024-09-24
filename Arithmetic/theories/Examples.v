@@ -21,9 +21,9 @@ Definition five := VInt (5 ⁱⁿᵗ eq_refl).
 Definition ten := VInt (10 ⁱⁿᵗ eq_refl).
 Definition fifteen := VInt (15 ⁱⁿᵗ eq_refl).
 
-#[local] Coercion gmp_id (var:id) : _c_exp := C_Id var C_Int (T:=Empty_set).
+#[local] Coercion gmp_id (var:id) : c_exp := C_Id var C_Int (T:=Empty_set).
 
-Definition funs  := ⊥{"test"\(["a";"b"] , <{ return ("b") }> : c_statement)} .
+Definition funs {S} := ⊥{"test"\(["a";"b"] , <{ return ("b") }> : c_statement (S:=S))} .
 
 
 

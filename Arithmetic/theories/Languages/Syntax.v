@@ -7,24 +7,17 @@ Import FunctionalEnv.
 #[local] Open Scope list.
 
 
-Definition c_statement := @_c_statement Empty_set Empty_set.
-
-Definition fsl_statement := @_c_statement _fsl_statement Empty_set.
+Definition fsl_statement := @c_statement _fsl_statement Empty_set.
 Coercion fsl_s_ext (s:_fsl_statement) : fsl_statement := S_Ext s (T:=Empty_set).
 
 
-Definition gmp_statement := @_c_statement _gmp_statement _gmp_t. 
+Definition gmp_statement := @c_statement _gmp_statement _gmp_t. 
 Notation 𝐒 := gmp_statement. (* program statements *)
 Coercion gmp_s_ext (s:_gmp_statement) : 𝐒 := S_Ext s (T:=_gmp_t).
 
 
-Definition c_decl := @_c_decl Empty_set.
-(* fsl_decl defined earlier *)
-
-
-Definition fsl_pgrm := @_c_program _fsl_routine _fsl_statement Empty_set.
-Definition rac_pgrm := @_c_program Empty_set _gmp_statement _gmp_t.
-
+Definition fsl_pgrm := @c_program _fsl_routine _fsl_statement Empty_set.
+Definition rac_pgrm := @c_program Empty_set _gmp_statement _gmp_t.
 
 
 Definition 𝔉 : Type :=  𝔏 ⇀ (𝔏* ⨉ ℨ). (* logic functions *)
@@ -42,7 +35,7 @@ Definition 𝔓 : Type :=  𝔏 ⇀ (𝔏* ⨉  𝔅). (* predicates *)
 
     requires 
 *)
-Fixpoint ty {T : Set} (e: @_c_exp T) : @_c_type T := 
+Fixpoint ty {T : Set} (e: @c_exp T) : @c_type T := 
     match e with 
     | Zm _  => C_Int
     | C_Id _ t => t
@@ -61,14 +54,14 @@ Fact eq_dec_gmp_t (x y : gmp_t) : {x = y} + {x <> y}. decide equality. apply eq_
 
 
 
-Fixpoint exp_vars {T:Set} (exp : @_c_exp T) : StringSet.t := match exp with 
+Fixpoint exp_vars {T:Set} (exp : @c_exp T) : StringSet.t := match exp with 
 | Zm z => StringSet.empty
 | C_Id v _ => StringSet.singleton v
 | BinOpInt le _ re | BinOpBool le _ re => StringSet.union (exp_vars le) (exp_vars re)
 end.
 
 
-Fixpoint stmt_vars {T S:Set} (stmt : @_c_statement T S) (ext_stmt_vars: T -> StringSet.t) : StringSet.t  := match stmt with 
+Fixpoint stmt_vars {T S:Set} (stmt : @c_statement T S) (ext_stmt_vars: T -> StringSet.t) : StringSet.t  := match stmt with 
 | Skip => StringSet.empty 
 | Assign var e => StringSet.add var (exp_vars e)
 | FCall var f args => StringSet.add var (StringSet.union_list (List.map exp_vars args) StringSet.empty)
@@ -133,7 +126,7 @@ Definition fsl_stmt_vars s := stmt_vars (T:=_fsl_statement) (S:=Empty_set) s _fs
 
 
 
-Definition c_t_to_gmp_t (t:@_c_type Empty_set) : gmp_t := match t with
+Definition c_t_to_gmp_t (t:@c_type Empty_set) : gmp_t := match t with
     | C_Int => C_Int
     | Void => Void
     | T_Ext False => Void (* not possible *)
@@ -141,7 +134,7 @@ Definition c_t_to_gmp_t (t:@_c_type Empty_set) : gmp_t := match t with
 .
 
 (* returns empty string if not an mpz var *)
-Definition gmp_ty_mpz_to_var (e: gmp_exp) : Notations.id := match e with
+Definition gmp_ty_mpz_to_var (e: gmp_exp) : Prelude.id := match e with
     | C_Id var t =>  match t with T_Ext Mpz => var | _ => "" end
     | _ => ""
 end.
@@ -149,7 +142,7 @@ end.
 
 (* Fact gmp_ty_mpz_to_var_spec : ty e = Mpz ->  gmp_ty_mpz_to_var e =  *)
 
-Fixpoint c_exp_to_gmp_int_exp (e: c_exp) : gmp_exp := match e with
+Fixpoint c_exp_to_gmp_int_exp {T} (e: @c_exp T) : gmp_exp := match e with
 | Zm z => Zm z
 | C_Id v t => match t with 
     | Void => C_Id v Void 
@@ -163,7 +156,7 @@ end.
 
 
 (* returns C_id void if not convertible *)
-Fixpoint gmp_exp_to_c_exp  (e:gmp_exp) : c_exp := match e with
+Fixpoint gmp_exp_to_c_exp {T} (e:gmp_exp) : @c_exp T := match e with
     | Zm z => Zm z
     | C_Id var t =>  match t with C_Int => C_Id var C_Int | _ => C_Id var Void end
     | BinOpInt le op re => 
@@ -175,7 +168,7 @@ Fixpoint gmp_exp_to_c_exp  (e:gmp_exp) : c_exp := match e with
 end.
 
 
-Definition c_decl_to_gmp_decl (d:@_c_decl Empty_set) : gmp_decl := 
+Definition c_decl_to_gmp_decl (d:@c_decl Empty_set) : gmp_decl := 
     let '(C_Decl t id) := d in C_Decl (c_t_to_gmp_t t) id
 .
 
@@ -191,5 +184,5 @@ Fixpoint c_exp_to_gmp_exp (e:c_exp) : gmp_exp := match e with
     end
 .
 
-Definition extract_c_args {T} : @_c_decl T * -> 𝓥* := List.map (fun d => let 'C_Decl _ x := d in x).
+Definition extract_c_args {T} : @c_decl T * -> 𝓥* := List.map (fun d => let 'C_Decl _ x := d in x).
 Definition extract_fsl_args : fsl_decl*-> 𝓥* := List.map (fun d => let 'FSL_Decl _ x := d in x).
