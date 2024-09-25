@@ -20,8 +20,8 @@ Definition fsl_pgrm := @c_program _fsl_routine _fsl_statement Empty_set.
 Definition rac_pgrm := @c_program Empty_set _gmp_statement _gmp_t.
 
 
-Definition 𝔉 : Type :=  𝔏 ⇀ (𝔏* ⨉ ℨ). (* logic functions *)
-Definition 𝔓 : Type :=  𝔏 ⇀ (𝔏* ⨉  𝔅). (* predicates *)
+Definition 𝔉 : Type :=  𝔏 ⇀ (𝔏★ ⨉ ℨ). (* logic functions *)
+Definition 𝔓 : Type :=  𝔏 ⇀ (𝔏★ ⨉  𝔅). (* predicates *)
 
 
 
@@ -74,8 +74,7 @@ Fixpoint stmt_vars {T S:Set} (stmt : @c_statement T S) (ext_stmt_vars: T -> Stri
 end.
 
 
-Unset Guard Checking. (* fixme *)
-Fixpoint _gmp_stmt_vars (stmt:_gmp_statement) : StringSet.t := match stmt with 
+#[bypass_check(guard=yes)] Fixpoint _gmp_stmt_vars (stmt:_gmp_statement) : StringSet.t := match stmt with 
 | GMP_Scope _ s => stmt_vars s _gmp_stmt_vars
 | Init z | Set_s z _  | Clear z  => StringSet.singleton z
 | Set_i z e  => StringSet.add z (exp_vars e)
@@ -83,8 +82,6 @@ Fixpoint _gmp_stmt_vars (stmt:_gmp_statement) : StringSet.t := match stmt with
 | GMP_Add l r res | GMP_Sub l r res | GMP_Mul l r res | GMP_Div l r res | Comp res l r => 
     StringSet.union (StringSet.union (StringSet.singleton l) (StringSet.singleton r)) (StringSet.singleton res)
 end.
-
-Set Guard Checking.
 
 
 Definition _fsl_stmt_vars (stmt:_fsl_statement) : StringSet.t := 
@@ -184,5 +181,5 @@ Fixpoint c_exp_to_gmp_exp (e:c_exp) : gmp_exp := match e with
     end
 .
 
-Definition extract_c_args {T} : @c_decl T * -> 𝓥* := List.map (fun d => let 'C_Decl _ x := d in x).
-Definition extract_fsl_args : fsl_decl*-> 𝓥* := List.map (fun d => let 'FSL_Decl _ x := d in x).
+Definition extract_c_args {T} : @c_decl T★ -> 𝓥★ := List.map (fun d => let 'C_Decl _ x := d in x).
+Definition extract_fsl_args : fsl_decl★ -> 𝓥★ := List.map (fun d => let 'FSL_Decl _ x := d in x).

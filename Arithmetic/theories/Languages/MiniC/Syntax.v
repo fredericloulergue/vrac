@@ -45,8 +45,8 @@ Section GenericSyntax.
     Inductive c_statement : Set :=
         | Skip (* empty statement *)
         | Assign (var:id) (e: c_exp) (* assignment *)
-        | FCall (var:id) (fname:string) (args: c_exp*) (* function call *)
-        | PCall  (fname:string) (args: c_exp*) (* procedure call *)
+        | FCall (var:id) (fname:string) (args: c_exp★) (* function call *)
+        | PCall  (fname:string) (args: c_exp★) (* procedure call *)
         | Seq (s1 : c_statement) (s2 : c_statement) (* sequence *)
         | If (cond:c_exp) (_then:c_statement) (_else:c_statement) (* conditional *)
         | While (cond:c_exp) (body:c_statement) (* loop *) 
@@ -57,19 +57,19 @@ Section GenericSyntax.
     .
 
 
-    Definition 𝓕 : Type := StringMap.t (𝓥 * ⨉ c_statement). (* program functions *)
-    Definition 𝓟 : Type := StringMap.t (𝓥 * ⨉ c_statement). (* program procedures *)
+    Definition 𝓕 : Type := StringMap.t (𝓥★ ⨉ c_statement). (* program functions *)
+    Definition 𝓟 : Type := StringMap.t (𝓥★ ⨉ c_statement). (* program procedures *)
 
 
 
     Inductive c_decl :=  C_Decl (type: c_type) (name:id). (* program declaration *)
 
     Inductive c_routine :=
-    | PFun (rtype: c_type) (name:id) (args: c_decl*) (b_decl: c_decl*) (body: c_statement) (* program function *)
+    | PFun (rtype: c_type) (name:id) (args: c_decl★) (b_decl: c_decl★) (body: c_statement) (* program function *)
     | F_Ext (f:F)
     .
 
-    Definition c_program : Type := c_decl* ⨉ c_routine*. 
+    Definition c_program : Type := c_decl★ ⨉ c_routine★. 
 
 End GenericSyntax.
 

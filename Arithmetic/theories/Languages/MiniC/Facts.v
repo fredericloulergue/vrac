@@ -1,6 +1,4 @@
 From Coq Require Import FinFun.
-From RecordUpdate Require Import RecordUpdate.
-From Equations Require Import Equations.
 From RAC Require Import Utils Environnement.
 From RAC.Languages Require Import Syntax MiniC.Semantics.
 

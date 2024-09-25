@@ -1,5 +1,5 @@
 From Coq Require Import ZArith.ZArith.
-From RecordUpdate Require Import RecordUpdate.
+
 From RAC Require Import Utils Environnement.
 From RAC.Languages Require Import Syntax Semantics MiniC.Lemmas MiniGMP.Facts. 
 

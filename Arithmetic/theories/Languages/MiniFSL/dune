@@ -1,4 +1,5 @@
 (coq.theory
 (name RAC.Languages.MiniFSL)
 (theories RAC)
+(flags :standard -set "Warnings=-notation-incompatible-prefix")
 )

@@ -44,7 +44,7 @@ Definition In_stmt {S T} (s s' : @c_statement S T) : Prop := List.In s (flatten 
 
 
 Definition Forall_routines {F S T } (pgrm : @c_program F S T) 
-    (PFuns : @c_decl T * -> @c_decl T * -> @c_statement S T  -> Prop)
+    (PFuns : @c_decl T★  -> @c_decl T★ -> @c_statement S T  -> Prop)
     (* (PLFun : fsl_statement -> Prop)
     (PPred : fsl_statement -> Prop) *)
     : Prop :=

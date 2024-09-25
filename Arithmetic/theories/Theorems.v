@@ -7,9 +7,6 @@ From RAC.Languages Require Import Syntax Semantics Lemmas MiniFSL.Semantics.
 #[local] Open Scope Z_scope.
 #[local] Open Scope string_scope.
 
-From RecordUpdate Require Import RecordUpdate.
-From Equations Require Import Equations.
-
 
 Import RecordSetNotations.
 Import FunctionalEnv Domain.

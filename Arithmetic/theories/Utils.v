@@ -13,7 +13,7 @@ Create HintDb rac_hint.
 
 
 
-Fixpoint fold_left2 {Acc A B : Type} (f : Acc -> A -> B -> Acc) (acc:Acc) (l1 : A*) (l2 : B*) : Acc := 
+Fixpoint fold_left2 {Acc A B : Type} (f : Acc -> A -> B -> Acc) (acc:Acc) (l1 : A★) (l2 : B★) : Acc := 
     match l1,l2 with
     | nil,nil => acc
     | cons b1 t1,cons b2 t2 => fold_left2 f (f acc b1 b2) t1 t2

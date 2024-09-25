@@ -1,5 +1,5 @@
 From Coq Require Import Strings.String Logic.FinFun. 
-From RecordUpdate Require Import RecordUpdate.
+
 From RAC Require Import Utils Environnement.Facts.
 From RAC.Languages Require Import Syntax MiniC.Semantics MiniC.Facts.
 
@@ -76,7 +76,7 @@ Section GenericLemmas.
         
         - destruct (IHHderiv (empty_env <| env; vars ::= p_map_addall_back xargs vargs |>) sub) as [b_ev' [Henvmem2 Hsem2]]; subst vargs.
             +  apply same_int_any_sub. 
-                * apply List.Forall2_length in H1. pose proof (List.map_length  (fun x : Int.MI => Def (VInt x)) zargs) as Hlength.
+                * apply List.Forall2_length in H1. pose proof (List.length_map  (fun x : Int.MI => Def (VInt x)) zargs) as Hlength.
                     rewrite Hlength in H1. congruence. 
                 * apply empty_env_mem_refl_any_sub. 
             + eexists (ev₀' <| env; vars ::= {{c \Def z}} |> <| mstate := b_ev' |>). split.
@@ -89,7 +89,7 @@ Section GenericLemmas.
         (* p call *)
         - destruct (IHHderiv (empty_env <| env; vars ::= p_map_addall_back xargs vargs |>) sub) as [b_ev' [H5 Hsem2]]; subst vargs.
             +  apply same_int_any_sub. 
-                * apply List.Forall2_length in H1. pose proof (List.map_length  (fun x : Int.MI => Def (VInt x)) zargs) as H5.
+                * apply List.Forall2_length in H1. pose proof (List.length_map  (fun x : Int.MI => Def (VInt x)) zargs) as H5.
                     rewrite H5 in H1. congruence. 
                 * apply empty_env_mem_refl_any_sub. 
             + exists (ev₀' <| mstate := b_ev' |>). split.

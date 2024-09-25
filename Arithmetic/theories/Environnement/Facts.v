@@ -1,5 +1,5 @@
 From Coq Require Import String FinFun Setoid ZArith.
-From RecordUpdate Require Import RecordUpdate.
+
 From RAC Require Import Utils.
 From RAC Require Export Environnement.
 

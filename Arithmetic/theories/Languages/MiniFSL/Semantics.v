@@ -1,5 +1,5 @@
 From Coq Require Import Strings.String ZArith.ZArith BinaryString.
-From RecordUpdate Require Import RecordUpdate.
+
 From RAC Require Import Utils Environnement.
 From RAC.Languages Require Import Syntax MiniC.Semantics.
 

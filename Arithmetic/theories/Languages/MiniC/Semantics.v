@@ -1,5 +1,5 @@
 From Coq Require Import Strings.String ZArith.ZArith Sets.Ensembles.
-From RecordUpdate Require Import RecordUpdate.
+
 From RAC Require Import Utils Environnement.
 From RAC.Languages Require Import Syntax.
 From RAC.Environnement Require Import Facts.
@@ -145,7 +145,7 @@ Section GenericSemantics.
             ev' |= s' => ev'' ->
             ev |= <{ s ; s' }> =>  ev''
 
-        | S_FCall fname b b_ev xargs eargs (zargs : Int.MI*) c z : 
+        | S_FCall fname b b_ev xargs eargs (zargs : Int.MI★) c z : 
             @generic_call_sem generic_exp_sem generic_stmt_sem 
             funs ev empty_env fname xargs eargs zargs b b_ev ->
 
@@ -153,7 +153,7 @@ Section GenericSemantics.
             b_ev res_f = Some (Def (VInt z)) -> (* must be a defined integer value *)
             ev |= FCall c fname eargs => ev <| env ; vars ::= {{c\Def z}} |> <| mstate := b_ev |>
 
-        | S_PCall pname b b_ev xargs eargs (zargs : Int.MI*) : 
+        | S_PCall pname b b_ev xargs eargs (zargs : Int.MI★) : 
             @generic_call_sem generic_exp_sem generic_stmt_sem
             procs ev empty_env pname xargs eargs zargs b b_ev ->
 
@@ -205,7 +205,7 @@ Section GenericSemantics.
             P ev' s' ev'' -> 
             P ev <{s; s'}> ev''
         .
-        Variable P7 : forall (ev : Env) (fname : StringMap.key) (b : c_statement) (b_ev : Env) (xargs : 𝓥 *) (eargs : c_exp *) (zargs : Int.MI *) (c : id)  (z : Int.MI),
+        Variable P7 : forall (ev : Env) (fname : StringMap.key) (b : c_statement) (b_ev : Env) (xargs : 𝓥★) (eargs : c_exp★) (zargs : Int.MI★) (c : id)  (z : Int.MI),
             (* inlining of generic_call_sem *)
             List.length xargs = List.length eargs ->
             let vargs := List.map (fun x => Def (VInt x)) zargs in 
@@ -218,8 +218,8 @@ Section GenericSemantics.
             P ev (FCall c fname eargs) (ev <| env; vars ::= {{c \Def z}} |> <| mstate := b_ev |>)
         .
         Variable P8 : forall (ev : Env) (pname : StringMap.key) 
-          (b : c_statement) (b_ev : Env) (xargs : 𝓥 *) 
-          (eargs : c_exp *) (zargs : Int.MI *),
+          (b : c_statement) (b_ev : Env) (xargs : 𝓥★) 
+          (eargs : c_exp★) (zargs : Int.MI★),
             (* inlining of generic_call_sem *)
             List.length xargs = List.length eargs ->
             let vargs := List.map (fun x => Def (VInt x)) zargs in 
@@ -390,7 +390,7 @@ Section GenericSemantics.
 
     End FunctionsEnv.
 
-    Inductive generic_pgrm_sem {build_fenv : @c_routine* -> fenv} (ev:Env) (P : c_program) : Env -> Prop :=
+    Inductive generic_pgrm_sem {build_fenv : @c_routine★ -> fenv} (ev:Env) (P : c_program) : Env -> Prop :=
 
     | P_Pgrm b z ev_decls b_ev:
 
