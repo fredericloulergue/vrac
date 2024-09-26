@@ -255,18 +255,18 @@ Module DummyOracle : Oracle.Oracle.
 
     Definition get_Γᵢ : fsl_pgrm -> Γᵢ := fun _ => StringMap.empty.
 
-    Definition oracle : ℨ -> Γᵢ -> 𝐼 := fun _ _ => (-10,10).
+    Definition oracle : ℨ ⨉ Γᵢ -> 𝐼 := fun _ => (-10,10).
 
     Definition ϴ : 𝐼 -> 𝔗 := fun _ => Mpz. 
 
-    Definition get_ty : ℨ -> Γᵢ -> 𝔗 := fun t τᵢ =>  ϴ (oracle t τᵢ).
+    Definition get_ty : ℨ ⨉ Γᵢ -> 𝔗 := fun x =>  ϴ (oracle x).
 
     Parameter ty_funcall_is_ty_body: 
     forall (f : fsl_prog_fenv) fname xargs (targs:list ℨ) (iargs:list 𝐼) b, 
     StringMap.find fname f.(lfuns) = Some (xargs,b) ->
     forall te,
-    List.Forall2 (fun e i => oracle e te = i) targs iargs ->
-             get_ty (T_Call fname targs) te = get_ty b (StringMap.add_all xargs iargs StringMap.empty).
+    List.Forall2 (fun e i => oracle (e,te) = i) targs iargs ->
+             get_ty (T_Call fname targs,te) = get_ty (b,StringMap.add_all xargs iargs StringMap.empty).
 
     Inductive fits (z:Z) : 𝔗 -> Prop := 
     | InInt : Int.inRange z -> fits z C_Int
@@ -277,12 +277,12 @@ Module DummyOracle : Oracle.Oracle.
 
 
     Parameter type_soundness : forall env te f t z, 
-    fsl_term_sem f env t z -> fits z (get_ty t te).
+    fsl_term_sem f env t z -> fits z (get_ty (t,te)).
 
     Parameter convergence_of_lfuns_ty : 
     forall fname (targs:list ℨ) (iargs:list 𝐼), 
     forall (typing_envs : Ensembles.Ensemble Γᵢ)  (fe:Γᵢ), Ensembles.In Γᵢ typing_envs fe ->
-    (exists ty te, get_ty (T_Call fname targs) te = ty) -> 
+    (exists ty te, get_ty (T_Call fname targs,te) = ty) -> 
     Finite_sets.Finite _ typing_envs
     .
 

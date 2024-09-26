@@ -1,12 +1,17 @@
 From Coq Require Import Strings.String ZArith.
+From Coq Require Export Program.Basics.
 From Equations Require Export Equations.
+
+
 #[warnings="-notation-incompatible-prefix"] From RecordUpdate Require Export RecordUpdate.
 
 #[export] Set Printing Projections. (* use r.(Field) notation for record projection *)
 (* #[export] Set Loose Hint Behavior "Strict". don't allow not imported hint to be used *)
 #[export] Set Default Proof Using "Type". (* Enable async proof-checking of sections. *)
-#[export] Set Suggest Proof Using. (* suggest using annotation if none provided *)
+(* #[export] Set Suggest Proof Using. *) (* suggest using annotation if none provided *)
 #[export] Set Default Goal Selector "!". (* enforce proof structure *)
+
+Open Scope program_scope.
 
 
 (* some notations *)
@@ -20,8 +25,8 @@ Notation ℤ := Z.
 Notation "A ★" := (list A) (at level 20) : type_scope.
 Infix "⨉" := prod (at level 99) : type_scope. 
 
-Definition 𝓥 : Type := id. (* program variables and routines *)
-Definition 𝔏 : Type := id. (* logic variables *)
+Notation 𝓥 := id. (* program variables and routines *)
+Notation 𝔏 := id. (* logic variables *)
 
 Reserved Notation "X ⇀ Y"  (at level 100).
 Reserved Notation "⊥".

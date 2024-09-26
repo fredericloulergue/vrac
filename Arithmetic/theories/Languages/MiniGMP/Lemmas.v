@@ -16,7 +16,7 @@ Section GMPLemmas.
 
     
 
-    Lemma _weakening_of_gmp_statements_semantics_1 : 
+    Lemma _weakening_of_gmp_statements_semantics_1 :
         _LC21_weakening_of_statement_semantics Empty_exp_sem _gmp_stmt_sem
             exist_strong_env_mem_partial_order strong_env_mem_partial_order (fe:=fe)
     .
@@ -88,7 +88,16 @@ Section GMPLemmas.
     Admitted.
 
     (* Definition weakening_of_gmp_statements_semantics_1 := 
-        LC21_weakening_of_statement_semantics Empty_exp_sem _gmp_stmt_sem _gmp_stmt_vars _weakening_of_gmp_statements_semantics_1 . *)
+        LC21_weakening_of_statement_semantics Empty_exp_sem _gmp_stmt_sem 
+        weakening_of_empty_expression_semantics
+        _weakening_of_gmp_statements_semantics_1 . 
+        
+
+        gmp requires strong relation but not c
+
+    *)
+
+
 
     Lemma _weakening_of_gmp_statements_semantics_2 : 
         _LC22_weakening_of_statement_semantics Empty_exp_sem _gmp_stmt_sem exist_env_mem_partial_order env_mem_partial_order (fe:=fe)
@@ -167,7 +176,9 @@ Section GMPLemmas.
     Admitted.
 
     Definition weakening_of_gmp_statements_semantics_2 := 
-        LC22_weakening_of_statement_semantics Empty_exp_sem _gmp_stmt_sem  _weakening_of_gmp_statements_semantics_2
+        LC22_weakening_of_statement_semantics Empty_exp_sem _gmp_stmt_sem  
+        weakening_of_empty_expression_semantics
+        _weakening_of_gmp_statements_semantics_2
         (ext_stmt_vars:=_gmp_stmt_vars) (fe:=fe).
 
 

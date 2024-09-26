@@ -102,17 +102,26 @@ Section GenericSemantics.
         where  "env '|=' e => z" := (generic_exp_sem env e z) : generic_exp_sem_scope.
         
 
+        (* 
+            For any type of call, 
+                - the callee must exist and have a body and parameters
+                - the number of  arguments of the caller must match the calleee's number of parameters 
+                - the args must first be evaluated to a value (no side effects here so evaluation order doesn't matter)
+                - the body is evaluated after binding each parameter to its value and appending it to a certain initial body env
+        *)
         Definition generic_call_sem  
-            {g_exp_s : forall e, generic_exp_sem_sig e}
-            {g_stmt_s : forall e, generic_stmt_sem_sig fe e}
-            (prj: fenv -> _)  (ev body_init_env:Env) name xargs eargs zargs b b_ev :=
+            {Body Arg ArgsVal BodyVal : Type} {g_arg_s :  Env -> Arg -> ArgsVal -> Prop} {g_body_s : Env -> Body -> BodyVal -> Prop}
+            (fe_prj: fenv -> _)  (env_prj: _ )  (ev_args ev_start_body: Env) (bval : BodyVal)
+            name (args : Arg★) (vals:ArgsVal★) (b:Body)  : Prop := 
+            
+            exists (params: id ★),
+                List.length params = List.length args /\
+                StringMap.find name (fe_prj fe) = Some (params,b) /\
+                List.Forall2 (g_arg_s ev_args) args vals /\
+                g_body_s (env_prj (p_map_addall_back params vals) ev_start_body) b bval
+        .
 
-            List.length xargs = List.length eargs /\
-            let vargs := List.map (fun x => Def (VInt x)) zargs in 
-            StringMap.find name (prj fe) = Some (xargs,b) /\
-            List.Forall2 (g_exp_s ev) eargs vargs /\
-            g_stmt_s (body_init_env <| env ; vars ::= p_map_addall_back xargs vargs |>) b b_ev.
-
+        Notation call_sem := (fun sem prj ev_args => @generic_call_sem c_statement c_exp 𝕍 Env generic_exp_sem sem prj (set env ∘ set vars) ev_args empty_env). 
 
         (* extensible statement semantic *)
         Inductive generic_stmt_sem ev : generic_stmt_sem_sig fe ev := 
@@ -145,19 +154,17 @@ Section GenericSemantics.
             ev' |= s' => ev'' ->
             ev |= <{ s ; s' }> =>  ev''
 
-        | S_FCall fname b b_ev xargs eargs (zargs : Int.MI★) c z : 
-            @generic_call_sem generic_exp_sem generic_stmt_sem 
-            funs ev empty_env fname xargs eargs zargs b b_ev ->
-
+        | S_FCall fname b b_ev args (zargs : Int.MI★) c z : 
+            let vargs := List.map (fun x => Def (VInt x)) zargs in 
+            call_sem generic_stmt_sem funs ev b_ev fname args vargs b ->
             ~ StringSet.In res_f (stmt_vars b ext_stmt_vars) -> 
             b_ev res_f = Some (Def (VInt z)) -> (* must be a defined integer value *)
-            ev |= FCall c fname eargs => ev <| env ; vars ::= {{c\Def z}} |> <| mstate := b_ev |>
+            ev |= FCall c fname args => ev <| env ; vars ::= {{c\Def z}} |> <| mstate := b_ev |>
 
-        | S_PCall pname b b_ev xargs eargs (zargs : Int.MI★) : 
-            @generic_call_sem generic_exp_sem generic_stmt_sem
-            procs ev empty_env pname xargs eargs zargs b b_ev ->
-
-            ev |= PCall pname eargs => ev <| mstate := b_ev |>
+        | S_PCall pname b b_ev args (zargs : Int.MI★) : 
+            let vargs := List.map (fun x => Def (VInt x)) zargs in 
+            call_sem generic_stmt_sem procs ev b_ev pname args vargs b ->
+            ev |= PCall pname args => ev <| mstate := b_ev |>
 
         | S_Return e (z: Int.MI) : 
             generic_exp_sem ev e (Def (VInt z)) ->
@@ -205,29 +212,34 @@ Section GenericSemantics.
             P ev' s' ev'' -> 
             P ev <{s; s'}> ev''
         .
-        Variable P7 : forall (ev : Env) (fname : StringMap.key) (b : c_statement) (b_ev : Env) (xargs : 𝓥★) (eargs : c_exp★) (zargs : Int.MI★) (c : id)  (z : Int.MI),
+        Variable P7 : forall (ev_args : Env) (fname : StringMap.key) 
+            (b : c_statement) (b_ev : Env) (params : 𝓥★) 
+            (args : c_exp★) (zargs : Int.MI★) (c : id)  (z : Int.MI),
             (* inlining of generic_call_sem *)
-            List.length xargs = List.length eargs ->
-            let vargs := List.map (fun x => Def (VInt x)) zargs in 
-            StringMap.find fname fe.(funs) = Some (xargs,b) ->
-            List.Forall2 (generic_exp_sem ev) eargs vargs ->
-            generic_stmt_sem (empty_env <| env ; vars ::= p_map_addall_back xargs vargs |>) b b_ev ->
-            P  (empty_env <| env ; vars ::= p_map_addall_back xargs vargs |>) b b_ev ->
+            let vals := List.map (fun x => Def (VInt x)) zargs in 
+            List.length params = List.length args ->
+            StringMap.find fname fe.(funs) = Some (params,b) ->
+            List.Forall2 (generic_exp_sem ev_args) args vals ->
+            generic_stmt_sem (empty_env <| env ; vars ::= p_map_addall_back params vals |>) b b_ev ->
+            (* end inlining *)
+            P  (empty_env <| env ; vars ::= p_map_addall_back params vals |>) b b_ev ->
             ~ StringSet.In res_f (stmt_vars b ext_stmt_vars) ->
             b_ev res_f = Some (Def z) ->
-            P ev (FCall c fname eargs) (ev <| env; vars ::= {{c \Def z}} |> <| mstate := b_ev |>)
+            P ev_args (FCall c fname args) (ev_args <| env; vars ::= {{c \Def z}} |> <| mstate := b_ev |>)
         .
-        Variable P8 : forall (ev : Env) (pname : StringMap.key) 
-          (b : c_statement) (b_ev : Env) (xargs : 𝓥★) 
-          (eargs : c_exp★) (zargs : Int.MI★),
+        Variable P8 : forall (ev_args : Env) (pname : StringMap.key) 
+            (b : c_statement) (b_ev : Env) (params : 𝓥★) 
+            (args : c_exp★) (zargs : Int.MI★),
+
             (* inlining of generic_call_sem *)
-            List.length xargs = List.length eargs ->
-            let vargs := List.map (fun x => Def (VInt x)) zargs in 
-            StringMap.find pname fe.(procs) = Some (xargs,b) ->
-            List.Forall2 (generic_exp_sem ev) eargs vargs ->
-            generic_stmt_sem (empty_env <| env ; vars ::= p_map_addall_back xargs vargs |>) b b_ev ->
-            P (empty_env <| env ; vars ::= p_map_addall_back xargs vargs |>) b b_ev ->
-            P ev (PCall pname eargs) (ev <| mstate := b_ev |>)
+            let vals := List.map (fun x => Def (VInt x)) zargs in 
+            List.length params = List.length args ->
+            StringMap.find pname fe.(procs) = Some (params,b) ->
+            List.Forall2 (generic_exp_sem ev_args) args vals ->
+            generic_stmt_sem (empty_env <| env ; vars ::= p_map_addall_back params vals |>) b b_ev ->
+            (* end inlining *)
+            P (empty_env <| env ; vars ::= p_map_addall_back params vals |>) b b_ev ->
+            P ev_args (PCall pname args) (ev_args <| mstate := b_ev |>)
         .
 
         Variable P9 : forall (ev : Env) (e : c_exp) (z : Int.MI),
@@ -249,12 +261,12 @@ Section GenericSemantics.
         | S_IfFalse _ ev' e0 s s' g0 g1 => P4 ev ev' e0 s s' g0 g1 (generic_stmt_sem_full_ind ev s' ev' g1)
         | S_While _ e0 s ev' g0 => P5 ev e0 s ev' g0 (generic_stmt_sem_full_ind ev <{if e0  s; while e0 s else  skip}> ev' g0)
         | S_Seq _ ev' ev'' s s' g0 g1 => P6 ev ev' ev'' s s' g0 (generic_stmt_sem_full_ind ev s ev' g0) g1 (generic_stmt_sem_full_ind ev' s' ev'' g1)
-        | S_FCall _ fname b b_ev xargs eargs zargs c0 z (conj H1 (conj H2 (conj H3 H4))) n e0 => 
+        | S_FCall _ fname b b_ev args zargs c0 z (ex_intro _ params (conj H1 (conj H2 (conj H3 H4)))) n e0 => 
+                let vargs := List.map (fun x => Def (VInt x)) zargs in
+                P7 ev fname b b_ev params args zargs c0 z H1 H2 H3 H4 (generic_stmt_sem_full_ind (empty_env <| env ; vars ::= p_map_addall_back params vargs |>) b b_ev H4) n e0
+        | S_PCall _ pname b b_ev args zargs (ex_intro _ params (conj H1 (conj H2 (conj H3 H4)))) => 
             let vargs := List.map (fun x => Def (VInt x)) zargs in
-            P7 ev fname b b_ev xargs eargs zargs c0 z H1 H2 H3 H4 (generic_stmt_sem_full_ind (empty_env <| env ; vars ::= p_map_addall_back xargs vargs |>) b b_ev H4) n e0
-        | S_PCall _ pname b b_ev xargs eargs zargs (conj H1 (conj H2 (conj H3 H4))) => 
-            let vargs := List.map (fun x => Def (VInt x)) zargs in
-            P8 ev pname b b_ev xargs eargs zargs H1 H2 H3 H4 (generic_stmt_sem_full_ind (empty_env <| env ; vars ::= p_map_addall_back xargs vargs |>) b b_ev H4)
+            P8 ev pname b b_ev params args zargs H1 H2 H3 H4 (generic_stmt_sem_full_ind (empty_env <| env ; vars ::= p_map_addall_back params vargs |>) b b_ev H4)
         | S_Return _ e0 z g0 => P9 ev e0 z g0
         | S_PAssert _ e0 z g0 n => P10 ev e0 z g0 n
         | S_ExtSem _ s ev' s0 => P11 ev s ev' s0
@@ -403,8 +415,7 @@ Section GenericSemantics.
         (** call the main function with the given parameters 
             (same as function call except the evaluation env for the body is not initially empty and we keep the whole final env) 
         *) 
-        @generic_call_sem fe generic_exp_sem (fun e => @generic_stmt_sem fe e)
-        funs ev ev_decls "main"%string nil nil nil b b_ev ->
+        @generic_call_sem fe _ _ _ _ generic_exp_sem (@generic_stmt_sem fe) funs (set env ∘ set vars) ev ev_decls b_ev "main"%string nil nil b ->
 
 
         ~ StringSet.In res_f (stmt_vars b ext_stmt_vars) -> 

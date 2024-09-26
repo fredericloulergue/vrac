@@ -9,7 +9,6 @@ Import RecordSetNotations FunctionalEnv.
 #[local] Open Scope mini_c_scope.
 #[local] Open Scope Z_scope.
 
-
 Inductive fsl_term_sem (f: fsl_prog_fenv) (ev:Env) : ℨ -> Z -> Prop :=
     | S_T_Int z : fsl_term_sem f ev (T_Z z) z 
     
@@ -33,11 +32,8 @@ Inductive fsl_term_sem (f: fsl_prog_fenv) (ev:Env) : ℨ -> Z -> Prop :=
         fsl_term_sem f ev t' z' ->
         fsl_term_sem f ev (T_Cond p t t') z'
 
-    | S_T_Call fname b xargs targs zargs z :
-        List.length xargs = List.length targs ->
-        StringMap.find fname f.(lfuns) = Some (xargs,b) ->
-        List.Forall2 (fsl_term_sem f ev) targs zargs ->
-        fsl_term_sem f (empty_env <| env ; binds ::= p_map_addall_back xargs zargs |>) b z -> 
+    | S_T_Call fname b targs zargs z :
+        @generic_call_sem _ _ f _ _ _ _ (fsl_term_sem f) (fsl_term_sem f) lfuns (set env ∘ set binds) ev empty_env z fname targs zargs b ->
         fsl_term_sem f ev (T_Call fname targs) z 
 
 
@@ -74,11 +70,8 @@ with fsl_pred_sem (f: fsl_prog_fenv) (ev:Env) :  𝔅 -> 𝔹 -> Prop :=
         fsl_pred_sem f ev p' z ->
         fsl_pred_sem f ev (P_Disj p p') z
     
-    | S_P_Call p b xargs targs zargs z :
-        List.length xargs = List.length targs ->
-        StringMap.find p f.(preds) = Some (xargs,b) ->
-        List.Forall2 (fsl_term_sem f ev) targs zargs ->
-        fsl_pred_sem f (empty_env <| env ; binds ::= p_map_addall_back xargs zargs |>) b z -> 
+    | S_P_Call p b targs zargs z :
+        @generic_call_sem _ _ f _ _ _ _ (fsl_term_sem f) (fsl_pred_sem f) preds (set env ∘ set binds) ev empty_env z p targs zargs b ->
         fsl_pred_sem f ev (P_Call p targs) z 
 .
 
@@ -95,6 +88,10 @@ Declare Scope fsl_psem_scope.
 Delimit Scope fsl_psem_scope with fslpsem.
 
 Notation "Ω '|=' t => v" := (fun f => fsl_pred_sem f Ω t v) : fsl_psem_scope.
+
+(* todo: custom induction principle *)
+
+
 
 (* in the article, logical assert is part of mini-c but because we make mini_c extendable,
  the logical assert is now in fsl semantics *)

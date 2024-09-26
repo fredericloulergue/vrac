@@ -312,7 +312,7 @@ Module Translation (Oracle : Oracle).
 
                 (* building the fresh binding env for parameters *)
                 v <- fresh_variable ;;;
-                let interval := oracle (proj1_sig arg) (snd g) in
+                let interval := oracle (proj1_sig arg,snd g) in
 
                 (* collect and append  *)
                 ( 
@@ -373,14 +373,14 @@ Module Translation (Oracle : Oracle).
         } 
 
     | tr_term , _, _ , _ , T_Z z =>
-            let τ := get_ty z (snd g) in
+            let τ := get_ty (T_Z z,snd g) in
             c <- fresh_variable ;;
             let decl := [(c,τ)]  in 
             let code := Z_ASSGN τ c z in
             TM.ret (mkSTR gmp_statement (mkTR gmp_statement code e nil) decl (c,τ))
 
     | tr_term , _, _ , _ , T_BinOp t1 _op t2 =>
-            let τ := get_ty (T_BinOp t1 _op t2) (snd g) in
+            let τ := get_ty (T_BinOp t1 _op t2,snd g) in
             c <- fresh_variable ;;
             v1 <- fresh_variable ;;
             v2 <- fresh_variable ;;
@@ -398,7 +398,7 @@ Module Translation (Oracle : Oracle).
 
     | tr_term , _, _ , _ ,T_Cond p t1 t2 =>
             c <- fresh_variable ;;
-            let τ := get_ty  (T_Cond p t1 t2) (snd g) in
+            let τ := get_ty  (T_Cond p t1 t2,snd g) in
             p_tr <- translate_fsl tr_pred f g e p ;;
             t1_tr <- translate_fsl tr_term f g p_tr.(tr).(tenv gmp_statement) t1  ;; 
             let t1_code := t1_tr.(tr).(chunk gmp_statement) in
@@ -425,7 +425,7 @@ Module Translation (Oracle : Oracle).
 
             | Some (params,_) ins:HInlfuns =>
 
-                let rtype :=  get_ty (T_Call fname args) (snd g) in 
+                let rtype :=  get_ty (T_Call fname args,snd g) in 
                 
                 (* value returned by the function call *)
                 c <- fresh_variable ;;
@@ -459,7 +459,7 @@ Module Translation (Oracle : Oracle).
 
                     (* building the fresh binding env for parameters *)
                     v <- fresh_variable ;;;
-                    let interval := oracle (proj1_sig arg) (snd g)  in
+                    let interval := oracle (proj1_sig arg,snd g)  in
 
                     (* collect and append  *)
                     ( 
@@ -519,7 +519,7 @@ Module Translation (Oracle : Oracle).
             | None ins:_ =>  False_rect _ _
             | Some (params,b) ins:HInlfuns => 
                 (* get the return type *)
-                let rtype := get_ty b (snd g) in
+                let rtype := get_ty (b,snd g) in
 
                 (* generate a fresh name for the new function *)
                 fres <- fresh_fname fname;;
@@ -601,17 +601,17 @@ Module Translation (Oracle : Oracle).
     - now apply  fixme3 in e0.
     - constructor. apply fixme.
     - destruct get_ty eqn:Hget; try discriminate.  unfold get_ty in Hget. 
-        pose proof (ϴ_int_or_mpz (oracle (T_Call fname args) (snd g))) as [H|H]; congruence.
+        pose proof (ϴ_int_or_mpz (oracle (T_Call fname args,snd g))) as [H|H]; now rewrite Hget in H.
     - destruct get_ty eqn:Hget; try discriminate. destruct t; try discriminate.
-        pose proof (ϴ_int_or_mpz (oracle (T_Call fname args) (snd g))) as [H|H]; subst;  unfold get_ty in Hget; congruence.
+        pose proof (ϴ_int_or_mpz (oracle (T_Call fname args,snd g))) as [H|H]; subst;  unfold get_ty in Hget; congruence.
     - now apply fixme2 in e0.
     - constructor. apply fixme.
     - now apply fixme3 in e0.
     - now apply fixme3 in e0.
     - destruct get_ty eqn:Hget; try discriminate. unfold get_ty in Hget. 
-        pose proof (ϴ_int_or_mpz (oracle b (snd g))) as [H|H]; congruence.
+        pose proof (ϴ_int_or_mpz (oracle (b,snd g))) as [H|H]; congruence.
     - destruct get_ty eqn:Hget; try discriminate. destruct t; try discriminate.
-        pose proof (ϴ_int_or_mpz (oracle b (snd g))) as [H|H]; subst;  unfold get_ty in Hget; congruence.
+        pose proof (ϴ_int_or_mpz (oracle (b,snd g))) as [H|H]; subst;  unfold get_ty in Hget; congruence.
     - constructor. apply fixme.
     - now apply  fixme2 in e0.
     Qed.
@@ -716,19 +716,21 @@ Module Translation (Oracle : Oracle).
     | (decls,routines) =>
 
         (* gather all routines definitions in fenv *)
-        let fenv := build_fsl_fenv routines in 
+        let fe := build_fsl_fenv routines in 
 
         (* perform the static analysis *)
         let t_env := Oracle.get_Γᵢ (decls,routines) in
 
 
         (* generate from left to right the globals and function definitions *)
-        let res := TMOps.fold (translate_routine fenv t_env) routines ([], [], GlobalDef.empty)
+        let res := TMOps.fold (translate_routine fe t_env) routines ([], [], GlobalDef.empty)
         in
         let '((gen_f,tr_f),_) := TM.exec res in
         (*  convert c decls to gmp_decls *)
         let gmp_decls := map c_decl_to_gmp_decl decls in
         (gmp_decls,gen_f++tr_f) (* first the generated functions and then the translated ones *)
-.
+    .
 
+
+    Notation "⟦ P ⟧" := (translate_program P).
 End Translation.

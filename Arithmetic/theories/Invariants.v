@@ -48,7 +48,7 @@ Module Invariants(O: Oracle).
         List.length zargs = List.length iargs ->
         List.Forall2 (fun v zi => in_interval (snd tenv) v (fst zi) (snd zi)) vargs (List.combine zargs iargs) ->
 
-        match  get_ty b (snd tenv) with
+        match  get_ty (b,snd tenv) with
         | C_Int =>
             forall s envᶠ irz,
             StringMap.find ϕ fenv.(funs) = Some (xargs,s) ->

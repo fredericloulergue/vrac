@@ -103,9 +103,9 @@ Section GenericFacts.
         - inversion_clear H0... exfalso.  apply determinist_exp_eval in H... destruct H1 as [H1 Hnotz]. apply H in H1. inversion H1. now apply Hnotz.
         - inversion H... 
         - inversion_clear H... apply IHHderiv1 in H0. subst. apply IHHderiv2 in H1. now subst. 
-        - inversion_clear H4. destruct H5 as (Hl & Hf & Hargs & Hsem).
+        - inversion_clear H4. destruct H5 as (params0 & Hl & Hf & Hargs & Hsem).
             (* same args, same body *) 
-            assert (Heq: xargs = xargs0 /\ b = b0) by (rewrite Hf in H0; now inversion_clear H0). inversion_clear Heq. subst.
+            assert (Heq: params = params0 /\ b = b0) by (rewrite Hf in H0; now inversion_clear H0). inversion_clear Heq. subst.
             (* same args eval *) 
             assert (zargs = zargs0). {
                 pose proof (Forall2_same_zargs _ _ _ _  H1 Hargs) as Hsame.
@@ -114,8 +114,8 @@ Section GenericFacts.
             subst. apply IHHderiv in Hsem. subst. rewrite H7 in H3. injection H3 as H3. now subst.
 
                 
-        - inversion_clear H2. destruct H3 as (Hl & Hf & Hargs & Hsem). 
-            assert (Heq: xargs = xargs0 /\ b = b0) by (rewrite Hf in H0; now inversion_clear H0). inversion_clear Heq. subst.
+        - inversion_clear H2. destruct H3 as (params0 & Hl & Hf & Hargs & Hsem). 
+            assert (Heq: params = params0 /\ b = b0) by (rewrite Hf in H0; now inversion_clear H0). inversion_clear Heq. subst.
             assert (zargs = zargs0). {
                 pose proof (@Forall2_same_zargs  _ _ _ _ H1 Hargs) as Hsame. 
                 apply list_map_id_eq in Hsame ; [assumption|]. unfold Injective. intros x y Heq. now inversion Heq. 

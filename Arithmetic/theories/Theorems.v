@@ -21,87 +21,85 @@ Module Theorems(Or:Oracle).
     (* Section C : PROPERTIES OF THE SEMANTICS *)
     (* -> Languages/{MiniC,MiniGMP}/Lemmas.v *)
 
+    Parameter P : fsl_pgrm.
 
-    (* Section D : PROOFS OF STRUCTURAL PROPERTIES OF THE TRANSLATION *)
-
-
-    (* `if the generated program has a semantic [...]'  but no semantic given for a program   *)
-    Lemma LD1_mpz_pointer_invariant : forall P fenv,
-        well_formed_pgrm P  ->
-        Forall_routines (T.translate_program P) ( fun _ _ b => 
-            forall (renv renv' : Env),
-            forall v, type_of_value (renv v) = Some (T_Ext Mpz) ->
-            forall s, between <( init(v) )> s <( cl(v) )> b -> 
-            (renv |= s => renv')%gmpssem fenv ->
-            renv v = renv' v
-        )
+    Parameter WellFormedProgram : 
+        List.NoDup (snd P)    
     .
-    Proof.
+
+    Section D. (* PROOFS OF STRUCTURAL PROPERTIES OF THE TRANSLATION *)
+
+        (* `if the generated program has a semantic [...]'  but no semantic given for a program   *)
+        Lemma LD1_mpz_pointer_invariant : forall fenv,
+            Forall_routines ⟦P⟧ ( fun _ _ b => 
+                forall (renv renv' : Env),
+                forall v, type_of_value (renv v) = Some (T_Ext Mpz) ->
+                forall s, between <( init(v) )> s <( cl(v) )> b -> 
+                (renv |= s => renv')%gmpssem fenv ->
+                renv v = renv' v
+            )
+        .
+        Proof.
+        Admitted.
+
+        Lemma LD2_absence_of_aliasing : forall fenv,
+            Forall_routines ⟦P⟧ ( fun _ _ b => 
+                forall s (renv renv' : Env),
+                (renv |= s => renv')%gmpssem fenv ->
+                forall v (l:location), renv' v = Some (Def (VMpz l)) ->
+                forall v' (l':location), v' <> v /\ renv' v' =  Some (Def (VMpz l')) ->
+                l <> l'
+            )
+        .
+        Proof.
+        Admitted.
+
+
+        Lemma LD3_preservation_of_control_flow : 
+            Forall_routines ⟦P⟧ ( fun _ _ b => 
+                forall decls s,
+                In_stmt (S_Ext (GMP_Scope decls s)) b -> 
+                (* passes through: how to represent control flow ?  *)
+                True
+            )
+        .
+        Admitted.
+
+        Lemma LD4 :
+            (* translate_predicate ... *)
+            True.
+        Proof.
+        Admitted.
+
+
+        Lemma LD5_memory_transparency_of_generated_code :
+            Forall_routines ⟦P⟧ ( fun _ _ b => 
+                forall decls s,
+                In_stmt (S_Ext (GMP_Scope decls s)) b -> 
+                (* todo: add decls tec *)
+                True
+            )
+        .
+        Proof.
+        Admitted.
+
+        Theorem T61_absence_of_dangling_pointers : forall fenv,
+            Forall_routines ⟦P⟧ ( fun _ _ b => 
+                forall s (renv renv' : Env),
+                (renv |= s => renv')%gmpssem fenv ->
+                forall (l:location), renv'.(mstate) l <> None <->  exists! x, renv' x = Some (Def (VMpz l))
+            ). 
+        Proof. 
+        Admitted.   
+
+        Theorem T62_absence_of_memory_leak :  forall P env env',
+            gmp_pgrm_sem env ⟦P⟧ env' ->
+            env'.(mstate) = ⊥
+        .
+        Proof. 
     Admitted.
 
-    Lemma LD2_absence_of_aliasing : forall P fenv,
-        well_formed_pgrm  P ->
-        Forall_routines  (T.translate_program P) ( fun _ _ b => 
-            forall s (renv renv' : Env),
-            (renv |= s => renv')%gmpssem fenv ->
-            forall v (l:location), renv' v = Some (Def (VMpz l)) ->
-            forall v' (l':location), v' <> v /\ renv' v' =  Some (Def (VMpz l')) ->
-            l <> l'
-        )
-    .
-    Proof.
-    Admitted.
-
-
-    Lemma LD3_preservation_of_control_flow : forall P,
-        well_formed_pgrm  P ->
-        Forall_routines (T.translate_program P) ( fun _ _ b => 
-            forall decls s,
-            In_stmt (S_Ext (GMP_Scope decls s)) b -> 
-            (* passes through: how to represent control flow ?  *)
-            True
-        )
-    .
-    Admitted.
-
-    Lemma LD4 : forall P,
-        well_formed_pgrm  P ->
-        (* translate_predicate ... *)
-        True.
-    Proof.
-    Admitted.
-
-
-    Lemma LD5_memory_transparency_of_generated_code : forall P,
-        well_formed_pgrm  P ->
-        Forall_routines (T.translate_program P) ( fun _ _ b => 
-            forall decls s,
-            In_stmt (S_Ext (GMP_Scope decls s)) b -> 
-            (* todo: add decls tec *)
-            True
-        )
-    .
-    Proof.
-    Admitted.
-
-    Theorem T61_absence_of_dangling_pointers : forall P fenv,
-        well_formed_pgrm  P ->
-        Forall_routines (T.translate_program P) ( fun _ _ b => 
-            forall s (renv renv' : Env),
-            (renv |= s => renv')%gmpssem fenv ->
-            forall (l:location), renv'.(mstate) l <> None <->  exists! x, renv' x = Some (Def (VMpz l))
-        ). 
-    Proof. 
-    Admitted.   
-
-    Theorem T62_absence_of_memory_leak :  forall P env env',
-        well_formed_pgrm  P ->
-        gmp_pgrm_sem env (T.translate_program P) env' ->
-        env'.(mstate) = ⊥
-    .
-    Proof. 
-    Admitted.
-
+    End D.
 
     (* Section E : PROOFS OF THE SEMANTICS OF THE MACROS *)
 
@@ -117,8 +115,8 @@ Module Theorems(Or:Oracle).
     #[local] Open Scope fsl_sem_scope.
 
 
-    Inductive env_Γ (env: Env) (g:Γ) : Env -> Prop :=  
-    | env_Γ_Cons env' (ens : 𝐴) : 
+    Definition env_Γ (env env': Env) (g:Γ) : Prop :=  
+        forall (ens : 𝐴),
         (
             I1 env g ->
             forall t v z, 
@@ -129,14 +127,14 @@ Module Theorems(Or:Oracle).
                 exists i,
                 StringMap.find v (snd g) = Some i /\
                 t = ϴ i
-        ) ->
-        (env +++ ens) env' ->
-        env_Γ env g env'
+        )
+        /\
+        (env +++ ens) env'
     .
 
 
-    Inductive env_Γ_t fenv (env: Env) (g:Γ) (p:T.ψ) (t:ℨ) : Env -> Prop :=  
-    | env_Γ_t_Cons env' env'' (ens : 𝐴) : 
+    Definition env_Γ_t fenv (env env': Env) (g:Γ) (p:T.ψ) (t:ℨ) : Prop :=  
+        forall env'' (ens : 𝐴),
         (
             forall ty v z,  
                 (Ensembles.In _ ens (ty,v,z) 
@@ -147,14 +145,13 @@ Module Theorems(Or:Oracle).
                 (z = 0 <-> ty = T_Ext Mpz)
                 /\
                 (exists u, z = u (*fixme: must be undef value *)  <-> ty = C_Int)       
-        ) ->
-        env_Γ env g env' ->
-        (env' +++ ens) env'' ->
-        env_Γ_t fenv env g p t env''
+        ) /\
+        env_Γ env env'' g /\
+        (env'' +++ ens) env'
     .
 
-    Inductive env_Γ_p fenv (env: Env) (g:Γ) (p:T.ψ) (pred:𝔅) : Env -> Prop :=  
-    | env_Γ_p_Cons env' env'' (ens : 𝐴) : 
+    Definition env_Γ_p fenv (env env': Env) (g:Γ) (p:T.ψ) (pred:𝔅) : Prop :=  
+        forall env'' (ens : 𝐴),
         (
             forall ty v z,  
                 (Ensembles.In _ ens (ty,v,z) 
@@ -165,9 +162,8 @@ Module Theorems(Or:Oracle).
                 /\
                 (exists u, z = u (*fixme: must be undef value *)  <-> ty = C_Int)       
         ) ->
-        env_Γ env g env' ->
-        (env' +++ ens) env'' ->
-        env_Γ_p fenv env g p pred env''
+        env_Γ env env'' g /\
+        (env'' +++ ens) env'
     .
 
 
@@ -175,8 +171,8 @@ Module Theorems(Or:Oracle).
         forall (t:fsl_term) fenv (env:Env) g (p:T.ψ), 
             I1 env g ->
             I2 p g fenv ->
-            forall env_g, env_Γ env g env_g ->
-            forall env_gt, env_Γ_t fenv env g p t env_gt ->
+            forall env_g, env_Γ env env_g g ->
+            forall env_gt, env_Γ_t fenv env env_gt g p t  ->
 
             forall z,
             (
@@ -192,7 +188,7 @@ Module Theorems(Or:Oracle).
                     /\
                         env' |= C_Id (fst result.(res)) (snd result.(res)) ⇝ z
                     /\
-                        match get_ty t (snd g) with
+                        match get_ty (t,snd g) with
                         | C_Int =>  
                             exists irz, env'.(vars) (fst (result.(res))) = Some (Def (VInt (z ⁱⁿᵗ irz)))
                         | T_Ext Mpz => 
@@ -209,8 +205,8 @@ Module Theorems(Or:Oracle).
         forall (pred:predicate) fenv (env:Env) g (p:T.ψ), 
             I1 env g ->
             I2 p g fenv ->
-            forall env_g,  env_Γ env g env_g ->
-            forall env_gp, env_Γ_p fenv env g p pred env_gp ->
+            forall env_g,  env_Γ env env_g g ->
+            forall env_gp, env_Γ_p fenv env env_gp g p pred ->
 
             forall b,
             (
@@ -256,19 +252,19 @@ Module Theorems(Or:Oracle).
         induction t; intros fenv e g p HI1 HI2 env_g Henvg env_gt Henvgt z'; split; intros Htsem.
 
         (* t is an integer *)
-        -  remember (get_ty z' (snd g)) as ty. destruct ty; simpl in *; inversion Henvgt; inversion H0; inversion Htsem; subst; simp translate_fsl in *; cbn in *; specialize (H (get_ty  z' (snd g))).
+        -  remember (get_ty (T_Z z',snd g)) as ty. destruct ty; simpl in * ; inversion Htsem ; subst ; simp translate_fsl in *; cbn in *.
             + rewrite <- Heqty in *. 
                 pose proof (Or.type_soundness _ (snd g) _ _  _  Htsem) as Hfit. inversion Hfit; [|congruence].
-                exists (env_gt <| env; vars ::= {{"_v0"\Def (VInt (z' ⁱⁿᵗ H5))}} |> ).   repeat split.
+                exists (env_gt <| env; vars ::= {{"_v0"\Def (VInt (z' ⁱⁿᵗ H0))}} |> ).   repeat split.
                 * admit.
                 * subst. simpl. apply LE3_semantics_of_the_Z_assgn_macro_tint.
                     ** unfold is_comp_var. simpl. admit.
                     ** admit.
 
-                * subst. simpl.  epose proof (M_Int (env_gt <| env; vars ::= {{"_v0" \Def (VInt (z' ⁱⁿᵗ H5))}} |> ) (C_Id "_v0" C_Int) (z' ⁱⁿᵗ H5)). apply H6. 
+                * subst. simpl.  epose proof (M_Int (env_gt <| env; vars ::= {{"_v0" \Def (VInt (z' ⁱⁿᵗ H0))}} |> ) (C_Id "_v0" C_Int) (z' ⁱⁿᵗ H0)). apply H1. 
                     ** easy.
                     ** simpl. now constructor.
-                * exists H5. subst. simpl. constructor.
+                * exists H0. subst. simpl. constructor.
 
             + exfalso. admit.
 
@@ -308,13 +304,13 @@ Module Theorems(Or:Oracle).
 
             (* program variable *)
             + {
-                exists env_g. inversion Henvg. repeat split.
+                exists env_g.  repeat split.
                 - apply refl_env_mem_partial_order.
                 - subst. simpl. admit.
                 - subst. simpl. constructor.
                     + easy.
                     + simpl. constructor. admit.
-                - assert (H3: (get_ty (T_Id name FSL_Int) (snd g)) = C_Int) by admit. rewrite H3. subst. simpl. 
+                - assert (H3: (get_ty (T_Id name FSL_Int,snd g)) = C_Int) by admit. rewrite H3. subst. simpl. 
                 destruct x. simpl in *. exists i. admit.  
             }
 
@@ -361,8 +357,8 @@ Module Theorems(Or:Oracle).
 
         assert (I1 env g) as HI1 by admit.
         assert (I2 p g fenv) as HI2 by admit.
-        assert (env_g : Env) by auto. assert (Henv_g : env_Γ env g env_g) by admit.  
-        assert (env_gp : Env) by auto. assert (Henv_gp : env_Γ_p fenv env g p pred env_gp) by admit.
+        assert (env_g : Env) by auto. assert (Henv_g : env_Γ env env_g g) by admit.  
+        assert (env_gp : Env) by auto. assert (Henv_gp : env_Γ_p fenv env env_gp g p pred ) by admit.
 
 
         pose proof (LG2_semantics_of_predicate_translation pred fenv env g p HI1 HI2 env_g Henv_g env_gp Henv_gp BTrue).
@@ -403,6 +399,7 @@ Module Theorems(Or:Oracle).
                 * exists oneinRange. subst scope instrs var assert_res. simpl in Henv. 
     Admitted.
 
+
     Theorem TG5_transparancy_of_assertion_translation : 
     forall pred g p fenv,
     let assert_trans :=TM.exec (translate_statement fenv g p <{ /*@ assert pred */ }>) in
@@ -416,44 +413,43 @@ Module Theorems(Or:Oracle).
 
 
 
-    Fact correctness_of_routine_translation : forall (P:fsl_pgrm),
+    (* Fact correctness_of_routine_translation : forall (P:fsl_pgrm),
         forall (e:Ω),
         fsl_pgrm_sem empty_env P (empty_env <|env ; vars := e|>) <->
-        forall fenv t_env routines,
-        TMOps.fold (translate_routine fenv t_env) routines (nil, nil, GlobalDef.empty) = TM.ret (nil,nil,GlobalDef.empty).
+        forall fe t_env routines,
+        TMOps.fold (translate_routine fe t_env) routines (nil, nil, GlobalDef.empty) = TM.ret (nil,nil,GlobalDef.empty).
     Proof.
-    Admitted.
+    Admitted. *)
 
 
-    Theorem T63_correctness_of_code_generation : forall (P:fsl_pgrm),
+    Theorem T63_correctness_of_code_generation : 
         forall  (e  : Ω),
         fsl_pgrm_sem empty_env P (empty_env <|env ; vars := e|>)
         <-> 
         exists (e': Ω),
-        gmp_pgrm_sem empty_env (T.translate_program P) (empty_env <|env ; vars := e'|>)
+        gmp_pgrm_sem empty_env ⟦P⟧ (empty_env <|env ; vars := e'|>)
         /\ 
         (e ⊑ e')%env
         
     .
-    Proof.
-        pose proof (translate_program_elim (fun p p' => 
-        forall (e:Ω),
-            fsl_pgrm_sem empty_env p (empty_env <| env; vars := e |>) <->
-            (exists e' : Ω, gmp_pgrm_sem empty_env p' (empty_env <| env; vars := e' |>) /\ (e ⊑ e')%env)
-        
-        )). eapply H (* with (fun decls routines fenv gi done r t => True) *) ; clear H.
+    Proof.        
+        intros e. destruct P as [decls routines].  (* induction routines.
+        - split.
+            (* there must exist at least one function (main) *)
+            + intros Hsem. exfalso. inversion Hsem. inversion H0 as (_ & Hsome & _). now subst fe.
+            + intros [e' [Htrans  _]]. exfalso. destruct Htrans as [? _ ? ? _ ? Hmain _ _]. inversion Hmain as (_ & Hsome & _). now subst fe.
 
-        - intros decls routines e. generalize dependent decls. induction routines as [|r] ; simpl in *.
-            + intros decls. split.
-                (* there must exist at least one function (main) *)
-                * intros Hsem. inversion Hsem. simpl in *. remember fe. subst fe. admit.
-                * intros [e' [Htrans  _]]. destruct Htrans. cbn in *.   autorewrite with build_rac_fenv fold in *.     
-                    simpl in *. inversion H0. admit.
+        - simpl in IHroutines. split.
+            + intros Hsem. apply proj1 in IHroutines. inversion Hsem as [? ? ? ? Hev_decls fe (_ & Hmain & Hmain_args & Hmain_body) Hresf Hb_ev]. simpl in *. subst.
+                eexists ?[e']. split.
+               * econstructor. 
+                    --   red.  constructor. simpl.  translate_routine. simpl. simpl. simp translate_routine. admit.
+               * admit.
+            + intros [e' [Hpsem Hrel]].  admit.
+            *)
 
-            + simpl in *. edestruct IHroutines as [Hr1 Hr2]; clear IHroutines. split.
-                * intros Hsem. inversion Hsem. simpl in *. eexists. subst fe. split.
-                    --  unfold TM.exec, TM.bind. simpl. autorewrite with fold. simpl. admit.  
-                    -- admit.
-                * intros [e' [Hpsem Hrel]]. admit.
+
+        split.
+        - intros Hsem. inversion Hsem as [? ? ? ? Hev_decls fe (params & Hlength & Hmain & Hmain_args & Hmain_body) Hresf Hb_ev]. simpl in *. eexists.
     Admitted.
 End Theorems.
