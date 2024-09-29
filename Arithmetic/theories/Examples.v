@@ -198,7 +198,7 @@ end.
 
 
 
-Example add_var_int : forall (ir3 :Int.inRange 3),  empty_env +++ (C_Int, "y", 3) (empty_env  <| env ; vars := ⊥{"y"\Def (VInt ( 3ⁱⁿᵗ ir3))} |>).
+Example add_var_int : forall (ir3 :MI.inRange 3),  empty_env +++ (C_Int, "y", 3) (empty_env  <| env ; vars := ⊥{"y"\Def (VInt ( 3ⁱⁿᵗ ir3))} |>).
 Proof. now constructor. Qed.
 
 
@@ -210,12 +210,12 @@ add_z_var empty_env Mpz "y" 3
     )
 .
 Proof.
-    assert (ir3: Int.inRange 3) by easy.
+    assert (ir3: MI.inRange 3) by easy.
     now apply typeMpz.
 Qed.
 
 
-From Coq Require Import Ensembles.
+From Coq Require Import Sets.Ensembles.
 Close Scope nat_scope.
 
 Example envaddnil : add_z_vars empty_env (Empty_set _) empty_env.
@@ -232,13 +232,12 @@ Example envaddone : add_z_vars empty_env  (Singleton _ (T_Ext Mpz, "y", 3))
 .
 Proof.
     replace (Singleton _ (T_Ext Mpz, "y", 3)) with (Add _ (Empty_set _) (T_Ext Mpz, "y", 3)).
-    - assert (ir3: Int.inRange 3) by easy.
-     apply (add_z_vars_cons empty_env (Empty_set _) (T_Ext Mpz) "y" 3) .
-   
-   apply (typeMpz empty_env Mpz "y" 3 1%nat).
-      * reflexivity.
-      * intro v. intro contra. inversion contra.
-  - apply Extensionality_Ensembles. split. 
+    - assert (ir3: MI.inRange 3) by easy.
+        apply (add_z_vars_cons empty_env (Empty_set _) (T_Ext Mpz) "y" 3) .
+        apply (typeMpz empty_env Mpz "y" 3 1%nat).
+        * reflexivity.
+        * intro v. intro contra. inversion contra.
+    - apply Extensionality_Ensembles. split. 
       * autounfold with sets. intros. destruct H.
         + inversion H.
         + auto with sets.
@@ -249,38 +248,39 @@ Qed.
 
 
 Module DummyOracle : Oracle.Oracle.
-    Definition 𝐼 := Z ⨉ Z.
+    Definition interval := Z ⨉ Z.
     
-    Definition Γᵢ : Type :=  StringMap.t 𝐼. 
+    Definition Γᵢ : Type :=  StringMap.t interval. 
 
     Definition get_Γᵢ : fsl_pgrm -> Γᵢ := fun _ => StringMap.empty.
 
-    Definition oracle : ℨ ⨉ Γᵢ -> 𝐼 := fun _ => (-10,10).
+    Definition oracle : ℨ ⨉ Γᵢ -> interval := fun _ => (-10,10).
 
-    Definition ϴ : 𝐼 -> 𝔗 := fun _ => Mpz. 
+    Definition ty_from_interval : interval -> 𝔗 := fun _ => Mpz. 
 
-    Definition get_ty : ℨ ⨉ Γᵢ -> 𝔗 := fun x =>  ϴ (oracle x).
+    Definition get_ty : ℨ ⨉ Γᵢ -> 𝔗 := fun x =>  ty_from_interval (oracle x).
 
     Parameter ty_funcall_is_ty_body: 
-    forall (f : fsl_prog_fenv) fname xargs (targs:list ℨ) (iargs:list 𝐼) b, 
+    forall (f : fsl_prog_fenv) fname xargs (targs:list ℨ) (iargs:list interval) b, 
     StringMap.find fname f.(lfuns) = Some (xargs,b) ->
     forall te,
     List.Forall2 (fun e i => oracle (e,te) = i) targs iargs ->
-             get_ty (T_Call fname targs,te) = get_ty (b,StringMap.add_all xargs iargs StringMap.empty).
+        get_ty (T_Call fname targs,te) = get_ty (b,StringMap.add_all xargs iargs StringMap.empty).
 
     Inductive fits (z:Z) : 𝔗 -> Prop := 
-    | InInt : Int.inRange z -> fits z C_Int
+    | InInt : MI.inRange z -> fits z C_Int
     | InMpz : fits z (T_Ext Mpz)
     .
 
-    Parameter ϴ_int_or_mpz : forall i, ϴ i = C_Int \/  ϴ i = T_Ext Mpz.
+    Parameter ϴ_int_or_mpz : forall i, ty_from_interval i = C_Int \/  ty_from_interval i = T_Ext Mpz.
 
+    Parameter get_ty_prog_var : forall x i, get_ty (T_Id x FSL_Int, i) = C_Int.
 
     Parameter type_soundness : forall env te f t z, 
     fsl_term_sem f env t z -> fits z (get_ty (t,te)).
 
     Parameter convergence_of_lfuns_ty : 
-    forall fname (targs:list ℨ) (iargs:list 𝐼), 
+    forall fname (targs:list ℨ) (iargs:list interval), 
     forall (typing_envs : Ensembles.Ensemble Γᵢ)  (fe:Γᵢ), Ensembles.In Γᵢ typing_envs fe ->
     (exists ty te, get_ty (T_Call fname targs,te) = ty) -> 
     Finite_sets.Finite _ typing_envs

@@ -1,4 +1,4 @@
-From Coq Require Import String FinFun Setoid ZArith.
+From Coq Require Import Strings.String Logic.FinFun Setoids.Setoid ZArith.ZArith.
 
 From RAC Require Import Utils.
 From RAC Require Export Environnement.

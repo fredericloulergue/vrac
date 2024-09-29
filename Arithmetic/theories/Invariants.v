@@ -1,4 +1,4 @@
-From Coq Require Import ZArith.
+From Coq Require Import ZArith.ZArith.
 
 From RAC Require Import Utils Oracle Translation Environnement.
 From RAC.Languages Require Import Syntax Semantics.
@@ -25,15 +25,16 @@ Module Invariants(O: Oracle).
 
 
 
-    Definition Γdom (g:Γ) := dom (fun k => StringMap.find k (fst g)) + dom (fun k => StringMap.find k (snd g)).
+    Definition Γdom (g:Γ) : id -> Prop  := in_domain (fun k => StringMap.find k (fst g)) + in_domain (fun k => StringMap.find k (snd g)).
     
     (* synchronicity invariant *)
     Definition I1 (env:Ω) (ienv:Γ) := 
-        dom env.(binds) = Γdom ienv
+        (in_domain env.(binds) = Γdom ienv)%dom_
         /\
-        forall x, (Γdom ienv) x -> 
-        exists y, env.(binds) x = Some y /\          
-        exists i, in_interval (snd ienv) x y i
+        forall x, 
+            Γdom ienv x -> 
+            exists y, env.(binds) x = Some y 
+            /\ exists i, in_interval (snd ienv) x y i
     .
 
 
@@ -54,7 +55,7 @@ Module Invariants(O: Oracle).
             StringMap.find ϕ fenv.(funs) = Some (xargs,s) ->
             List.length zargs = List.length xargs ->
 
-            let new := List.map (fun xzv => let '(i,x,z) := xzv in (ϴ i,x,z))
+            let new := List.map (fun xzv => let '(i,x,z) := xzv in (ty_from_interval i,x,z))
                                 (List.combine (List.combine iargs xargs) zargs) 
             in
             add_z_vars empty_env (list_to_ensemble new) envᶠ ->
@@ -71,13 +72,13 @@ Module Invariants(O: Oracle).
 
             (* fixme: is v0 fresh ? constraints ? *)
             (*fixme: says x_i+1 but x only goes up to n  .... *)
-            let new := (T_Ext Mpz, v0, 0)::List.map (fun xzv => let '(i,x,z) := xzv in (ϴ i,x,z)) 
+            let new := (T_Ext Mpz, v0, 0)::List.map (fun xzv => let '(i,x,z) := xzv in (ty_from_interval i,x,z)) 
                                                     (List.combine (List.combine iargs xargs) zargs)
             in
             add_z_vars empty_env (list_to_ensemble new) envᶠ ->
             (
                 (empty_env <| env;binds ::= p_map_addall_back vargs zargs |> |= b => z)%fsltsem fenv 
-                /\ (z < Int.m_int \/ Int.M_int < z)
+                /\ (z < MI.m_int \/ MI.M_int < z)
             )
             <->
                 exists Ω l,
@@ -102,7 +103,7 @@ Module Invariants(O: Oracle).
             StringMap.find ϕ fenv.(funs) = Some (xargs,s) ->
             List.length zargs = List.length xargs ->
 
-            let new := List.map (fun xzv => let '(i,x,z) := xzv in (ϴ i,x,z))
+            let new := List.map (fun xzv => let '(i,x,z) := xzv in (ty_from_interval i,x,z))
                                 (List.combine (List.combine iargs xargs) zargs) 
             in
             add_z_vars empty_env (list_to_ensemble new) envᶠ ->

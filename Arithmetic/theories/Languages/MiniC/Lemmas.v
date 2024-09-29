@@ -9,7 +9,9 @@ Import FunctionalEnv Domain.
 
 
 Section GenericLemmas.
-    Context {S T : Set} {ext_stmt_vars : S -> StringSet.t} {fe : @fenv S T}.
+    Context {S T : Set} {fe : @fenv S T}.
+    
+    Context {ext_used_stmt_vars : S -> StringSet.t} {ext_ty_val: 𝕍 -> @c_type T}.
     
     Variable (exp_sem : forall e, @generic_exp_sem_sig T e).
     Variable (stmt_sem : forall f e, @generic_stmt_sem_sig S T f e).
@@ -17,7 +19,7 @@ Section GenericLemmas.
     Variable (_determinist_stmt_eval :  _determinist_stmt_eval generic_exp_sem stmt_sem (fe := fe)).
 
     Notation generic_exp_sem := (fun e => @generic_exp_sem T e).
-    Notation generic_stmt_sem := (fun f e => @generic_stmt_sem _ _ stmt_sem ext_stmt_vars f e).
+    Notation generic_stmt_sem := (fun f e => @generic_stmt_sem _ _ stmt_sem ext_used_stmt_vars ext_ty_val f e).
 
 
 
@@ -77,7 +79,7 @@ Section GenericLemmas.
         
         - destruct (IHHderiv (empty_env <| env; vars ::= p_map_addall_back params vals |>) sub) as [b_ev' [Henvmem2 Hsem2]]; subst vals.
             +  apply same_int_any_sub. 
-                * apply List.Forall2_length in H1. pose proof (List.length_map  (fun x : Int.MI => Def (VInt x)) zargs) as Hlength.
+                * apply List.Forall2_length in H1. pose proof (List.length_map  (fun x : MI.t => Def (VInt x)) zargs) as Hlength.
                     rewrite Hlength in H1. congruence. 
                 * apply empty_env_mem_refl_any_sub. 
             + eexists (ev₀' <| env; vars ::= {{c \Def z}} |> <| mstate := b_ev' |>). split.
@@ -91,7 +93,7 @@ Section GenericLemmas.
         (* p call *)
         - destruct (IHHderiv (empty_env <| env; vars ::= p_map_addall_back params vals |>) sub) as [b_ev' [H5 Hsem2]]; subst vals.
             +  apply same_int_any_sub. 
-                * apply List.Forall2_length in H1. pose proof (List.length_map  (fun x : Int.MI => Def (VInt x)) zargs) as H5.
+                * apply List.Forall2_length in H1. pose proof (List.length_map  (fun x : MI.t => Def (VInt x)) zargs) as H5.
                     rewrite H5 in H1. congruence. 
                 * apply empty_env_mem_refl_any_sub. 
             + exists (ev₀' <| mstate := b_ev' |>). split.
@@ -109,10 +111,28 @@ Section GenericLemmas.
         - exists ev₀'. split... apply S_PAssert with z...
             apply (exp_weak e ev z)... now exists sub.
 
+        (* scope *)
+        - edestruct IHHderiv as [ev₁' [Henvmem' Hsem']].
+            + admit.
+            + exists (ev₀' <| mstate := ev₁'|>). split.
+                * apply env_mem_partial_order_add_mem...
+                * clear IHHderiv. inversion H; subst.
+                    -- apply S_Scope with ev₀'... constructor.
+                    -- eapply S_Scope; admit. (* need induction on H *)
+
         (* other cases *)
         - red in Hext_stmt. specialize (Hext_stmt Hext_exp ev (S_Ext s) ev').
             eapply Hext_stmt in H... destruct H as [ev'' [Hrel2 Hderiv2]]...                  
-    Qed.
+    Admitted.
+
+
+    Lemma LC21_weakening_of_statement_semantics_strong : 
+        _LC1_weakening_of_expression_semantics exp_sem exist_env_mem_partial_order ->
+        _LC21_weakening_of_statement_semantics exp_sem stmt_sem exist_strong_env_mem_partial_order strong_env_mem_partial_order (fe:=fe) ->
+        _LC21_weakening_of_statement_semantics  generic_exp_sem generic_stmt_sem exist_env_mem_partial_order env_mem_partial_order (fe:=fe).
+    Admitted.
+
+
 
     Lemma LC22_weakening_of_statement_semantics : 
         _LC1_weakening_of_expression_semantics exp_sem exist_env_mem_partial_order ->
@@ -160,6 +180,8 @@ Section GenericLemmas.
             + subst. discriminate. (* v is the function return value*)
             +  symmetry. apply p_map_not_same...
                 
+        (* Scope *)
+        - admit.
 
         (* ext *)
         - eapply Hext_stmt.
@@ -233,8 +255,8 @@ Section GenericLemmas.
 
     Lemma LC23_weakening_of_statement_semantics : 
         _LC1_weakening_of_expression_semantics_3 exp_sem strong_env_mem_partial_order -> 
-        _LC23_weakening_of_statement_semantics stmt_sem strong_env_mem_partial_order (ext_stmt_vars:=ext_stmt_vars) (fe:=fe) -> 
-        _LC23_weakening_of_statement_semantics generic_stmt_sem strong_env_mem_partial_order  (ext_stmt_vars:=ext_stmt_vars) (fe:=fe)
+        _LC23_weakening_of_statement_semantics stmt_sem strong_env_mem_partial_order (ext_used_stmt_vars:=ext_used_stmt_vars) (fe:=fe) -> 
+        _LC23_weakening_of_statement_semantics generic_stmt_sem strong_env_mem_partial_order  (ext_used_stmt_vars:=ext_used_stmt_vars) (fe:=fe)
     .
     Proof with eauto with rac_hint; try easy.
         intros ext_exp_weak ext_stmt_weak.
@@ -351,20 +373,20 @@ Definition weakening_of_c_expression_semantics_3 {T} :=
         (weakening_of_empty_expression_semantics_3 strong_env_mem_partial_order). 
 
 
-Definition weakening_of_c_statements_semantics_1 {S T}  f := 
-    @LC21_weakening_of_statement_semantics S T Empty_ext_stmt_vars f (@Empty_exp_sem T) (@Empty_stmt_sem S T) 
+Definition weakening_of_c_statements_semantics_1 {S T} f ext_ty := 
+    @LC21_weakening_of_statement_semantics S T f Empty_ext_used ext_ty (@Empty_exp_sem T) (@Empty_stmt_sem S T) 
     weakening_of_empty_expression_semantics
     (weakening_of_empty_statement_semantics_1 exist_env_mem_partial_order env_mem_partial_order f (@Empty_exp_sem T)).  
 
 
-Definition weakening_of_c_statements_semantics_2 {S T} f := 
-    @LC22_weakening_of_statement_semantics S T Empty_ext_stmt_vars f (@Empty_exp_sem T) (@Empty_stmt_sem S T) 
+Definition weakening_of_c_statements_semantics_2 {S T} f ext_ty := 
+    @LC22_weakening_of_statement_semantics S T f Empty_ext_used ext_ty (@Empty_exp_sem T) (@Empty_stmt_sem S T) 
     weakening_of_empty_expression_semantics
     (weakening_of_empty_statement_semantics_2 exist_env_mem_partial_order env_mem_partial_order f (@Empty_exp_sem T)). 
 
 
 
-Definition weakening_of_c_statements_semantics_3 {S T} f := 
-    LC23_weakening_of_statement_semantics (@Empty_exp_sem T) (@Empty_stmt_sem S T) 
+Definition weakening_of_c_statements_semantics_3 {S T} f ext_ty := 
+    @LC23_weakening_of_statement_semantics S T f Empty_ext_used ext_ty (@Empty_exp_sem T) (@Empty_stmt_sem S T) 
     (weakening_of_empty_expression_semantics_3 strong_env_mem_partial_order) 
-    (weakening_of_empty_statement_semantics_3 strong_env_mem_partial_order Empty_ext_stmt_vars f). 
+    (weakening_of_empty_statement_semantics_3 strong_env_mem_partial_order Empty_ext_used f). 

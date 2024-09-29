@@ -1,4 +1,4 @@
-From Coq Require Import String.
+From Coq Require Import Strings.String.
 From RAC Require Import Utils.
 From RAC.Languages Require Import Syntax Semantics.  
 From RAC.Languages Require Export MiniC.Facts MiniC.Lemmas MiniGMP.Facts MiniGMP.Lemmas.
@@ -40,21 +40,21 @@ Qed.
 Fact flatten_noseq_noskip {S T} s : List.Forall (fun i => i <> Skip /\ forall s1 s2, i <> @Seq S T s1 s2) (@flatten S T s).
 Admitted.
 
-(* Fact flatten_unflatten {S T} {ext_exp} {ext_stmt} {ext_stmt_vars} : forall f e e' s, 
-    @generic_stmt_sem S T ext_exp ext_stmt ext_stmt_vars f e s e' ->
-    @generic_stmt_sem S T ext_exp ext_stmt ext_stmt_vars f e (unflatten (flatten s)) e.
+(* Fact flatten_unflatten {S T} {ext_exp} {ext_stmt} {ext_used_stmt_vars} : forall f e e' s, 
+    @generic_stmt_sem S T ext_exp ext_stmt ext_used_stmt_vars f e s e' ->
+    @generic_stmt_sem S T ext_exp ext_stmt ext_used_stmt_vars f e (unflatten (flatten s)) e.
 Admitted. 
 
-Fact flatten_unique {S T} {ext_exp} {ext_stmt} {ext_stmt_vars} : forall s s' f e e', 
+Fact flatten_unique {S T} {ext_exp} {ext_stmt} {ext_used_stmt_vars} : forall s s' f e e', 
     flatten s = flatten s' ->
-    @generic_stmt_sem S T ext_exp ext_stmt ext_stmt_vars f e s e' ->
-    @generic_stmt_sem S T ext_exp ext_stmt ext_stmt_vars f e s' e'.
+    @generic_stmt_sem S T ext_exp ext_stmt ext_used_stmt_vars f e s e' ->
+    @generic_stmt_sem S T ext_exp ext_stmt ext_used_stmt_vars f e s' e'.
 Proof.
 Admitted.
 *)
 
 
-Fact gmp_exp_c_exp_same_exp_vars e {T} : @exp_vars T (gmp_exp_to_c_exp e) = exp_vars e.
+Fact gmp_exp_c_exp_same_used_exp_vars e {T} : @used_exp_vars T (gmp_exp_to_c_exp e) = used_exp_vars e.
 Proof. 
     induction e.
     - reflexivity.

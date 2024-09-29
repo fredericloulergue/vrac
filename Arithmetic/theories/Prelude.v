@@ -1,4 +1,4 @@
-From Coq Require Import Strings.String ZArith.
+From Coq Require Import Strings.String ZArith.ZArith.
 From Coq Require Export Program.Basics.
 From Equations Require Export Equations.
 

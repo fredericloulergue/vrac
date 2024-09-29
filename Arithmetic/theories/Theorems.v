@@ -1,4 +1,6 @@
-From Coq Require Import ZArith.ZArith Strings.String Strings.Ascii Ensembles.
+From Coq Require Import ZArith.ZArith Program.Equality.
+From Coq.Strings Require Import String Ascii.
+From Coq.Sets Require Import Ensembles Uniset.
 From RAC Require Import Utils Environnement.Facts Macros Oracle Translation Invariants.
 From RAC.Languages Require Import Syntax Semantics Lemmas MiniFSL.Semantics.
 
@@ -15,8 +17,8 @@ Module Theorems(Or:Oracle).
     #[local] Open Scope mini_c_scope.
     #[local] Open Scope mini_gmp_scope.
 
-    Module I := Invariants(Or).
-    Import I.
+    Module Inv := Invariants(Or).
+    Import Inv.
 
     (* Section C : PROPERTIES OF THE SEMANTICS *)
     (* -> Languages/{MiniC,MiniGMP}/Lemmas.v *)
@@ -24,8 +26,26 @@ Module Theorems(Or:Oracle).
     Parameter P : fsl_pgrm.
 
     Parameter WellFormedProgram : 
-        List.NoDup (snd P)    
-    .
+        (* no duplicate global variable declaration *)
+        SetoidList.NoDupA (fun '(C_Decl _ name1) '(C_Decl _ name2) => name1 = name2) (fst P)
+        /\  
+         (* no duplicate function declaration *)
+        SetoidList.NoDupA (
+            fun r1 r2 => match r1,r2 with
+            | PFun _ name1 _ _ _,PFun _ name2 _ _ _ 
+            | F_Ext (LFun _ name1 _ _), F_Ext (LFun _ name2 _ _) 
+            | F_Ext (Predicate name1 _ _), F_Ext (Predicate name2 _ _)
+            => name1 = name2
+            | _,_ => False
+            end
+        ) (snd P)
+        /\
+        (* all used variables are declared and don't use comp var prefix *)
+        StringSet.For_all (fun v => 
+            (* (v ∈ env)%dom_ *)
+            (is_comp_var v) = false
+        ) (fsl_used_prgrm_vars P)
+    . 
 
     Section D. (* PROOFS OF STRUCTURAL PROPERTIES OF THE TRANSLATION *)
 
@@ -58,7 +78,7 @@ Module Theorems(Or:Oracle).
         Lemma LD3_preservation_of_control_flow : 
             Forall_routines ⟦P⟧ ( fun _ _ b => 
                 forall decls s,
-                In_stmt (S_Ext (GMP_Scope decls s)) b -> 
+                In_stmt (Scope decls s) b -> 
                 (* passes through: how to represent control flow ?  *)
                 True
             )
@@ -75,7 +95,7 @@ Module Theorems(Or:Oracle).
         Lemma LD5_memory_transparency_of_generated_code :
             Forall_routines ⟦P⟧ ( fun _ _ b => 
                 forall decls s,
-                In_stmt (S_Ext (GMP_Scope decls s)) b -> 
+                In_stmt (Scope decls s) b -> 
                 (* todo: add decls tec *)
                 True
             )
@@ -114,54 +134,58 @@ Module Theorems(Or:Oracle).
     (* Section G : PRESERVATION OF THE SEMANTICS *)
     #[local] Open Scope fsl_sem_scope.
 
+(*
+    Inductive env_Γ (env: Env) (g:Γ) | : Env -> Prop :=  
+    | env_Γ_intro (ens: 𝐴) (env':Env) : 
+        I1 env g ->
+        VarSet.For_all (fun '(t,v,z) => 
+            Γdom g v /\ (* v ∈ dom Γ *)
+            Some z = env.(binds) v /\  (* z is the logic value of v *)
+            exists i,StringMap.find v (snd g) = Some i /\ 
+            t = ϴ i (* infered type for v *)
+        ) ens ->
+        (env +++ ens) env' ->
+        env_Γ env'
+    .
+*)
+
 
     Definition env_Γ (env env': Env) (g:Γ) : Prop :=  
-        forall (ens : 𝐴),
-        (
-            I1 env g ->
-            forall t v z, 
-                Ensembles.In _ ens (t,v,z) 
-                <-> 
-                Γdom g v /\
-                Some z = env.(binds) v /\
-                exists i,
-                StringMap.find v (snd g) = Some i /\
-                t = ϴ i
-        )
-        /\
+        I1 env g ->
+        exists (ens : 𝐴),
+        (forall ty v z,
+            Ensembles.In _ ens (ty,v,z) <->
+                Γdom g v /\ (* v ∈ dom Γ *)
+                Some z = env.(binds) v /\  (* z is the logic value of v *)
+                exists i,StringMap.find v (snd g) = Some i /\ 
+                ty = ty_from_interval i (* infered type for v *)
+        ) /\
         (env +++ ens) env'
     .
 
-
     Definition env_Γ_t fenv (env env': Env) (g:Γ) (p:T.ψ) (t:ℨ) : Prop :=  
-        forall env'' (ens : 𝐴),
-        (
-            forall ty v z,  
-                (Ensembles.In _ ens (ty,v,z) 
-                <-> 
-                
-                List.In (v,ty) (TM.exec (translate_term fenv g p t)).(decls))
-                /\
-                (z = 0 <-> ty = T_Ext Mpz)
-                /\
-                (exists u, z = u (*fixme: must be undef value *)  <-> ty = C_Int)       
+        forall env'',
+        exists (ens : 𝐴),
+        (forall ty v z,
+            Ensembles.In _ ens (ty,v,z) <->
+                List.In (v,ty) (TM.exec (translate_term fenv g p t)).(decls) /\
+                (ty = T_Ext Mpz -> z = 0) /\
+                (ty = C_Int -> exists u, z = u (*fixme: must be undef value *))  
         ) /\
         env_Γ env env'' g /\
         (env'' +++ ens) env'
     .
 
     Definition env_Γ_p fenv (env env': Env) (g:Γ) (p:T.ψ) (pred:𝔅) : Prop :=  
-        forall env'' (ens : 𝐴),
-        (
-            forall ty v z,  
-                (Ensembles.In _ ens (ty,v,z) 
-                <-> 
-                List.In (v,ty) (TM.exec (translate_pred fenv g p pred)).(decls))
-                /\
-                (z = 0 <-> ty = T_Ext Mpz)
-                /\
-                (exists u, z = u (*fixme: must be undef value *)  <-> ty = C_Int)       
-        ) ->
+        forall env'',
+        exists (ens : 𝐴),
+        (forall ty v z,
+            Ensembles.In _ ens (ty,v,z) <->
+            List.In (v,ty) (TM.exec (translate_pred fenv g p pred)).(decls) /\
+            (ty = T_Ext Mpz -> z = 0) /\
+            (ty = C_Int -> exists u, z = u (*fixme: must be undef value *))  
+        )  
+        /\
         env_Γ env env'' g /\
         (env'' +++ ens) env'
     .
@@ -179,7 +203,8 @@ Module Theorems(Or:Oracle).
                 (env |= t => z)%fsltsem fenv
                 <-> 
                 (
-                    let result := TM.exec (translate_term fenv g p t) in
+                    forall cnt,
+                    let result := fst (translate_term fenv g p t cnt)  in
 
                     exists env', 
                         (env_g ⊑ env')%envmem 
@@ -228,7 +253,7 @@ Module Theorems(Or:Oracle).
         I2 p g fe ->
         (
             forall f body, StringMap.find f fe.(lfuns) = Some (vargs,body) ->
-            List.Forall (fun v => Γdom g v)%dom_ vargs -> True
+            List.Forall (Γdom g) vargs -> True
             (* TM.exec (generate_function fe g p f)  *)
             (* let new_fenv : @fenv _fsl_statement Datatypes.Empty_set := 
             mk_fenv _ _ fe.(funs) fe.(procs) (StringMap.add result.(chunk) _ fe.(lfuns)) fe.(preds) in  *)
@@ -237,7 +262,7 @@ Module Theorems(Or:Oracle).
         /\
         (
             forall f body, StringMap.find f fe.(preds) = Some (vargs,body) ->
-            List.Forall (fun v => Γdom g v)%dom_ vargs ->
+            List.Forall (Γdom g) vargs ->
             (* TM.exec (generate_function fe g p f)  *)
             (* let new_fenv : @fenv _fsl_statement Datatypes.Empty_set :=
              mk_fenv _ _ fe.(funs) fe.(procs) fe.(lfuns) (StringMap.add result.(chunk) _ fe.(preds)) in  *)
@@ -249,79 +274,182 @@ Module Theorems(Or:Oracle).
     .
     Proof.
     {
-        induction t; intros fenv e g p HI1 HI2 env_g Henvg env_gt Henvgt z'; split; intros Htsem.
+        induction t; intros fenv e g p HI1 HI2 env_g Henvg env_gt Henvgt z'; split; intros Htsem ;
+            specialize (Henvg HI1) as Henvgapp; destruct Henvgapp as (ens1 & Hens1 & Henvgapp);
+            specialize (Henvgt env_g) as Henvgtapp; destruct Henvgtapp as (ens2 & Hens2 & _ & Henvgtapp).
 
         (* t is an integer *)
-        -  remember (get_ty (T_Z z',snd g)) as ty. destruct ty; simpl in * ; inversion Htsem ; subst ; simp translate_fsl in *; cbn in *.
-            + rewrite <- Heqty in *. 
-                pose proof (Or.type_soundness _ (snd g) _ _  _  Htsem) as Hfit. inversion Hfit; [|congruence].
-                exists (env_gt <| env; vars ::= {{"_v0"\Def (VInt (z' ⁱⁿᵗ H0))}} |> ).   repeat split.
-                * admit.
-                * subst. simpl. apply LE3_semantics_of_the_Z_assgn_macro_tint.
-                    ** unfold is_comp_var. simpl. admit.
-                    ** admit.
-
-                * subst. simpl.  epose proof (M_Int (env_gt <| env; vars ::= {{"_v0" \Def (VInt (z' ⁱⁿᵗ H0))}} |> ) (C_Id "_v0" C_Int) (z' ⁱⁿᵗ H0)). apply H1. 
+        -  clear LG1_semantics_of_term_translation LG3_semantics_of_function_generation LG2_semantics_of_predicate_translation.
+            intros cnt.
+            set ("_v" ++ string_of_nat cnt) as var.
+            remember (translate_term fenv g p z cnt) as trans in *.
+            inversion Htsem. subst z0 z'. remember (get_ty (T_Z z,snd g)) as ty. destruct ty; autorewrite with translate_fsl in Heqtrans; rewrite <- Heqty in *; cbn in Heqtrans; subst; simpl in *.
+            + pose proof (Or.type_soundness _ (snd g) _ _  _  Htsem) as Hfit. inversion Hfit; [|congruence].  
+                exists (env_gt <| env; vars ::= {{var\Def (VInt (z ⁱⁿᵗ H0))}} |> ).  repeat split.
+                * (* v_gt + v0  subsumes env_g  *) admit.
+                * subst. apply LE3_semantics_of_the_Z_assgn_macro_tint ; [easy|].
+                    assert (Hv0 : env_gt var = Some (Def (VInt (MI.to_mi z H0)))). {
+                        admit.
+                    } now rewrite Hv0.
+                * subst. simpl. epose proof (M_Int (env_gt <| env; vars ::= {{var \Def (VInt (z ⁱⁿᵗ H0))}} |> ) (C_Id var C_Int) (z ⁱⁿᵗ H0)). apply H1. 
                     ** easy.
-                    ** simpl. now constructor.
-                * exists H0. subst. simpl. constructor.
+                    ** simpl. constructor. apply p_map_same.
+                * exists H0. subst. simpl. subst var. apply p_map_same.
 
-            + exfalso. admit.
+            + exfalso. pose proof Or.ϴ_int_or_mpz as Hcontra. unfold get_ty in Heqty. specialize (Hcontra (oracle (T_Z z, snd g))). destruct Hcontra; congruence. 
 
             + destruct t.
-                * exfalso. admit.
-                * rewrite <- Heqty in *.
-                    assert (H2: exists x, env_gt = (env_g <| env; vars ::= {{"_v0"\Def x}} |> <| mstate ::= {{x\Defined 0}} |>)) by admit.
+                * exfalso. pose proof Or.ϴ_int_or_mpz as Hcontra. unfold get_ty in Heqty. specialize (Hcontra (oracle (T_Z z, snd g))). destruct Hcontra; congruence.
+                * assert (H2: exists x, env_gt = (env_g <| env; vars ::= {{var\Def x}} |> <| mstate ::= {{x\Defined 0}} |>)) by admit.
                     destruct H2 as [l H2].
-                    exists (env_gt <| mstate ::= {{l\Defined z'}} |> ). repeat split.
-                    ** admit.
-                    **  apply LE3_semantics_of_the_Z_assgn_macro_tmpz. subst. apply p_map_same.
-                    ** subst. simpl. apply M_Mpz with l; auto. simpl. apply p_map_same.
-                    ** exists l. subst. simpl. split; apply p_map_same.
+                    exists (env_gt <| mstate ::= {{l\Defined z}} |> ). repeat split.
+                    -- subst. admit.
+                    -- apply LE3_semantics_of_the_Z_assgn_macro_tmpz. subst. apply p_map_same.
+                    -- subst. simpl. apply M_Mpz with l; auto ; apply p_map_same.
+                    -- exists l. subst. simpl. split; apply p_map_same.
 
-        - admit.
+        - clear LG1_semantics_of_term_translation LG3_semantics_of_function_generation LG2_semantics_of_predicate_translation.
+            assert (z = z'). {
+                autorewrite with translate_fsl in Htsem. simpl in Htsem. specialize Htsem with 0%nat. destruct Htsem as (e' & H & H1). edestruct H1 as [_ (_ & H2)]. clear H1.
+                destruct (get_ty (T_Z z, snd g)); simpl in Hens2; admit.
+            }
+            subst. apply S_T_Int.
 
         (* t is a program/logic variable *)
-        - inversion Htsem; subst;  simp translate_fsl in *;  cbn in *.
+        - clear LG1_semantics_of_term_translation LG3_semantics_of_function_generation LG2_semantics_of_predicate_translation.
+            intros cnt.
+            remember (fst (translate_term fenv g p (T_Id name ty) cnt) ) as trans in *.
+            inversion Htsem; apply type_soundness with (te:= snd g) in Htsem; subst ty name z'; autorewrite with translate_fsl in Heqtrans.
             (* logic variable *)
-                + {
-                    assert (Hsome :
-                    exists r,  StringMap.find name (fst g) = Some r
-                    ) by admit.
-                    destruct Hsome as [x Hsome].  destruct x. 
-                    exists env_g. repeat split.
-                
-                    - apply refl_env_mem_partial_order.
-                    - subst. simpl. admit.
-                    - subst. simpl in *.  inversion HI1. admit.
-                    - subst. simpl. destruct get_ty eqn:ty.
-                        * admit.
-                        * exfalso. admit.
-                        * destruct t.
-                        + exfalso. admit.
-                        + admit.
-                    }
+            + {
+                remember (Logic.inspect (StringMap.find x (fst g))) as s. dependent destruction s. destruct x0; [|exfalso;admit (* HI1 *)]. destruct p0.
+                simpl in Heqtrans. unfold TM.exec, TM.ret  in Heqtrans. simpl in Heqtrans. 
+                assert (env_gt = env_g) by admit. subst env_gt.
+                exists env_g. split.
+                - easy.
+                - intros fenv'. subst trans. simpl. split ;[constructor|]. unfold get_ty in Htsem. remember (oracle (T_Id x FSL_Integer, snd g)) as i' in *.  assert (i = i') by admit.
+                    destruct ty_from_interval eqn:Zty; subst; inversion Htsem; split; unfold get_ty; rewrite Zty; subst.
+                    + replace z with (MI.of_mi (exist _ z H)) by auto. apply M_Int ; [easy|]. simpl. constructor. admit.
+                    + exists H. admit.
+                    + eapply M_Mpz; [easy| |]; simpl; admit.
+                    + admit.
+            }
 
             (* program variable *)
             + {
+                assert (env_gt = env_g) by admit. subst.
                 exists env_g.  repeat split.
-                - apply refl_env_mem_partial_order.
-                - subst. simpl. admit.
-                - subst. simpl. constructor.
-                    + easy.
-                    + simpl. constructor. admit.
-                - assert (H3: (get_ty (T_Id name FSL_Int,snd g)) = C_Int) by admit. rewrite H3. subst. simpl. 
-                destruct x. simpl in *. exists i. admit.  
+                - easy.
+                - constructor.
+                - simpl. constructor; auto. simpl. constructor. admit.
+                - rewrite Or.get_ty_prog_var in *. destruct x as [x irx]. simpl in *. exists irx. admit.   
             }
 
 
-        - admit.
+        - clear LG1_semantics_of_term_translation LG3_semantics_of_function_generation LG2_semantics_of_predicate_translation. admit.
 
 
         (* t is the application of an operation *)
-        - (* assert (Hgt1: ((env_Γ_t fenv e g p (T_BinOp t1 op t2) env_gt1) ⊑ (env_Γ_t fenv e g p (T_BinOp t1 op t2) env_gt))%envmem ). *)
+        - clear LG1_semantics_of_term_translation LG3_semantics_of_function_generation LG2_semantics_of_predicate_translation.
+            intros cnt.
+            inversion Htsem. subst.
+            remember (fst (translate_term fenv g p (T_BinOp t1 op t2) cnt)) as trans in *.
+            autorewrite with translate_fsl in Heqtrans. unfold TM.bind in Heqtrans. simpl in Heqtrans.
+            remember (translate_fsl tr_term fenv g p t1 (S (S (S (S cnt))))) as trans1. destruct trans1 as [t1_res n] eqn:trans1Eqn.
+            remember (translate_fsl tr_term fenv g t1_res.(tr).(tenv) t2 n) as trans2.  destruct trans2 as [t2_res n'] eqn:Trans2Eqn.
+            simpl in Heqtrans.
+            destruct t1_res.(res) eqn:T1res. 
+            destruct t2_res.(res) eqn:T2res. simpl.
+
+            assert (Henv_gt1 : exists env_gt1, env_Γ_t fenv e env_gt1 g p t1) by admit. destruct Henv_gt1 as [env_gt1 Henvgt1].
+            assert (Henv_gt2 :  exists env_gt2, env_Γ_t fenv e env_gt2 g t1_res.(tr).(tenv) t2) by admit. destruct Henv_gt2 as [env_gt2 Henvgt2].
+            
+            assert (Hrel_t1: (env_gt1 ⊑ env_gt)%envmem) by admit. destruct Hrel_t1 as [t1sub Hrel_t1].
+            assert (Hrel_t2 : (env_gt2 ⊑ env_gt)%envmem) by admit. destruct Hrel_t2 as [t2sub Hrel_t2].
+
+            assert (Hrel2 : (env_gt2 ⊑ env_gt)%envmem) by admit.
+            assert (Hdom1 : (dom env_gt1.(env) ∩ dom env_gt2.(env)  = dom env_g.(env))%dom_) by admit.
+            assert (Hdom2 : (dom env_gt1.(mstate) ∩ dom env_gt2.(mstate)  = dom env_g.(mstate))%dom_) by admit.
         
-            specialize (IHt1 fenv e g p HI1 HI2 env_g Henvg env_gt).  inversion Htsem. subst.  admit.
+
+            specialize (IHt1 fenv e g p HI1 HI2 env_g Henvg env_gt1 Henvgt1 z).
+            assert (HI2' : I2 t1_res.(tr).(tenv) g fenv) by admit.
+            specialize (IHt2 fenv e g t1_res.(tr).(tenv) HI1 HI2' env_g Henvg env_gt2 Henvgt2 z'0).
+            
+            apply IHt1  with (cnt:=(S (S (S (S cnt))))) in H2 as [env't1 [Hrelt1 Ht1]]. clear IHt1.
+            apply IHt2 with (cnt:=n) in H4 as [env't2 [Hrelt2 Ht2]]. clear IHt2.
+
+            eexists ?[env]. repeat split.
+            2: {
+                assert (Henv' : exists env', 
+                (env_gt |= t1_res.(tr).(chunk) => env')%gmpssem fenv' /\ 
+                (env_g ⊑ env')%envmem /\
+                (env' |= C_Id (fst t1_res.(res)) (snd t1_res.(res)) ⇝ z)
+                ). {
+                    specialize (Ht1 fenv') as (Hsemt1 & Hmt1 & Hzt1).
+                    simpl in Hsemt1.
+                    pose proof LC21_weakening_of_gmp_statement_semantics (fe:=fenv') as LC21.
+                    unfold translate_term in Hsemt1. rewrite <- Heqtrans1 in Hsemt1.
+
+                    specialize (LC21 env_gt1 t1_res.(tr).(chunk) env't1 Hsemt1 env_gt t1sub Hrel_t1).
+                    destruct LC21 as (env''_t1 & Hrel''_t1 & Hsem''_t1). exists env''_t1. repeat split.
+                    - assumption.
+                    - transitivity  env't1; [assumption|]. now exists t1sub.
+                    - admit.
+                } destruct Henv' as (env' & Hsemt1 & Henvt1 & Hmt1). 
+
+                assert (Henv'' : exists env'', 
+                    (env' |= t2_res.(tr).(chunk) => env'')%gmpssem fenv' /\
+                    (env_g ⊑ env'')%envmem /\
+                    (env' |= C_Id (fst t2_res.(res)) (snd t2_res.(res)) ⇝ z'0)
+                ). {
+                    specialize (Ht2 fenv') as (Hsemt2 & Hmt2 & Hzt2).
+                    pose proof LC21_weakening_of_gmp_statement_semantics (fe:=fenv') as LC21.
+                    unfold translate_term in Hsemt2. rewrite <- Heqtrans2 in Hsemt2.
+                    assert (Hrel't2 : env_mem_partial_order env_gt2 env' t2sub) by admit.
+                    specialize (LC21 env_gt2 t2_res.(tr).(chunk) env't2 Hsemt2 env' t2sub Hrel't2).
+                    destruct LC21 as (env''_t2 & Hrel''_t2 & Hsem''_t2). exists env''_t2. repeat split.
+                    - assumption.
+                    - transitivity env't2; [assumption|]. now exists t2sub.
+                    - admit.
+                }  destruct Henv'' as (env'' & Hsemt2 & Henvt2 & Hmt2).               
+
+                assert (Henv'' :  env'' |= C_Id (fst t1_res.(res)) (snd t1_res.(res)) ⇝ z). {
+                    pose proof LC22_weakening_of_gmp_statement_semantics (fe:=fenv') as LC22.
+                    (* t1.res not in dom env_g_t2 -> use C22 *)
+                    admit.
+                } simpl in Heqtrans.
+                remember (get_ty (T_BinOp t1 op t2, snd g)) as ty in *.
+                destruct g0.
+                - destruct g1. 
+                    + destruct ty; autorewrite with translate_fsl in Heqtrans; simpl in Heqtrans; subst; simpl.
+                        * econstructor ;  admit.
+                        * exfalso. admit.
+                        * destruct t eqn:Teq.
+                            -- exfalso. admit. 
+                            -- eapply S_Seq.
+                                ++ admit.
+                                ++ eapply S_Seq.
+                                    ** admit.
+                                    ** eapply S_Seq.
+                                        --- admit.
+                                        --- eapply S_Seq.
+                                            +++ admit.
+                                            +++ constructor. admit.
+
+                    + exfalso. admit.
+                    + destruct ty; autorewrite with translate_fsl in Heqtrans; simpl in Heqtrans; subst; simpl.
+                        * admit.
+                        * admit.
+                        * admit.
+
+                - exfalso. admit.
+                - admit.
+            }
+            + admit.
+            + admit.
+            + admit.
+
         - admit.
 
         (* t is a conditional *)
@@ -370,8 +498,7 @@ Module Theorems(Or:Oracle).
 
         pose (C_Id (fst (res t)) (snd (res t))) as var.
         pose (<{(INITS (decls t)); (chunk (tr t)); assert var; (CLEARS (decls t))}>)%gmp as instrs.
-        pose (GMP_Scope (DECLS (decls t)) instrs) as scope.
-        pose (tr t <| chunk := S_Ext scope |> ) as assert_res.
+        pose (tr t <| chunk := Scope (DECLS (decls t)) instrs |> ) as assert_res.
         pose (build_rac_fenv (glob (tr t))) as fenv'.
 
 
@@ -380,23 +507,19 @@ Module Theorems(Or:Oracle).
         - intros Hptrue. destruct H as [H _]. specialize (H Hptrue).
             destruct H as [env' [Hrel Hsem]]. specialize (Hsem fenv'). 
             exists env. simpl. 
-        
+            (*
             pose proof (S_Scope (build_rac_fenv (glob (tr t))) (env <| mstate := ⊥ |>) (DECLS (decls t)) instrs env_g env') as Scope. 
             simpl in Scope. 
             assert (env'.(mstate) = ⊥) by admit.   (* T62_absence_of_memory_leak *) rewrite H in Scope.
-            constructor. subst scope instrs var assert_res. apply Scope; clear Scope.
+            
+            constructor. subst scope instrs var assert_res. apply Scope; clear Scope. *)
             + admit.
-            + econstructor.
-                * admit.
-                * econstructor.
-                    -- admit.
-                    -- admit.
         
         - intros Htrans. destruct H as [_ H]. apply H. clear H. destruct Htrans as [env' Henv]. exists (mkEnv env' ⊥). split.
             + admit.
             + intros. split.
                 * admit.
-                * exists oneinRange. subst scope instrs var assert_res. simpl in Henv. 
+                * exists oneinRange. simpl. admit.
     Admitted.
 
 

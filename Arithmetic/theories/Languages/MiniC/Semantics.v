@@ -27,8 +27,8 @@ Import FunctionalEnv Domain.
 
 Definition compiler_prefix : id := "_".
 Definition comp_var x : id  := (compiler_prefix ++ x)%string.
-Definition is_comp_var := String.prefix compiler_prefix.
 Definition res_f : id := comp_var "res".
+Definition is_comp_var := String.prefix compiler_prefix.
 
 
 
@@ -54,7 +54,7 @@ Section GenericSemantics.
     Variable (rel : Env -> Env -> Prop).
     Variable (rel_s : Env -> Env -> σ -> Prop).
 
-    Context {ext_stmt_vars : S -> StringSet.t} {ext_ty_val: 𝕍 -> c_type} .
+    Context {ext_used_stmt_vars : S -> StringSet.t} {ext_ty_val: 𝕍 -> c_type} .
 
     Section FunctionsEnv.
 
@@ -69,7 +69,7 @@ Section GenericSemantics.
             ev |=  (C_Id x C_Int) => z
 
         | C_E_BinOpInt e e' (z z':Z) op z_ir z'_ir
-            (H:Int.inRange (⋄ op z z')) :
+            (H:MI.inRange (⋄ op z z')) :
             ev |= e =>  VInt (z ⁱⁿᵗ z_ir) ->
             ev |= e' =>  VInt (z' ⁱⁿᵗ z'_ir) ->
             ev |=  BinOpInt e op e' => VInt ((⋄ op) z z' ⁱⁿᵗ H)
@@ -123,19 +123,41 @@ Section GenericSemantics.
 
         Notation call_sem := (fun sem prj ev_args => @generic_call_sem c_statement c_exp 𝕍 Env generic_exp_sem sem prj (set env ∘ set vars) ev_args empty_env). 
 
+
+
+        Inductive generic_decl_sem  (ev:Env) : c_decl -> Env -> Prop :=
+        | D_Decl x (t: c_type) u:
+            ev.(vars) x  = None -> 
+            _type_of_value ext_ty_val (Some (Undef u)) = Some t ->
+            generic_decl_sem ev (C_Decl t x) (ev <| env ;vars ::= {{x\Undef u}} |>)
+        .
+
+
+        Inductive declare_vars (e : Env) : c_decl★ -> Env -> Prop :=
+        | DV_nil : 
+            declare_vars e nil e
+
+        | DV_cons decls d e' e'':  
+            declare_vars e decls e' ->
+            generic_decl_sem e' d e'' -> 
+            declare_vars e (d::decls) e''
+        .
+        
+
+
         (* extensible statement semantic *)
         Inductive generic_stmt_sem ev : generic_stmt_sem_sig fe ev := 
 
         | S_Skip  :  (ev |= <{ skip }> => ev)
-        | S_Assign x (z: Int.MI) (e : c_exp) : 
-            (* must not be a compiler variable i.e. function return value *)
-            is_comp_var x = false ->
+        | S_Assign x (z: MI.t) (e : c_exp) : 
+            (* must not be a function return value *)
+            x <> res_f ->
 
             type_of_value (ev x) = Some C_Int ->
             generic_exp_sem ev e z -> 
             ev |= <{(Assign x e)}> => (ev <| env ; vars ::= {{x\Def z}} |>)
 
-        | S_IfTrue ev' (z : Int.MI) e s s' :
+        | S_IfTrue ev' (z : MI.t) e s s' :
             generic_exp_sem ev e z /\ ~ (z = VInt zero) ->
             ev  |= s => ev' ->
             ev  |= <{ if e s else s'}> => ev'
@@ -154,25 +176,36 @@ Section GenericSemantics.
             ev' |= s' => ev'' ->
             ev |= <{ s ; s' }> =>  ev''
 
-        | S_FCall fname b b_ev args (zargs : Int.MI★) c z : 
+        | S_FCall fname b b_ev args (zargs : MI.t★) c z : 
             let vargs := List.map (fun x => Def (VInt x)) zargs in 
             call_sem generic_stmt_sem funs ev b_ev fname args vargs b ->
-            ~ StringSet.In res_f (stmt_vars b ext_stmt_vars) -> 
+            ~ StringSet.In res_f (used_stmt_vars ext_used_stmt_vars b) -> 
             b_ev res_f = Some (Def (VInt z)) -> (* must be a defined integer value *)
             ev |= FCall c fname args => ev <| env ; vars ::= {{c\Def z}} |> <| mstate := b_ev |>
 
-        | S_PCall pname b b_ev args (zargs : Int.MI★) : 
+        | S_PCall pname b b_ev args (zargs : MI.t★) : 
             let vargs := List.map (fun x => Def (VInt x)) zargs in 
             call_sem generic_stmt_sem procs ev b_ev pname args vargs b ->
             ev |= PCall pname args => ev <| mstate := b_ev |>
 
-        | S_Return e (z: Int.MI) : 
+        | S_Return e (z: MI.t) : 
             generic_exp_sem ev e (Def (VInt z)) ->
             ev |= <{ return e }> => ev <| env ; vars ::= {{res_f\Def (VInt z)}} |>
 
-        | S_PAssert e (z: Int.MI) :
+        | S_PAssert e (z: MI.t) :
             generic_exp_sem ev e z -> z <> VInt zero ->
             ev |= <{ assert e }> => ev
+
+
+        | S_Scope decls (s:@c_statement) ev_s ev_s':
+            (*
+                - A scope has var declarations that gets dropped at the end, except the memory state (stack vs heap).  
+                - This was missing in the original paper but required in the translation 
+                as we must create a scope when we translate the assertions 
+            *)
+            declare_vars ev decls ev_s ->
+            ev_s |= s => ev_s' -> 
+            ev |= Scope decls s =>  ev <| mstate := ev_s' |>
 
         | S_ExtSem s ev' :  
             (* only S_Ext constructor allowed to use external semantic*)
@@ -186,14 +219,14 @@ Section GenericSemantics.
 
         Variable P :  Env -> c_statement -> Env -> Prop.
         Variable P1 : forall ev, P ev <{skip}> ev.
-        Variable P2 : forall (ev : Env) (x : id) (z : Int.MI) (e : c_exp),
-            is_comp_var x = false ->
+        Variable P2 : forall (ev : Env) (x : id) (z : MI.t) (e : c_exp),
+            x <> res_f ->
             type_of_value (ev x) = Some C_Int ->
             (ev |= e => z)%gesem ->
             P ev (Assign x e) (ev <| env; vars ::= {{x \Def z}} |>)
         .
 
-        Variable P3 : forall (ev ev' : Env) (z : Int.MI) (e : c_exp) (s : c_statement) (s' : Syntax.c_statement),
+        Variable P3 : forall (ev ev' : Env) (z : MI.t) (e : c_exp) (s : c_statement) (s' : Syntax.c_statement),
             (ev |= e => z)%gesem /\ z <> zero ->
             (ev |= s => ev')%gssem -> P ev s ev' -> P ev <{if e s else s'}> ev'
         .
@@ -214,7 +247,7 @@ Section GenericSemantics.
         .
         Variable P7 : forall (ev_args : Env) (fname : StringMap.key) 
             (b : c_statement) (b_ev : Env) (params : 𝓥★) 
-            (args : c_exp★) (zargs : Int.MI★) (c : id)  (z : Int.MI),
+            (args : c_exp★) (zargs : MI.t★) (c : id)  (z : MI.t),
             (* inlining of generic_call_sem *)
             let vals := List.map (fun x => Def (VInt x)) zargs in 
             List.length params = List.length args ->
@@ -223,13 +256,13 @@ Section GenericSemantics.
             generic_stmt_sem (empty_env <| env ; vars ::= p_map_addall_back params vals |>) b b_ev ->
             (* end inlining *)
             P  (empty_env <| env ; vars ::= p_map_addall_back params vals |>) b b_ev ->
-            ~ StringSet.In res_f (stmt_vars b ext_stmt_vars) ->
+            ~ StringSet.In res_f (used_stmt_vars ext_used_stmt_vars b) ->
             b_ev res_f = Some (Def z) ->
             P ev_args (FCall c fname args) (ev_args <| env; vars ::= {{c \Def z}} |> <| mstate := b_ev |>)
         .
         Variable P8 : forall (ev_args : Env) (pname : StringMap.key) 
             (b : c_statement) (b_ev : Env) (params : 𝓥★) 
-            (args : c_exp★) (zargs : Int.MI★),
+            (args : c_exp★) (zargs : MI.t★),
 
             (* inlining of generic_call_sem *)
             let vals := List.map (fun x => Def (VInt x)) zargs in 
@@ -242,14 +275,22 @@ Section GenericSemantics.
             P ev_args (PCall pname args) (ev_args <| mstate := b_ev |>)
         .
 
-        Variable P9 : forall (ev : Env) (e : c_exp) (z : Int.MI),
+        Variable P9 : forall (ev : Env) (e : c_exp) (z : MI.t),
             (ev |= e => z)%gesem ->
             P ev <{return e}> (ev <| env; vars ::= {{res_f \Def z}} |>)
         .
-        Variable P10 : forall (ev : Env) (e : c_exp) (z : Int.MI),
+        Variable P10 : forall (ev : Env) (e : c_exp) (z : MI.t),
         (ev |= e => z)%gesem -> z <> zero -> P ev <{assert e}> ev
         .
-        Variable P11 : forall (ev : Env) (s : S) (ev' : Env),
+
+        Variable P11 : forall (ev ev_s ev_s' : Env) decls (s : c_statement),
+            declare_vars ev decls ev_s ->
+            (ev_s |= s => ev_s')%gssem -> 
+            P ev_s s ev_s' -> 
+            P ev (Scope decls s) (ev <| mstate := ev_s' |>)
+        .
+
+        Variable P12 : forall (ev : Env) (s : S) (ev' : Env),
             ext_stmt_sem fe ev (S_Ext s) ev' -> P ev (S_Ext s) ev'
         .
 
@@ -269,36 +310,17 @@ Section GenericSemantics.
             P8 ev pname b b_ev params args zargs H1 H2 H3 H4 (generic_stmt_sem_full_ind (empty_env <| env ; vars ::= p_map_addall_back params vargs |>) b b_ev H4)
         | S_Return _ e0 z g0 => P9 ev e0 z g0
         | S_PAssert _ e0 z g0 n => P10 ev e0 z g0 n
-        | S_ExtSem _ s ev' s0 => P11 ev s ev' s0
+        | S_Scope _ decls s ev_s ev_s' Hdecl Hsem => 
+            P11 ev ev_s ev_s' decls s Hdecl Hsem (generic_stmt_sem_full_ind ev_s s ev_s' Hsem)
+        | S_ExtSem _ s ev' s0 => P12 ev s ev' s0
         end
         .
         End Induction.
 
 
-
-        Inductive generic_decl_sem  (ev:Env) : c_decl -> Env -> Prop :=
-        | D_Decl x (t: c_type) u:
-            ev.(vars) x  = None -> 
-            _type_of_value ext_ty_val (Some (Undef u)) = Some t ->
-            generic_decl_sem ev (C_Decl t x) (ev <| env ;vars ::= {{x\Undef u}} |>)
-        .
-
-
-
-        Inductive declare_vars (e : Env) : Ensemble c_decl -> Env -> Prop :=
-        | DV_nil : 
-            declare_vars e (Empty_set _) e
-
-        | DV_cons decls d e': 
-            generic_decl_sem e d e' -> 
-            declare_vars e (Add _ decls d) e'
-        .
-
-
-
         Definition _untouched_var_same_eval_exp : Prop := 
             forall (ev:Env) e v x,
-            ~ StringSet.In v (exp_vars e) -> 
+            ~ StringSet.In v (used_exp_vars e) -> 
             generic_exp_sem ev e x ->
             (forall x', ext_exp_sem (ev <| env ; vars ::= {{v\x'}} |>)  e x)
             /\ 
@@ -310,7 +332,7 @@ Section GenericSemantics.
         Definition _untouched_var_same_eval_stmt : Prop := 
             forall ev ev' s x, 
             ext_stmt_sem fe ev s ev' ->
-            ~ StringSet.In x (stmt_vars s ext_stmt_vars) /\ is_comp_var x = false -> 
+            ~ StringSet.In x (used_stmt_vars ext_used_stmt_vars s) /\ is_comp_var x = false -> 
             ev x = ev' x
         .
 
@@ -363,7 +385,7 @@ Section GenericSemantics.
                 (* if v is a compiler variable, i.e. a function return value, v can change*)
                 (forall (v:𝓥), (v ∉ ev₀) /\ is_comp_var v = false  -> ev₀' v = ev₁' v)%dom_
                 /\
-                (forall (x:location), (forall v, ev₀ v <> Some (Def (VMpz x))) -> ev₀'.(mstate) (proj1_sig sub x) = ev₁'.(mstate) (proj1_sig sub x))
+                (forall (x:location), fresh_location ev₀ x -> ev₀'.(mstate) (proj1_sig sub x) = ev₁'.(mstate) (proj1_sig sub x))
             )
         .
 
@@ -374,9 +396,9 @@ Section GenericSemantics.
             
             forall ev', rel_s ev' ev sub ->
             (
-                (forall v, (dom ev - dom ev') v -> ~ StringSet.In v (exp_vars e))
+                (forall v, (dom ev - dom ev') v -> ~ StringSet.In v (used_exp_vars e))
                 /\
-                (forall x, (dom ev.(mstate) - dom ev'.(mstate)) x -> (exists v, ev v = Some (induced (proj1_sig sub) (Def (VMpz x))) /\ ~ StringSet.In v (exp_vars e)))
+                (forall x, (dom ev.(mstate) - dom ev'.(mstate)) x -> (exists v, ev v = Some (induced (proj1_sig sub) (Def (VMpz x))) /\ ~ StringSet.In v (used_exp_vars e)))
             )%dom_ ->
 
             ext_exp_sem  ev' e z
@@ -388,12 +410,12 @@ Section GenericSemantics.
 
             forall ev₀', rel_s ev₀' ev₀ sub ->
             (
-                (forall v, (dom ev₀ - dom ev₀') v -> ~ StringSet.In v (stmt_vars s ext_stmt_vars))
+                (forall v, (dom ev₀ - dom ev₀') v -> ~ StringSet.In v (used_stmt_vars ext_used_stmt_vars s))
                 /\
                 (
                     forall x, (dom ev₀.(mstate) - dom ev₀'.(mstate)) x -> 
                     (exists v, ev₀ v = Some (induced (proj1_sig sub) (Def (VMpz x))) 
-                    /\ ~ StringSet.In v (stmt_vars s ext_stmt_vars))
+                    /\ ~ StringSet.In v (used_stmt_vars ext_used_stmt_vars s))
                 )
             )%dom_ ->
 
@@ -407,7 +429,7 @@ Section GenericSemantics.
     | P_Pgrm b z ev_decls b_ev:
 
         (* add global declarations to the env *)
-        declare_vars ev (list_to_ensemble (fst P)) ev_decls ->
+        declare_vars ev (fst P) ev_decls ->
 
         (* add all functions to fenv *)
         let fe := build_fenv (snd P) in
@@ -418,7 +440,7 @@ Section GenericSemantics.
         @generic_call_sem fe _ _ _ _ generic_exp_sem (@generic_stmt_sem fe) funs (set env ∘ set vars) ev ev_decls b_ev "main"%string nil nil b ->
 
 
-        ~ StringSet.In res_f (stmt_vars b ext_stmt_vars) -> 
+        ~ StringSet.In res_f (used_stmt_vars ext_used_stmt_vars b) -> 
         b_ev res_f = Some (Def (VInt z)) -> (* must return a defined integer value *)
         generic_pgrm_sem ev P b_ev
     .
@@ -456,8 +478,8 @@ Proof.
 Qed.
 
 
-Fact weakening_of_empty_statement_semantics_3 {S T} rel rel_s stmt_vars :
-    @_LC23_weakening_of_statement_semantics S T (@Empty_stmt_sem S T)  rel rel_s stmt_vars.
+Fact weakening_of_empty_statement_semantics_3 {S T} rel rel_s used_stmt_vars :
+    @_LC23_weakening_of_statement_semantics S T (@Empty_stmt_sem S T)  rel rel_s used_stmt_vars.
 Proof. 
     easy. 
 Qed.

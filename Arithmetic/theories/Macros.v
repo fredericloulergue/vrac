@@ -1,4 +1,4 @@
-From Coq Require Import  ZArith.ZArith BinaryString.
+From Coq Require Import  ZArith.ZArith Strings.BinaryString.
 
 From RAC Require Import Utils Environnement.
 From RAC.Languages Require Import Syntax Semantics Lemmas.
@@ -103,7 +103,7 @@ where "ev '|=' e ⇝ z" := (get_int_exp ev e z).
 
 Lemma same_eval_macro :  forall (ev : Env) v l e z z', 
     no_aliasing ev ->
-    ~ StringSet.In v (exp_vars e) ->
+    ~ StringSet.In v (used_exp_vars e) ->
     ev v = Some (Def (VMpz (Some l))) ->
     ev |= e ⇝ z ->
     ev <| mstate ::= {{l \ Defined z'}} |> |= e ⇝ z.
@@ -111,7 +111,7 @@ Lemma same_eval_macro :  forall (ev : Env) v l e z z',
 Proof.
     intros. inversion H2.
     - subst. constructor 1;auto. apply untouched_var_same_eval_exp with v ; auto. 
-        now rewrite gmp_exp_c_exp_same_exp_vars. 
+        now rewrite gmp_exp_c_exp_same_used_exp_vars. 
 
     - subst. pose proof (mpz_exp_is_var e). apply H6 in H3 as [var].  subst. simpl in *.
         apply M_Mpz with l0; subst.
@@ -156,8 +156,8 @@ Proof.
 Qed.
 
 Lemma LE2_semantics_of_the_int_assgn_macro :
-    forall f e z (ir: Int.inRange z) (ev:Env) v,
-    is_comp_var v = false ->
+    forall f e z (ir: MI.inRange z) (ev:Env) v,
+    v <> res_f ->
     ev |= e ⇝ z ->
     type_of_value (ev v) = Some C_Int ->
     (ev |= int_ASSGN v e => ev <| env ; vars ::= {{v\VInt (z ⁱⁿᵗ ir) : 𝕍}} |>) f
@@ -168,7 +168,7 @@ Proof with eauto with rac_hint.
     unfold int_ASSGN.
     destruct (ty e)  eqn:EqTY.
     -  constructor... inversion H ; subst.
-        + apply ty_int_gmp_c_exp_equiv ;[assumption|]. now rewrite Int.x_of_mi_to_mi_x.
+        + apply ty_int_gmp_c_exp_equiv ;[assumption|]. now rewrite MI.x_of_mi_to_mi_x.
         +  now rewrite H1 in EqTY.
     - inversion H.
         + now rewrite H1 in EqTY.
@@ -183,8 +183,8 @@ Proof with eauto with rac_hint.
 Qed.
 
 Lemma LE3_semantics_of_the_Z_assgn_macro_tint :
-    forall f z (ir: Int.inRange z) (ev:Env) v,
-    is_comp_var v = false ->
+    forall f z (ir: MI.inRange z) (ev:Env) v,
+    v <> res_f ->
     type_of_value (ev v) = Some C_Int ->
     (ev |= Z_ASSGN C_Int v z => ev <| env ; vars ::= {{v\VInt (z ⁱⁿᵗ ir) : 𝕍}} |>) f
 .
@@ -207,9 +207,9 @@ Lemma LE4_semantics_of_the_cmp_macro :
 
 
     no_aliasing ev ->  (* not in paper proof *)
-    ~ StringSet.In v1 (exp_vars e2) -> (* not in paper proof *)
+    ~ StringSet.In v1 (used_exp_vars e2) -> (* not in paper proof *)
     v1 <> v2 -> (* not in paper proof *)
-    type_of_value (ev c) = Some C_Int (* not in paper proof *) /\ is_comp_var c = false (* added *) -> 
+    type_of_value (ev c) = Some C_Int (* not in paper proof *) /\ c <> res_f (* added *) -> 
 
 
     (* v1 and v2 must be bound to a mpz location (implied by mpz_assign ) *)
@@ -265,7 +265,7 @@ Proof with try easy ; auto with rac_hint ; unshelve eauto using Z.ltb_irrefl,Z.g
             + apply LE1_semantics_of_the_mpz_assgn_macro...
             + apply S_Seq with (ev <| mstate ::= {{l1\Defined z1}} |> <| mstate ::= {{l2\Defined z2}} |> ). 
                 * apply LE1_semantics_of_the_mpz_assgn_macro...  inversion_clear He2 ; subst. 
-                    -- constructor... eapply untouched_var_same_eval_exp... now rewrite gmp_exp_c_exp_same_exp_vars.
+                    -- constructor... eapply untouched_var_same_eval_exp... now rewrite gmp_exp_c_exp_same_used_exp_vars.
                     -- econstructor... apply p_map_not_same_eq... destruct e2; try discriminate. 
                         ++ simpl in H. subst. simpl in H0. destruct (eq_dec var v1)...
                             subst. exfalso. apply Hv1NotIne2. simpl. now left.
@@ -298,7 +298,7 @@ Proof with try easy ; auto with rac_hint ; unshelve eauto using Z.ltb_irrefl,Z.g
 
     (* z1 = z2 *)
     - assert (cmp := eq'). rewrite <- eq in eq'. clear eq inf sup. subst.
-        destruct x,x0. apply Int.mi_eq in cmp. injection cmp as cmp. inversion eq'. subst. simpl in *. constructor.
+        destruct x,x0. apply MI.mi_eq in cmp. injection cmp as cmp. inversion eq'. subst. simpl in *. constructor.
         + econstructor... 
             * apply ty_int_gmp_c_exp_equiv...
             * apply ty_int_gmp_c_exp_equiv...
@@ -328,12 +328,12 @@ Qed.
 
 
 Lemma LE5_semantics_of_the_binop_macro_int :  
-    forall f (ev:Env) (op:fsl_binop_int) c r (e1 e2 : gmp_exp) v1 v2 z1 z2 (ir: Int.inRange (⋄ op z1 z2) ),
+    forall f (ev:Env) (op:fsl_binop_int) c r (e1 e2 : gmp_exp) v1 v2 z1 z2 (ir: MI.inRange (⋄ op z1 z2) ),
 
     no_aliasing ev ->  (* not in paper proof *)
-    ~ StringSet.In v1 (exp_vars e2) -> (* not in paper proof *)
+    ~ StringSet.In v1 (used_exp_vars e2) -> (* not in paper proof *)
     v1 <> v2 -> (* not in paper proof *)
-    type_of_value (ev c) = Some C_Int /\ is_comp_var c = false (* added *) -> 
+    type_of_value (ev c) = Some C_Int /\ c <> res_f (* added *) -> 
 
 
     (* v1 and v2 must be bound to a mpz location (implied by mpz_assign ) *)
@@ -412,7 +412,7 @@ Lemma LE5_semantics_of_the_binop_macro_mpz :
     forall f (ev:Env) (op:fsl_binop_int) c y r e1 e2 v1 v2 z1 z2,
 
     no_aliasing ev ->
-    ~ StringSet.In v1 (exp_vars e2) -> (* not in paper proof *)
+    ~ StringSet.In v1 (used_exp_vars e2) -> (* not in paper proof *)
     type_of_value (ev c) = Some C_Int -> (* not in paper proof *)
     v1 <> v2 -> (* not in paper proof *)
 

@@ -29,9 +29,13 @@ Notation "⋄" := c_binop_int_model.
 
 Section GenericSyntax.
 
-    Context {F S T : Set}.
+    Context {F S T : Set} {Tdec : EqDec T}.
+    
 
     Inductive c_type := C_Int | Void | T_Ext (t:T).  (* program types τc *)
+
+    Equations Derive NoConfusion for c_type.
+    Equations Derive EqDec for c_type.
 
     #[warnings="-uniform-inheritance"] 
     Inductive c_exp : Set :=
@@ -40,6 +44,14 @@ Section GenericSyntax.
         | BinOpInt (le : c_exp) (op:c_binop_int) (re : c_exp) (* can only be of type int *)
         | BinOpBool (le : c_exp) (op:c_binop_bool) (re : c_exp) (* can only be of type int *)
     .
+
+
+    Inductive c_decl :=  C_Decl (type: c_type) (name:id). (* program declaration *)
+
+    (* Equations Derive NoConfusion for c_decl.
+    Equations Derive EqDec for c_decl.
+    Final Obligation. unfold dec_eq. repeat decide equality. Defined.  *)
+
 
     #[warnings="-uniform-inheritance"] 
     Inductive c_statement : Set :=
@@ -52,17 +64,23 @@ Section GenericSyntax.
         | While (cond:c_exp) (body:c_statement) (* loop *) 
         | PAssert (e: c_exp) (* program assertion *)
         | Return (e: c_exp) 
-        (* | Decl (d: @_c_decl T) :> c_statement *)
         | S_Ext (stmt:S)
+    
+
+        (* 
+            simplified scope added ( only allow declarations at the start of the scope )
+            because the translation creates a scope per translated assertion within which lies 
+            the assertion and its required declarations. 
+        *)
+        (* | Decl (d: c_decl) *)
+        | Scope (decls: list c_decl) (s: c_statement) 
+
     .
 
 
     Definition 𝓕 : Type := StringMap.t (𝓥★ ⨉ c_statement). (* program functions *)
     Definition 𝓟 : Type := StringMap.t (𝓥★ ⨉ c_statement). (* program procedures *)
 
-
-
-    Inductive c_decl :=  C_Decl (type: c_type) (name:id). (* program declaration *)
 
     Inductive c_routine :=
     | PFun (rtype: c_type) (name:id) (args: c_decl★) (b_decl: c_decl★) (body: c_statement) (* program function *)

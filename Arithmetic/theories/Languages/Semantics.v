@@ -1,4 +1,4 @@
-From Coq Require Import List.
+From Coq Require Import Lists.List.
 From RAC Require Import Utils Environnement.
 From RAC.Languages Require Import Syntax.
 From RAC.Languages Require Export MiniC.Semantics MiniGMP.Semantics MiniFSL.Semantics.
@@ -39,7 +39,6 @@ Inductive between : gmp_statement -> gmp_statement -> gmp_statement -> gmp_state
 .
 
 
-
 Definition In_stmt {S T} (s s' : @c_statement S T) : Prop := List.In s (flatten s').
 
 
@@ -75,7 +74,7 @@ Definition well_formed_pgrm (P : fsl_pgrm) :=
 
         (*
             (* all used variables are declared *)
-            (forall v, StringSet.In v (fsl_stmt_vars b) -> v ∈ env)
+            (forall v, StringSet.In v (fsl_used_stmt_vars b) -> v ∈ env)
             
 
             (* all functions are defined before being called *)

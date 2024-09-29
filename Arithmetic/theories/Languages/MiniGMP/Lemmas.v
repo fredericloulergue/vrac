@@ -16,7 +16,7 @@ Section GMPLemmas.
 
     
 
-    Lemma _weakening_of_gmp_statements_semantics_1 :
+    Lemma _LC21_weakening_of_gmp_statement_semantics :
         _LC21_weakening_of_statement_semantics Empty_exp_sem _gmp_stmt_sem
             exist_strong_env_mem_partial_order strong_env_mem_partial_order (fe:=fe)
     .
@@ -83,23 +83,21 @@ Section GMPLemmas.
                 * now apply (eq_mpz x (Some lx)).
                 * now apply (eq_mpz y (Some ly)).
                 * now apply (eq_mpz r (Some lr)).
-        (* scope*)
-        -  admit.  (* fixme: missing induction hypothesis *)
     Admitted.
 
-    (* Definition weakening_of_gmp_statements_semantics_1 := 
-        LC21_weakening_of_statement_semantics Empty_exp_sem _gmp_stmt_sem 
+
+
+    Definition LC21_weakening_of_gmp_statement_semantics := 
+        LC21_weakening_of_statement_semantics_strong Empty_exp_sem _gmp_stmt_sem 
+        _determinist_gmp_stmt_eval
         weakening_of_empty_expression_semantics
-        _weakening_of_gmp_statements_semantics_1 . 
-        
+        _LC21_weakening_of_gmp_statement_semantics
+        (LC1_weakening_of_expression_semantics Empty_exp_sem weakening_of_empty_expression_semantics)
+        (ext_used_stmt_vars:=_gmp_used_stmt_vars) (ext_ty_val:=_type_of_gmp) (fe:=fe)
+    .
+    
 
-        gmp requires strong relation but not c
-
-    *)
-
-
-
-    Lemma _weakening_of_gmp_statements_semantics_2 : 
+    Lemma _LC22_weakening_of_gmp_statement_semantics : 
         _LC22_weakening_of_statement_semantics Empty_exp_sem _gmp_stmt_sem exist_env_mem_partial_order env_mem_partial_order (fe:=fe)
     .
     Proof with unshelve eauto using refl_env_mem_partial_order with rac_hint ; try easy.
@@ -119,13 +117,13 @@ Section GMPLemmas.
             env_mem_partial_order ev ev' sub ->
             ev x = Some (Def (VMpz v'')) ->
             ev' x = Some (Def (VMpz (Some v'))) ->
-            (forall v0 : 𝓥, ev v0 <> Some (Def (VMpz v))) ->
+            fresh_location ev  v  ->
             ev'.(mstate) (proj1_sig sub v) = (ev' <| env;vars ::=e |> <| mstate ::= {{v'\val}} |>).(mstate) (proj1_sig sub v)
             ). {
             intros ev ev' v v' v'' val x e Henvmem Hnotused Hev Hev'. destruct (eq_dec (proj1_sig sub v) v').
             - subst. exfalso. destruct Henvmem as [Henv _]. specialize (Henv x). 
                 inversion Henv;  try congruence.  rewrite Hev in H0. inversion H0. destruct sub. simpl in *.
-                apply bijective_eq_iff_f_eq in H2...  subst. congruence.
+                apply bijective_eq_iff_f_eq in H2... subst. eapply Hev'...
             - symmetry. now apply p_map_not_same_eq.
         }
 
@@ -171,21 +169,21 @@ Section GMPLemmas.
         (* binop *)
         - split... intros. eapply Hlocs...  destruct bop,bop0; simpl in H4; inversion H4; now subst. 
         
-        (* scope *)
-        - split... intros. simpl. admit. Unshelve. all: easy.
     Admitted.
 
-    Definition weakening_of_gmp_statements_semantics_2 := 
+    Definition LC22_weakening_of_gmp_statement_semantics := 
         LC22_weakening_of_statement_semantics Empty_exp_sem _gmp_stmt_sem  
         weakening_of_empty_expression_semantics
-        _weakening_of_gmp_statements_semantics_2
-        (ext_stmt_vars:=_gmp_stmt_vars) (fe:=fe).
+        _LC22_weakening_of_gmp_statement_semantics
+        (LC1_weakening_of_expression_semantics Empty_exp_sem weakening_of_empty_expression_semantics)
+        (ext_used_stmt_vars:=_gmp_used_stmt_vars) (ext_ty_val:=_type_of_gmp) (fe:=fe)
+    .
 
 
 
-    Lemma _weakening_of_gmp_statements_semantics_3 : 
+    Lemma _LC23_weakening_of_gmp_statement_semantics : 
         _LC23_weakening_of_statement_semantics _gmp_stmt_sem strong_env_mem_partial_order
-            (ext_stmt_vars := _gmp_stmt_vars) (fe:=fe) 
+            (ext_used_stmt_vars := _gmp_used_stmt_vars) (fe:=fe) 
     .
     Proof with eauto using refl_env_mem_partial_order with rac_hint ; try easy.
         intros ev s ev1 [sub [subrev [Hsub1 Hsub2]]] Hderiv. 
@@ -195,7 +193,7 @@ Section GMPLemmas.
         (* init *)
         - exists (ev' <| env ; vars ::= {{x \ Def (VMpz (Some (subrev l)))}} |> <| mstate ::= {{subrev l \Defined 0}} |> ).
             apply S_init with u.
-            + intros. specialize (H v). intros contra. destruct Hrel as [Hrel _]. specialize (Hrel v _ _ contra).  
+            + intros x'. specialize (H x'). intros contra. destruct Hrel as [Hrel _]. specialize (Hrel x _ _ contra). simpl in *.  
                 inversion Hrel. congruence.
 
             +  assert (~(dom ev - dom ev')%dom_ x). {
@@ -341,17 +339,16 @@ Section GMPLemmas.
                 }
                 apply not_in_sub_domain_prop in H4;[|apply in_domain_dec| apply in_domain_dec]. destruct H4.
                 * now  unshelve epose proof (strong_reverse_dom_same_env ev' ev _ lr sub subrev Hsub1 Hsub2 Hrel _ H4).
-                * destruct H4. now exists lr.
-
-                
-        - admit.
+                * destruct H4. now exists lr.                
     Admitted.
 
 
-    Definition weakening_of_gmp_statements_semantics_3 := 
-        LC23_weakening_of_statement_semantics Empty_exp_sem  _gmp_stmt_sem (ext_stmt_vars := _gmp_stmt_vars) 
+    Definition LC23_weakening_of_gmp_statement_semantics := 
+        LC23_weakening_of_statement_semantics Empty_exp_sem  _gmp_stmt_sem 
         (weakening_of_empty_expression_semantics_3 strong_env_mem_partial_order) 
-        _weakening_of_gmp_statements_semantics_3.
+        _LC23_weakening_of_gmp_statement_semantics
+        (ext_used_stmt_vars:=_gmp_used_stmt_vars) (ext_ty_val:=_type_of_gmp)
+    .
 
 End GMPLemmas.
 

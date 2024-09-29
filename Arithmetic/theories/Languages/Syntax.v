@@ -47,76 +47,90 @@ Fixpoint ty {T : Set} (e: @c_exp T) : @c_type T :=
     end
 .
 
-(* Fact eq_dec_ty {T: Set} (t1 t2 : @_c_type T) {H : EqDec T} : {t1 = t2} + {t1 <> t2}. inversion H. decide equality. Qed.
-Fact eq_dec__gmp_t (x y : _gmp_t) : {x = y} + {x <> y}. decide equality.  Qed.
-Fact eq_dec_gmp_t (x y : gmp_t) : {x = y} + {x <> y}. decide equality. apply eq_dec__gmp_t. Qed.
-#[global] Instance eqdec_gmp_t: EqDec gmp_t := {eq_dec := eq_dec_gmp_t}. *)
+Fact eq_dec_ty {T: Set}  {H : EqDec T} : EqDec (@c_type T). red. decide equality. Qed.
+Fact eq_dec__gmp_t  : EqDec _gmp_t. red. decide equality.  Qed.
+Fact eq_dec_gmp_t : EqDec gmp_t. red. decide equality. apply eq_dec__gmp_t. Qed.
+#[global] Instance eqdec_gmp_t: EqDec gmp_t := {eq_dec := eq_dec_gmp_t}.
+
+Section Vars.
+
+    Context {F S T : Set}.
+    Variables (ext_used_stmt_vars: S -> StringSet.t) (ext_used_fun_vars: F -> StringSet.t).
+
+    Fixpoint used_exp_vars (exp : @c_exp T) : StringSet.t := match exp with 
+    | Zm z => StringSet.empty
+    | C_Id v _ => StringSet.singleton v
+    | BinOpInt le _ re | BinOpBool le _ re => StringSet.union (used_exp_vars le) (used_exp_vars re)
+    end.
 
 
+    Fixpoint used_stmt_vars (stmt : @c_statement S T)  : StringSet.t  := match stmt with 
+    | Skip => StringSet.empty 
+    | Assign var e => StringSet.add var (used_exp_vars e)
+    | FCall var f args => StringSet.add var (StringSet.union_list (List.map used_exp_vars args))
+    | PCall f args => StringSet.union_list (List.map used_exp_vars args)
+    | Seq s1 s2 =>  StringSet.union (used_stmt_vars s1) (used_stmt_vars s2)
+    | If cond then_ else_ =>  StringSet.union (StringSet.union (used_exp_vars cond) (used_stmt_vars then_)) (used_stmt_vars else_)
+    | While cond s => StringSet.union (used_exp_vars cond) (used_stmt_vars s)
+    | PAssert e | Return e => used_exp_vars e
+    | Scope _ s => used_stmt_vars s
+    | S_Ext s => ext_used_stmt_vars s
+    end.
 
-Fixpoint exp_vars {T:Set} (exp : @c_exp T) : StringSet.t := match exp with 
-| Zm z => StringSet.empty
-| C_Id v _ => StringSet.singleton v
-| BinOpInt le _ re | BinOpBool le _ re => StringSet.union (exp_vars le) (exp_vars re)
-end.
+    Definition used_fun_vars(r : @c_routine F S T) : StringSet.t := match r with
+    | PFun _ _ _ _ b => used_stmt_vars b
+    | F_Ext f => ext_used_fun_vars f
+    end.
+
+    Definition used_pgrm_vars (P : @c_program F S T) : StringSet.t := 
+        StringSet.union_list (List.map used_fun_vars (snd P))
+    .
+
+End Vars.
 
 
-Fixpoint stmt_vars {T S:Set} (stmt : @c_statement T S) (ext_stmt_vars: T -> StringSet.t) : StringSet.t  := match stmt with 
-| Skip => StringSet.empty 
-| Assign var e => StringSet.add var (exp_vars e)
-| FCall var f args => StringSet.add var (StringSet.union_list (List.map exp_vars args) StringSet.empty)
-| PCall f args => StringSet.union_list (List.map exp_vars args) StringSet.empty
-| Seq s1 s2 =>  StringSet.union (stmt_vars s1 ext_stmt_vars) (stmt_vars s2 ext_stmt_vars)
-| If cond then_ else_ =>  StringSet.union (StringSet.union (exp_vars cond) (stmt_vars then_ ext_stmt_vars)) (stmt_vars else_ ext_stmt_vars)
-| While cond s => StringSet.union (exp_vars cond) (stmt_vars s ext_stmt_vars)
-| PAssert e | Return e => exp_vars e
-| S_Ext s => ext_stmt_vars s
-end.
-
-
-#[bypass_check(guard=yes)] Fixpoint _gmp_stmt_vars (stmt:_gmp_statement) : StringSet.t := match stmt with 
-| GMP_Scope _ s => stmt_vars s _gmp_stmt_vars
+Definition _gmp_used_stmt_vars (stmt:_gmp_statement) : StringSet.t := match stmt with 
 | Init z | Set_s z _  | Clear z  => StringSet.singleton z
-| Set_i z e  => StringSet.add z (exp_vars e)
+| Set_i z e  => StringSet.add z (used_exp_vars e)
 | Set_z z1 z2 | Coerc z1 z2 => StringSet.union (StringSet.singleton z1) (StringSet.singleton z2)
 | GMP_Add l r res | GMP_Sub l r res | GMP_Mul l r res | GMP_Div l r res | Comp res l r => 
     StringSet.union (StringSet.union (StringSet.singleton l) (StringSet.singleton r)) (StringSet.singleton res)
 end.
 
-
-Definition _fsl_stmt_vars (stmt:_fsl_statement) : StringSet.t := 
-    let _stmt_vars := fix predicate_vars (p:predicate) : StringSet.t := match p with
+Fixpoint fsl_used_term_vars (t: fsl_term) : StringSet.t := match t with
+    | T_Z _ => StringSet.empty
+    | T_Id x _ => StringSet.singleton x
+    | T_BinOp t1 _ t2 => StringSet.union (fsl_used_term_vars t1) (fsl_used_term_vars t2)
+    | T_Cond p t1 t2 => StringSet.union (StringSet.union (fsl_used_predicate_vars p) (fsl_used_term_vars t1)) (fsl_used_term_vars t2)
+    | T_Call _ targs => (StringSet.union_list (List.map fsl_used_term_vars targs))
+    end
+with fsl_used_predicate_vars (p:predicate) : StringSet.t := match p with
         | P_True | P_False => StringSet.empty
-        | P_BinOp t1 _ t2 => StringSet.union (term_vars t1) (term_vars t2)
-        | P_Not p => predicate_vars p
-        | P_Disj p1 p2 => StringSet.union (predicate_vars p1) (predicate_vars p2)
-        | P_Call _ args => (StringSet.union_list (List.map term_vars args) StringSet.empty)
-    end 
-    with term_vars (t:fsl_term) : StringSet.t := match t with
-        | T_Z _ => StringSet.empty
-        | T_Id x _ => StringSet.singleton x
-        | T_BinOp t1 _ t2 => StringSet.union (term_vars t1) (term_vars t2)
-        | T_Cond p t1 t2 => StringSet.union (StringSet.union (predicate_vars p) (term_vars t1)) (term_vars t2)
-        | T_Call _ targs => (StringSet.union_list (List.map term_vars targs) StringSet.empty)
-    end
-    for predicate_vars
-    in
-    match stmt with 
-    | LAssert p => _stmt_vars p
-    end
-.
+        | P_BinOp t1 _ t2 => StringSet.union (fsl_used_term_vars t1) (fsl_used_term_vars t2)
+        | P_Not p => fsl_used_predicate_vars p
+        | P_Disj p1 p2 => StringSet.union (fsl_used_predicate_vars p1) (fsl_used_predicate_vars p2)
+        | P_Call _ args => (StringSet.union_list (List.map fsl_used_term_vars args))
+end.
 
 
-Definition Empty_ext_stmt_vars {T} : T -> StringSet.t  := fun _ => StringSet.empty.
+Definition _fsl_used_stmt_vars '(LAssert p:_fsl_statement) : StringSet.t := fsl_used_predicate_vars p.
 
 
-Definition c_stmt_vars s := stmt_vars (T:=Empty_set) (S:=Empty_set) s Empty_ext_stmt_vars.
+Definition _fsl_used_fun_vars (f:_fsl_routine) : StringSet.t := match f with 
+| LFun _ _ _ b => fsl_used_term_vars b
+|Predicate _ _ b => fsl_used_predicate_vars b
+end.
 
 
-Definition gmp_stmt_vars s := stmt_vars (T:=_gmp_statement) (S:=_gmp_t) s _gmp_stmt_vars.
+
+Definition Empty_ext_used {T} : T -> StringSet.t  := fun _ => StringSet.empty.
 
 
-Definition fsl_stmt_vars s := stmt_vars (T:=_fsl_statement) (S:=Empty_set) s _fsl_stmt_vars.
+Definition c_used_stmt_vars := @used_stmt_vars Empty_set Empty_set Empty_ext_used.
+Definition gmp_used_stmt_vars := @used_stmt_vars _gmp_statement _gmp_t _gmp_used_stmt_vars.
+Definition gmp_used_prgrm_vars := @used_pgrm_vars Empty_set _gmp_statement _gmp_t  _gmp_used_stmt_vars Empty_ext_used.
+Definition fsl_used_stmt_vars := @used_stmt_vars _fsl_statement Empty_set _fsl_used_stmt_vars.
+Definition fsl_used_prgrm_vars := @used_pgrm_vars _fsl_routine _fsl_statement Empty_set  _fsl_used_stmt_vars _fsl_used_fun_vars.
 
 
 (****************** Convertion ********************)

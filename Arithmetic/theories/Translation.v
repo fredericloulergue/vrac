@@ -1,4 +1,5 @@
-From Coq Require Import List String BinaryString ZArith Structures.OrdersEx Wellfounded.Lexicographic_Product.
+From Coq Require Import Lists.List ZArith.ZArith Wellfounded.Lexicographic_Product.
+From Coq.Strings Require Import String BinaryString.
 From MMaps Require Import MMaps.
 From RAC Require Import Utils Environnement Macros Oracle.
 From RAC.Languages Require Import Syntax Semantics.
@@ -65,14 +66,14 @@ Module Translation (Oracle : Oracle).
     (* Hypothesis WellFormedProgram : well_formed_pgrm. *)
 
 
-    Definition Γᵥ := StringMap.t (𝓥 ⨉ 𝐼). (* environment for logic bindings : variable and interval infered from it *)
+    Definition Γᵥ := StringMap.t (𝓥 ⨉ interval). (* environment for logic bindings : variable and interval infered from it *)
 
 
     Definition Γ := Γᵥ ⨉ Γᵢ.
     Notation "'Γ' '(' x ')' " := (Γᵥ x, Γᵢ x).
 
-
     Module 𝐼_as_OT <: OrderedType := PairOrderedType(Z_as_OT)(Z_as_OT).  
+
     (* maps of ordered maps over ordered type are ordered *)
     Module TypingEnv_as_OT <: OrderedType := StringMap.Decidable(𝐼_as_OT).
     (* we get an ordered type for the product of 𝔏 and  StringMap.t *)
@@ -128,7 +129,7 @@ Module Translation (Oracle : Oracle).
         | f_gen : logic_tr_proto fsl_prog_fenv Γ ψ id (fun _ _ _ _ =>  @TM.t (@translation_result 𝓥))
         .
 
-        Derive Signature NoConfusion for logic_tr_proto.
+        Equations Derive Signature NoConfusion for logic_tr_proto.
 
         Import Sigma_Notations.
 
@@ -274,7 +275,7 @@ Module Translation (Oracle : Oracle).
 
             (* for each pair of function argument and parameter *)
             f_res <- fold_left2_in args params ( fun 
-                (done: @TM.t (var_list ⨉ list c_exp ⨉ translation_result ⨉ StringMap.t (id ⨉ 𝐼))) 
+                (done: @TM.t (var_list ⨉ list c_exp ⨉ translation_result ⨉ StringMap.t (id ⨉ interval))) 
                 (arg : {x | In x args})
                 (param : {x : 𝔏 | In x params}) => 
 
@@ -368,7 +369,7 @@ Module Translation (Oracle : Oracle).
     | tr_term , _, _ , _ , T_Id v FSL_Integer with Logic.inspect (StringMap.find v (fst g)) => (* logic var *)
         {
             | Some (x,i) ins: HInG => 
-                TM.ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) nil (x,ϴ i))
+                TM.ret (mkSTR gmp_statement (mkTR gmp_statement Skip e nil) nil (x,ty_from_interval i))
             | None ins:_ => False_rect _ _
         } 
 
@@ -432,7 +433,7 @@ Module Translation (Oracle : Oracle).
 
                 (* for each pair of function argument and parameter *)
                 f_res <- fold_left2_in args params ( fun 
-                    (done: @TM.t (var_list ⨉ list c_exp ⨉ translation_result ⨉ StringMap.t (id ⨉ 𝐼))) 
+                    (done: @TM.t (var_list ⨉ list c_exp ⨉ translation_result ⨉ StringMap.t (id ⨉ interval))) 
                     (arg : {x | In x args})
                     (param : {x : 𝔏 | In x params}) => 
 
@@ -556,7 +557,7 @@ Module Translation (Oracle : Oracle).
                             | None ins:Hty => let _ := Hty in False_rect _ _
                             end 
                         ;;;
-                        C_Decl (ϴ i) v
+                        C_Decl (ty_from_interval i) v
                     ) params ;; 
 
                     match Logic.inspect rtype with
@@ -637,11 +638,11 @@ Module Translation (Oracle : Oracle).
         let asrt := PAssert res in
         let clr := CLEARS p_tr.(decls) in 
         p_tr.(tr) 
-            <| chunk := (GMP_Scope d <{i ;c ; asrt ; clr }> : gmp_statement) |> 
+            <| chunk := (Scope d <{i ;c ; asrt ; clr }> : gmp_statement) |> 
             (* Before, we propagated declarations global declarations
                 because the syntax forbids declarations to be put in a statement.
                 It was a hack that required a different treatement inside translate_program might not have been correct.
-                Now, with GMP_Scope added to the gmp syntax, this is not necessary.
+                Now, with Scope added to the c syntax, this is not necessary.
 
                 <| glob ::= fun l => l ++ (map GDecl d) |>
             *)            
@@ -672,10 +673,17 @@ Module Translation (Oracle : Oracle).
     | _,_,_, PAssert e => 
         let e := c_exp_to_gmp_exp e in 
         TM.ret (mkTR gmp_statement (PAssert e) env nil)
+
     | _,_,_, Return e => 
         let e := c_exp_to_gmp_exp e in 
         TM.ret (mkTR gmp_statement (Return e) env nil)
     | _,_,_, PCall name args => let args := map c_exp_to_gmp_exp args in TM.ret (mkTR gmp_statement (PCall name args) env nil)
+
+    | _,_,_, Scope d s => 
+        let decls := map c_decl_to_gmp_decl d in 
+        tr <- translate_statement f g env s ;;;
+        tr <| chunk := Scope decls tr.(chunk) |>
+
     | _,_,_, Skip => TM.ret (mkTR gmp_statement Skip env nil)
     .
 

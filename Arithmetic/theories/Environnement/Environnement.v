@@ -1,6 +1,8 @@
-From Coq Require Import ZArith.ZArith Strings.String Logic.FinFun Sets.Ensembles Sets.Finite_sets.
+From Coq Require Import ZArith.ZArith Strings.String Logic.FinFun Sets.Ensembles.
+From Coq.Structures Require Import Equalities EqualitiesFacts Orders OrdersEx.
 
-From RAC Require Import Utils.
+
+From RAC Require Import Utils. 
 From RAC.Languages Require Import Syntax. 
 
 #[local] Open Scope utils_scope.
@@ -81,20 +83,27 @@ Module Int16Bounds.
     Definition M_int := 32767%Z.
 End Int16Bounds.
 
-Module Int := MachineInteger Int16Bounds.
+Module MI := MachineInteger Int16Bounds.
 
 
-Notation "z ̇" := (Int.of_mi z) (at level 0).
-Notation "z 'ⁱⁿᵗ'" := (Int.to_mi z) (at level 99).
+Notation "z ̇" := (MI.of_mi z) (at level 0).
+Notation "z 'ⁱⁿᵗ'" := (MI.to_mi z) (at level 99).
 
 
-Fact zeroinRange : Int.inRange 0.  now split. Qed.
-Fact oneinRange : Int.inRange 1. now split. Qed.
-Fact suboneinRange : Int.inRange (-1). now split. Qed.
+
+
+Fact zeroinRange : MI.inRange 0.  now split. Qed.
+Fact oneinRange : MI.inRange 1. now split. Qed.
+Fact suboneinRange : MI.inRange (-1). now split. Qed.
+
+#[global] Hint Resolve zeroinRange: rac_hint.
+#[global] Hint Resolve oneinRange: rac_hint.
+#[global] Hint Resolve suboneinRange: rac_hint.
 
 Definition zero :=  0ⁱⁿᵗ zeroinRange.
 Definition one := 1ⁱⁿᵗ oneinRange.
 Definition sub_one := (-1)ⁱⁿᵗ suboneinRange.
+
 
 
 
@@ -105,15 +114,8 @@ Definition undefval := nat.
 #[global] Instance location_eq_dec : FunctionalEnv.EqDecC location := {eq_dec := Nat.eq_dec}.
 
 
-
-#[global] Hint Resolve zeroinRange: rac_hint.
-#[global] Hint Resolve oneinRange: rac_hint.
-#[global] Hint Resolve suboneinRange: rac_hint.
-
-
-
 Inductive value := 
-    | VInt (n:Int.MI) :> value (* set of type int, a machine integer (may overflow) *)
+    | VInt (n:MI.t) :> value (* set of type int, a machine integer (may overflow) *)
     | VMpz (l:option location) (* memory location for values of type mpz, none is a null pointer *) 
 .
 
@@ -125,7 +127,7 @@ Inductive undef :=
 
 
 Inductive 𝕍 :=  Def (v : value) :> 𝕍 | Undef (uv : undef) :> 𝕍.
-Coercion v_int (mi:Int.MI) : 𝕍 := Def (VInt mi). 
+Coercion v_int (mi:MI.t) : 𝕍 := Def (VInt mi). 
 Coercion def_v_mpz (l:nat) : 𝕍 := Def (VMpz (Some l)). 
 Coercion mpz_loc (l:location) : 𝕍 := VMpz (Some l).
 
@@ -150,7 +152,7 @@ Coercion int_option_loc (l:nat) :=  Some l.
 (* Coercion VMpz : nat >-> Value. *)
 (* 
 Definition same_values (v1 v2: option 𝕍) : bool := match v1,v2 with
-    | Some (VInt n1), Some (VInt n2) => Int.mi_eqb n1 n2
+    | Some (VInt n1), Some (VInt n2) => MI.mi_eqb n1 n2
     | Some (VMpz n1), Some (VMpz n2) => (n1 =? n2)%nat
     | _,_ => false
 end
@@ -169,6 +171,7 @@ Definition apply_mem (a : Ω) (l : 𝔏) : option Z := a.(binds) l.
 (* Coercion apply_mem : Ω >-> Funclass. *) (* can't use same coercion path *)
 
 
+Definition fresh_location (e:Env) (l:location) : Prop := forall v, e v <> Some (Def (VMpz (Some l))).
 
 Definition σ : Type := {f : location -> location | Bijective f}.
 
@@ -270,27 +273,54 @@ Definition type_of_value := _type_of_value _type_of_gmp.
 
 
 
-(* environnement enrichers *)
-
-Inductive add_z_var (e : Env) (τ:gmp_t) (v:id) (z:Z) : Env -> Prop :=
-| typeInt irz : 
+(* environnement enrichers used in section F *)
+Inductive add_z_var (e : Env) (τ:gmp_t) (var:id) (z:Z) | : Env -> Prop :=
+| typeDefInt irz : 
     (* fixme: section F is able to tell if z is in Uint and in any case transform it into a machine integer (how?) *)
     τ = C_Int ->
-    add_z_var e τ v z (e <| env ; vars ::= {{v\z ⁱⁿᵗ irz : 𝕍}} |>)
+    add_z_var (e <| env ; vars ::= {{var\z ⁱⁿᵗ irz : 𝕍}} |>)
 
 | typeMpz l:
-    τ  = Mpz ->
-    (forall v', e v' <> Some (Def (VMpz (Some l))) )->
-    add_z_var e τ v z 
-    ( e 
-    <| env ; vars ::= {{ v\l : 𝕍}} |>
-    <| mstate ::= {{l\Defined z}} |> 
-    )
+    τ = Mpz ->
+    fresh_location e l ->
+    add_z_var ( e <| env ; vars ::= {{var\l : 𝕍}} |><| mstate ::= {{l\Defined z}} |>)
 .
 
 Notation "env '+++' ( t , v , z )" := (add_z_var env t v z) (at level 99).
 
-Definition 𝐴 : Type := Ensemble (gmp_t ⨉ id ⨉ Z).
+
+Module gmp_type_as_MDT <: MiniDecidableType.
+    Definition t := gmp_t.
+    Definition eq_dec := eq_dec_gmp_t.
+End gmp_type_as_MDT.
+
+Module gmp_type_as_UDT := Make_UDT(gmp_type_as_MDT).
+
+(*
+
+
+
+Module gmp_type_as_UOT.
+    Include gmp_type_as_UDT.
+
+    Parameter lt : t -> t -> Prop.
+
+    Parameter lt_strorder : StrictOrder lt.
+
+    Parameter lt_compat : Proper (eq ==> eq ==> iff) lt.
+
+    Parameter compare : t -> t -> comparison.
+
+    Parameter compare_spec: forall x y, CompareSpec (x = y) (lt x y) (lt y x) (compare x y).
+End gmp_type_as_UOT.
+
+(* build decidable triple *)
+Module Pair1 := PairOrderedType(gmp_type_as_UOT)(String_as_OT).
+Module Pair2 := PairOrderedType(Pair1)(Z_as_OT).
+
+Module VarSet := MSetEnv(Pair2). *)
+
+Notation 𝐴 := (Ensemble (gmp_t ⨉ id ⨉ Z)).
 
 Inductive add_z_vars (e : Env) : 𝐴 -> Env -> Prop := 
 | add_z_vars_nil : add_z_vars e (Empty_set _) e
@@ -302,9 +332,7 @@ Inductive add_z_vars (e : Env) : 𝐴 -> Env -> Prop :=
 
 Notation "env '+++' e" := (add_z_vars env e) (at level 99).
 
-
 Fixpoint list_to_ensemble {X} (l:list X) : Ensemble X := match l with
 | nil => Empty_set _
 | List.cons hd tl => Add _ (list_to_ensemble tl) hd
-end
-.
+end.   

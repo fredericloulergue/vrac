@@ -68,4 +68,9 @@ Section GMPFacts.
     Qed.
 
 
+    Fact _determinist_gmp_stmt_eval : _determinist_stmt_eval generic_exp_sem _gmp_stmt_sem (fe:=fe).
+    Admitted.
+
+
+
 End GMPFacts.

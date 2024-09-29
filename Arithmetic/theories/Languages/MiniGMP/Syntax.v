@@ -3,10 +3,16 @@ From RAC Require Import Prelude.
 From RAC.Languages Require Import MiniC.Syntax.
 
 Inductive _gmp_t := String | Mpz. 
+
+Equations Derive NoConfusion for _gmp_t.
+Equations Derive EqDec for _gmp_t.
+
 Coercion gmp_t_ext (t:_gmp_t) : c_type := T_Ext t.
 
 Definition gmp_t := @c_type _gmp_t.  (* type extension τ *)
 Notation 𝔗 := gmp_t. (* minigmp types *)
+
+
 
 
 (* a gmp expression is a regular c_expression where a variable can additionally be of type String or Mpz *)
@@ -28,12 +34,6 @@ Inductive _gmp_statement :=
     | GMP_Div (lid rid res :id)
     | Comp (res lid rid :id) (* mpz comparison *)
     | Coerc (name n : id)  (* mpz coercion *)
-    
-    (* 
-        GMP_Scope added because translation creates a scope per translated assertion within which lies 
-        the assertion and its required declarations. 
-    *)
-    | GMP_Scope (decls: list gmp_decl) (s:@c_statement _gmp_statement _gmp_t) 
 .
 
 #[global] Hint Constructors _gmp_statement  : rac_hint.

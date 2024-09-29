@@ -1,4 +1,5 @@
-From Coq Require Import Strings.String ZArith.ZArith BinaryString.
+From Coq Require Import ZArith.ZArith.
+From Coq.Strings Require Import String BinaryString.
 
 From RAC Require Import Utils Environnement.
 From RAC.Languages Require Import Syntax MiniC.Semantics.
@@ -16,11 +17,11 @@ Inductive fsl_term_sem (f: fsl_prog_fenv) (ev:Env) : ℨ -> Z -> Prop :=
 
     | S_T_Var x v : ev.(env) v = Some (Def (VInt x)) ->  fsl_term_sem f ev (T_Id v FSL_Int) x ̇ 
 
-    | S_T_BinOpInt t t' z zint z' z'int op :  
+    | S_T_BinOpInt t t' z z' op :  
         fsl_term_sem f ev t z ->
         fsl_term_sem f ev t' z' ->
         ~ (op = FSL_Div /\ z = 0) ->
-        fsl_term_sem f ev (T_BinOp t op t') ((fsl_binop_int_model op) zint z'int)
+        fsl_term_sem f ev (T_BinOp t op t') ((fsl_binop_int_model op) z z')
 
     | S_T_CondTrue p t z t':
         fsl_pred_sem f ev p BTrue ->
@@ -104,7 +105,7 @@ Inductive _fsl_assert_sem  (f : fenv ) (ev:Env) : fsl_statement -> Env -> Prop :
 #[global] Hint Constructors _fsl_assert_sem : rac_hint.
 
 
-Definition fsl_stmt_sem := @generic_stmt_sem _fsl_statement Empty_set _fsl_assert_sem _fsl_stmt_vars.
+Definition fsl_stmt_sem := @generic_stmt_sem _fsl_statement Empty_set _fsl_assert_sem _fsl_used_stmt_vars (fun _ => Void).
 
 Declare Scope fsl_sem_scope.
 Delimit Scope fsl_sem_scope with fslsem.
@@ -113,6 +114,6 @@ Notation "ev |= s => ev'"  := (fun f => fsl_stmt_sem f ev s ev') : fsl_sem_scope
 
 
 Definition fsl_pgrm_sem := 
-    @generic_pgrm_sem _fsl_routine _fsl_statement Empty_set _fsl_assert_sem _fsl_stmt_vars (fun _ => Void)  build_fsl_fenv    . 
+    @generic_pgrm_sem _fsl_routine _fsl_statement Empty_set _fsl_assert_sem _fsl_used_stmt_vars (fun _ => Void)  build_fsl_fenv    . 
 
 

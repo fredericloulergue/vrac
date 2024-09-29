@@ -137,32 +137,32 @@ Module Domain.
 
     #[local] Open Scope domain_scope.
 
-    Definition in_domain { X Y : Type} (f: X ⇀ Y) (x:X) := exists y, f x = Some y.
+    Definition in_domain { X Y : Type} (f: X ⇀ Y) (x:X) : Prop := exists y, f x = Some y.
     #[global] Hint Unfold in_domain : rac_hint.
 
-    Definition not_in_domain { X Y : Type} (f: X ⇀ Y) (x:X) := f x = None.
-
-    Definition in_codomain { X Y : Type} (f: X ⇀ Y) (y:Y) := exists x, f x = Some y.
+    Definition not_in_domain { X Y : Type} (f: X ⇀ Y) (x:X) : Prop := f x = None.
+    Definition in_codomain { X Y : Type} (f: X ⇀ Y) (y:Y) : Prop := exists x, f x = Some y.
     Definition not_in_codomain { X Y : Type} (f: X ⇀ Y) (y:Y) := forall x, f x <> Some y.
+    Definition domain_incl { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) : Prop := forall (x:X), (dom1 x -> dom2 x).
+    #[global] Hint Unfold domain_incl : rac_hint.
 
-    Definition domain_incl_prop { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) := forall (x:X), (dom1 x -> dom2 x).
-    #[global] Hint Unfold domain_incl_prop : rac_hint.
-
-    Definition eq_domain_prop { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) := (domain_incl_prop dom1 dom2) /\ (domain_incl_prop dom2 dom1).
-    #[global] Hint Unfold eq_domain_prop : rac_hint.
+    Definition eq_domain { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) := (domain_incl dom1 dom2) /\ (domain_incl dom2 dom1).
+    #[global] Hint Unfold eq_domain : rac_hint.
 
 
-    Definition sub_domain_prop { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) (x:X) := dom1 x /\ ~ dom2 x.
-    #[global] Hint Unfold sub_domain_prop : rac_hint.
+    Definition sub_domain { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) : X -> Prop := fun x => dom1 x /\ ~ dom2 x.
+    #[global] Hint Unfold sub_domain : rac_hint.
 
-    Definition add_domain { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) (x:X) := dom1 x \/ dom2 x.
+    Definition add_domain { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) : X -> Prop := fun x => dom1 x \/ dom2 x.
     #[global] Hint Unfold add_domain : rac_hint.
 
+    Definition inter_domain { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) : X -> Prop := fun x =>  dom1 x /\ dom2 x.
 
     Infix "+" := add_domain : domain_scope.
-    Infix "-" := sub_domain_prop : domain_scope.
-    Infix "=" := eq_domain_prop : domain_scope.
-    Infix "⊂" := domain_incl_prop (at level 99) : domain_scope.
+    Infix "∩" := inter_domain (at level 50) : domain_scope.
+    Infix "-" := sub_domain : domain_scope.
+    Infix "=" := eq_domain : domain_scope.
+    Infix "⊂" := domain_incl (at level 99) : domain_scope.
     Notation "x ∉ E" := (not_in_domain E x) (at level 99) : domain_scope.
     Notation "'dom' f" := (in_domain f) : domain_scope.
     Notation "x ∈ E" := (in_domain E x) (at level 99) : domain_scope.
@@ -184,7 +184,7 @@ Module Domain.
         - right.  intros contra. destruct contra. now rewrite H in Fx.
     Qed. 
 
-    Fact not_in_sub_domain_prop { X : Type} (x: X) (dom1: X -> Prop) (dom2: X -> Prop): 
+    Fact not_in_sub_domain_prop { X : Type} (dom1: X -> Prop) (dom2: X -> Prop) (x:X) : 
         Decidable.decidable (dom1 x) -> 
         Decidable.decidable (dom2 x) -> 
         ~ ((dom1 - dom2) x) -> dom2 x \/ ~ dom1 x.
@@ -215,41 +215,65 @@ End Domain.
 End FunctionalEnv.
 
 Module MMapsEnv(K: OrderedType).
-    Import MMaps.   
     
     Module M  := OrdList.Make(K).
     Include M.
+
+    Module Decidable(V:OrderedType) := Facts.OrderedMaps(K)(V)(M).
+
+    Module OProps := Facts.OrdProperties(K)(M).
+
 
    (* extra operations *)
     Definition add_all {V:Type} (lk:list K.t) (lv: list V) : t V -> t V :=  
             List.fold_left (fun env kv => add (fst kv) (snd kv) env) (List.combine lk lv)
     .
 
-    Include Facts.OrdProperties(K)(M).
 
-    Module Decidable(V:OrderedType) := Facts.OrderedMaps(K)(V)(M).
-
-    Notation "⊥" := M.empty : type_scope.
+    Notation "⊥" := M.empty.
 End MMapsEnv.
 
 Module StringMap := MMapsEnv(String_as_OT).
 
-Module MSetEnv(T: OrderedType).    
+Module MSetEnv(T: OrderedType). 
+
     Module S := MSetList.Make(T).
     Include S.
+
     Module D := MSetDecide.Decide(S).
 
+    Module Props := MSetProperties.Properties(S).
+    Module OProps :=  Facts.OrdProperties(S).
 
    (* extra operations *)
-    Definition union_list (lv: list t) : t -> t :=  
-        List.fold_left (fun s x => union x s) lv
+    Definition union_list (lv: list t) : t :=  
+        List.fold_left (fun s x => union x s) lv empty
     .
     
 
-    Notation "⊥" := S.empty : type_scope.
+    Notation "⊥" := S.empty.
 End MSetEnv.
 
 Module StringSet := MSetEnv(String_as_OT).
+
+
+Module MWSetEnv(T: DecidableType).
+
+    Module S := MSetWeakList.Make(T).
+    Include S.
+
+    Module D := MSetDecide.Decide(S).
+
+    Module Props := MSetProperties.Properties(S).
+
+   (* extra operations *)
+    Definition union_list (lv: list t) : t :=  
+        List.fold_left (fun s x => union x s) lv empty
+    .
+    
+    Notation "⊥" := S.empty.
+End MWSetEnv.
+
 
 
 (* modified from http://poleiro.info/posts/2013-03-31-reading-and-writing-numbers-in-coq.html *)
@@ -284,18 +308,18 @@ Module MachineInteger(B:Bounds).
     
     Definition inRange n : Prop := (B.m_int <? n) && (n <? B.M_int) = true.
 
-    Definition MI := sig inRange.
+    Definition t : Set := sig inRange.
 
-    Lemma mi_eq : forall (x y : MI), x = y <-> proj1_sig x = proj1_sig y.
+    Lemma mi_eq : forall (x y : t), x = y <-> proj1_sig x = proj1_sig y.
     Proof.
         intros x y. split ; intros EQ.
         - destruct x,y. simpl. now inversion EQ.
         - destruct x,y. simpl in EQ. subst. f_equal. unfold inRange in *. now pose proof (Eqdep_dec.UIP_dec Bool.bool_dec).
     Qed.
 
-    Definition to_mi x (H: inRange x) : MI := exist inRange x H.
+    Definition to_mi x (H: inRange x) : t := exist inRange x H.
 
-    Definition of_mi (mi: MI) : Z := proj1_sig mi.
+    Definition of_mi (mi: t) : Z := proj1_sig mi.
 
 
     Fact x_of_mi_to_mi_x : forall x irx, (to_mi (of_mi x) irx) = x.
@@ -381,6 +405,7 @@ Module TranslationMonadNoError <: Monad . (*  state *)
     Definition getTick : t := fun c => (c, c).
     Definition fresh : t := bind getTick (fun n : nat => bind tick (fun _ : unit => ret n)).
     Definition exec {A:Type} (m: t (T:=A)) : A := fst (m 0).
+
 End TranslationMonadNoError.
 
 
