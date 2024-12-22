@@ -1,7 +1,7 @@
 From Coq Require Import Strings.String Logic.FinFun Setoids.Setoid ZArith.ZArith.
 
 From RAC Require Import Utils.
-From RAC Require Export Environnement.
+From RAC Require Export Environment.
 
 Import FunctionalEnv Domain.
 Import RecordSetNotations.
@@ -71,7 +71,7 @@ Qed.
 
 
 
-(* strong environnement relation facts *)
+(* strong Environment relation facts *)
 
 Fact strong_env_mem_stronger : forall e e' f, 
     strong_env_mem_partial_order e e' f -> 
@@ -136,7 +136,7 @@ Qed.
 
 
 
-(* environnement relation facts *)
+(* Environment relation facts *)
 
 Fact _refl_env_partial_order : reflexive Ω (fun e e' => env_partial_order e e' (exist _ _ id_bijective)).
 

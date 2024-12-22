@@ -1,5 +1,5 @@
 (coq.theory
-(name RAC.Environnement)
+(name RAC.Environment)
 (theories RAC)
  (flags :standard -set "Warnings=-notation-incompatible-prefix")
 )

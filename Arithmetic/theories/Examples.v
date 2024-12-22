@@ -1,6 +1,6 @@
 From Coq Require Import ZArith.ZArith Lists.List String.
 
-From RAC Require Import Utils Environnement Translation.
+From RAC Require Import Utils Environment Translation.
 From RAC.Languages Require Import Syntax Semantics.
 
 

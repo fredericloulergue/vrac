@@ -273,7 +273,7 @@ Definition type_of_value := _type_of_value _type_of_gmp.
 
 
 
-(* environnement enrichers used in section F *)
+(* Environment enrichers used in section F *)
 Inductive add_z_var (e : Env) (τ:gmp_t) (var:id) (z:Z) | : Env -> Prop :=
 | typeDefInt irz : 
     (* fixme: section F is able to tell if z is in Uint and in any case transform it into a machine integer (how?) *)

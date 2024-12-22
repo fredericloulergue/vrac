@@ -1,6 +1,6 @@
 From Coq Require Import  ZArith.ZArith Strings.BinaryString.
 
-From RAC Require Import Utils Environnement.
+From RAC Require Import Utils Environment.
 From RAC.Languages Require Import Syntax Semantics Lemmas.
 
 
@@ -413,9 +413,7 @@ Lemma LE5_semantics_of_the_binop_macro_mpz :
 
     no_aliasing ev ->
     ~ StringSet.In v1 (used_exp_vars e2) -> (* not in paper proof *)
-    type_of_value (ev c) = Some C_Int -> (* not in paper proof *)
     v1 <> v2 -> (* not in paper proof *)
-
 
     (* v1 and v2 must be bound to a mpz location (implied by mpz_assign ) *)
     forall (l1 l2 lr: location),
@@ -437,7 +435,7 @@ Lemma LE5_semantics_of_the_binop_macro_mpz :
     (ev |= binop_ASSGN op (c,T_Ext Mpz) e1 e2 r v1 v2 => ev <| mstate := M'{y\Defined (⋄ op z1 z2)} |>) f 
     ).
 Proof with eauto using p_map_same with rac_hint.
-    intros f ev op c y r e1 e2 v1 v2 z1 z2  Hnoalias Hv1NotIne2 Hv1notv2 Htyc l1 l2 lr (Hv1 & Hv2 & Hc).  
+    intros f ev op c y r e1 e2 v1 v2 z1 z2  Hnoalias Hv1NotIne2 Hv1notv2 l1 l2 lr (Hv1 & Hv2 & Hc).  
     exists ev.(mstate){l2\Defined z2,l1\Defined z1}. split.
     - intros v [Hneqv1 Hneqv2] n Hv. repeat rewrite p_map_not_same...
     

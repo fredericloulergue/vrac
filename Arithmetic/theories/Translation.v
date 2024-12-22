@@ -1,7 +1,7 @@
 From Coq Require Import Lists.List ZArith.ZArith Wellfounded.Lexicographic_Product.
 From Coq.Strings Require Import String BinaryString.
 From MMaps Require Import MMaps.
-From RAC Require Import Utils Environnement Macros Oracle.
+From RAC Require Import Utils Environment Macros Oracle.
 From RAC.Languages Require Import Syntax Semantics.
 
 Import ListNotations.
@@ -66,8 +66,8 @@ Module Translation (Oracle : Oracle).
     (* Hypothesis WellFormedProgram : well_formed_pgrm. *)
 
 
-    Definition Γᵥ := StringMap.t (𝓥 ⨉ interval). (* environment for logic bindings : variable and interval infered from it *)
-
+    (* environment for logic bindings : variable and interval infered from it *)
+    Definition Γᵥ := StringMap.t (𝓥 ⨉ interval). 
 
     Definition Γ := Γᵥ ⨉ Γᵢ.
     Notation "'Γ' '(' x ')' " := (Γᵥ x, Γᵢ x).
@@ -78,7 +78,7 @@ Module Translation (Oracle : Oracle).
     Module TypingEnv_as_OT <: OrderedType := StringMap.Decidable(𝐼_as_OT).
     (* we get an ordered type for the product of 𝔏 and  StringMap.t *)
     Module String_TypingEnv_as_OT <: OrderedType := PairOrderedType(String_as_OT)(TypingEnv_as_OT).
-    (* finally, we get our environnement of global definitions *)
+    (* finally, we get our Environment of global definitions *)
     Module GlobalDef := MMapsEnv(String_TypingEnv_as_OT).
 
     Definition ψ : Type :=  GlobalDef.t 𝓥.  (* ψ(id,tenv) returns the name of the specialized version of [id] for [tenv] *)
@@ -162,7 +162,7 @@ Module Translation (Oracle : Oracle).
         end.
 
 
-        (* todo: upper bound of ψ is the number of logic functions times the number of environnment for bindings *)
+        (* todo: upper bound of ψ is the number of logic functions times the number of environment for bindings *)
         Definition Ψ_max (fenv: fsl_prog_fenv) (g:Γᵢ) :=  
             (Nat.mul (StringMap.cardinal fenv.(lfuns)) (StringMap.cardinal g)).
 

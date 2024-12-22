@@ -1,6 +1,6 @@
 From Coq Require Import Strings.String Logic.FinFun. 
 
-From RAC Require Import Utils Environnement.Facts.
+From RAC Require Import Utils Environment.Facts.
 From RAC.Languages Require Import Syntax MiniC.Semantics MiniC.Facts.
 
 Import FunctionalEnv Domain.

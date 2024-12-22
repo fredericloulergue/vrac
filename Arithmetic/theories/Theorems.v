@@ -1,7 +1,7 @@
 From Coq Require Import ZArith.ZArith Program.Equality.
 From Coq.Strings Require Import String Ascii.
 From Coq.Sets Require Import Ensembles Uniset.
-From RAC Require Import Utils Environnement.Facts Macros Oracle Translation Invariants.
+From RAC Require Import Utils Environment.Facts Macros Oracle Translation Invariants.
 From RAC.Languages Require Import Syntax Semantics Lemmas MiniFSL.Semantics.
 
 #[local] Open Scope utils_scope.

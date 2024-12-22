@@ -1,5 +1,5 @@
 From Coq Require Import Lists.List.
-From RAC Require Import Utils Environnement.
+From RAC Require Import Utils Environment.
 From RAC.Languages Require Import Syntax.
 From RAC.Languages Require Export MiniC.Semantics MiniGMP.Semantics MiniFSL.Semantics.
 

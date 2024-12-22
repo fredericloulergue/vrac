@@ -1,6 +1,6 @@
 From Coq Require Import ZArith.ZArith.
 
-From RAC Require Import Utils Oracle Translation Environnement.
+From RAC Require Import Utils Oracle Translation Environment.
 From RAC.Languages Require Import Syntax Semantics.
 
 

@@ -1,10 +1,10 @@
 From Coq Require Import ZArith.ZArith.
 
-From RAC Require Import Utils Environnement.
+From RAC Require Import Utils Environment.
 From RAC.Languages Require Import Syntax Semantics MiniC.Lemmas MiniGMP.Facts. 
 
 Import FunctionalEnv Domain.
-Import Environnement.Facts.
+Import Environment.Facts.
 
 #[local] Open Scope utils_scope.
 #[local] Open Scope Z_scope. 

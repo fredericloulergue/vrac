@@ -1,10 +1,10 @@
 From Coq Require Import ZArith String.
-From RAC Require Import Utils Environnement.
+From RAC Require Import Utils Environment.
 From RAC.Languages Require Import Syntax Semantics.
 
 Open Scope Z.
 
-Import Environnement.Facts.
+Import Environment.Facts.
 Import FunctionalEnv.
 
 Section GMPFacts.

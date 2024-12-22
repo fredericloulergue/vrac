@@ -1,5 +1,5 @@
 From Coq Require Import Logic.FinFun.
-From RAC Require Import Utils Environnement.
+From RAC Require Import Utils Environment.
 From RAC.Languages Require Import Syntax MiniC.Semantics.
 
 Import FunctionalEnv Domain Facts.

@@ -1,8 +1,8 @@
 From Coq Require Import Strings.String ZArith.ZArith Sets.Ensembles.
 
-From RAC Require Import Utils Environnement.
+From RAC Require Import Utils Environment.
 From RAC.Languages Require Import Syntax.
-From RAC.Environnement Require Import Facts.
+From RAC.Environment Require Import Facts.
 
 
 Import RecordSetNotations.

@@ -1,7 +1,7 @@
 From Coq Require Import ZArith.ZArith Strings.String.
 From Coq.Structures Require Import Orders OrdersEx.
 From Coq.Sets Require Import Ensembles Finite_sets.
-From RAC Require Import Utils Environnement.
+From RAC Require Import Utils Environment.
 From RAC.Languages Require Import Syntax Semantics.
 
 

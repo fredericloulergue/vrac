@@ -1,7 +1,7 @@
 From Coq Require Import ZArith.ZArith.
 From Coq.Strings Require Import String BinaryString.
 
-From RAC Require Import Utils Environnement.
+From RAC Require Import Utils Environment.
 From RAC.Languages Require Import Syntax.
 From RAC.Languages Require Import MiniC.Semantics MiniGMP.Syntax.
  
