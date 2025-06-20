@@ -8,8 +8,6 @@
 
 - Mini-C syntax and semantics are parameterized inductive datatypes. They contain an extra constructor to enrich it with Mini-FSL and Mini-GMP constructors.
 
-- Because predicate and terms are mutually defined, they require a custom induction principle.
-
 - Unclear how to clearly define what a well-formed program is.
 
 |  Languages | Mini-C | Mini-GMP | Mini-FSL

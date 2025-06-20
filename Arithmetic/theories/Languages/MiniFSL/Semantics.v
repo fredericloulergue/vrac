@@ -90,7 +90,8 @@ Delimit Scope fsl_psem_scope with fslpsem.
 
 Notation "Ω '|=' t => v" := (fun f => fsl_pred_sem f Ω t v) : fsl_psem_scope.
 
-(* todo: custom induction principle *)
+Scheme fsl_term_sem_mut := Induction for fsl_term_sem Sort Prop 
+with fsl_pred_sem_mut := Induction for fsl_pred_sem Sort Prop.
 
 
 
