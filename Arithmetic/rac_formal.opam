@@ -3,7 +3,7 @@ opam-version: "2.0"
 depends: [
   "dune" {>= "3.16"}
   "coq-core" {< "8.21" & >= "8.20"}
-  "coq-record-update"
+  "coq-record-update" {dev}
   "coq-mmaps"
   "coq-equations"
   "odoc" {with-doc}

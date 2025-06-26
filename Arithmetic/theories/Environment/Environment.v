@@ -24,10 +24,10 @@ Definition empty_fenv {S T : Set} := (mk_fenv S T  StringMap.empty  StringMap.em
 Definition fsl_prog_fenv : Type := @fenv _fsl_statement Datatypes.Empty_set.
 Definition rac_prog_fenv : Type := @fenv _gmp_statement _gmp_t.
 
-#[export] Instance eta_fsl_prog_fenv : Settable fsl_prog_fenv := 
+(* #[export] Instance eta_fsl_prog_fenv : Settable fsl_prog_fenv := 
     settable! mk_fenv _fsl_statement Datatypes.Empty_set <funs ; procs; lfuns; preds>.
 #[export] Instance eta_rac_prog_fenv : Settable rac_prog_fenv := 
-    settable!  mk_fenv _gmp_statement _gmp_t <funs ; procs; lfuns; preds>.
+    settable!  mk_fenv _gmp_statement _gmp_t <funs ; procs; lfuns; preds>. *)
 
 
 Definition build_fsl_fenv (routines: list fsl_routine) : fsl_prog_fenv := 
@@ -160,13 +160,13 @@ end
 
 Record Ω := mkΩ {vars :> Ωᵥ ;  binds :> Ωₗ}.
 Definition empty_Ω  : Ω := {|vars:=⊥;binds:=⊥|}.
-#[export] Instance etaΩ : Settable _ := settable! mkΩ <vars ; binds>.
+(* #[export] Instance etaΩ : Settable _ := settable! mkΩ <vars ; binds>. *)
 Definition apply_env (a : Ω) (v : 𝓥) : option 𝕍 := a.(vars) v.
 Coercion apply_env : Ω >-> Funclass.
 
 Record Env := mkEnv {env :> Ω ;  mstate :> 𝓜}.
 Definition empty_env : Env := {|env:=empty_Ω;mstate:=⊥|}.
-#[export] Instance etaEnv : Settable _ := settable! mkEnv <env ; mstate>.
+(* #[export] Instance etaEnv : Settable _ := settable! mkEnv <env ; mstate>. *)
 Definition apply_mem (a : Ω) (l : 𝔏) : option Z := a.(binds) l.
 (* Coercion apply_mem : Ω >-> Funclass. *) (* can't use same coercion path *)
 

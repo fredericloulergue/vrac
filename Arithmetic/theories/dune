@@ -1,5 +1,5 @@
 (coq.theory
  (name RAC)
- (theories RecordUpdate MMaps Equations)
+ (theories RecordUpdate MMaps Equations Ltac2)
  (flags :standard -set "Warnings=-notation-incompatible-prefix")
 )

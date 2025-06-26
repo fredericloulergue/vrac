@@ -7,7 +7,7 @@
   (name rac_formal)
   (depends
     (coq-core (and (< 8.21) (>= 8.20)))
-    coq-record-update
+    (coq-record-update :dev)
     coq-mmaps
     coq-equations
   )
