@@ -214,6 +214,86 @@ End Domain.
 
 End FunctionalEnv.
 
+Module OptionOrderedType(T: OrderedType) <: OrderedType.
+    Definition t := option T.t.
+    
+    Definition eq (x y : t) : Prop := match (x,y) with
+    | (None,None) => True
+    | (Some t1, Some t2) => T.eq t1 t2
+    | _ => False
+    end.
+
+
+    Lemma eq_refl : Reflexive eq.
+    Proof.
+        pose proof T.eq_equiv. 
+        intros x. now destruct x; unfold eq; simpl.
+    Qed.
+
+    Lemma eq_sym : Symmetric eq.
+    Proof.
+        pose proof T.eq_equiv as [_ Hsym _]. 
+        intros x y. destruct x,y; auto with relations solve_subterm.
+    Qed.
+
+    Lemma eq_trans : Transitive eq.
+    Proof.
+        pose proof T.eq_equiv as [_ _ Htrans].
+        intros x y z. destruct x,y,z; easy || auto with relations solve_subterm.
+    Qed.
+
+    Lemma eq_equiv: Equivalence eq.
+    Proof.
+        split; [apply eq_refl|apply eq_sym | apply eq_trans].
+    Qed.
+
+    Lemma eq_dec : forall (x y : t), {eq x y} + {eq x y -> False}. 
+    Proof. 
+        intros x y; unfold eq; simpl. destruct x,y; auto.
+        destruct (T.eq_dec t0 t1); intuition.
+    Defined.
+
+    Inductive _lt : t -> t -> Prop :=
+    | olt_1 : forall x, _lt None (Some x)
+    | olt_2 : forall x y, T.lt x y -> _lt (Some x) (Some y)
+    .
+    Definition lt := _lt.
+    
+    #[global] Instance lt_strorder : StrictOrder lt.
+    Proof.
+        pose proof T.lt_strorder as [H1 H2].
+        split.
+        - intros x Hx. inversion Hx; subst. now apply H1 in H3.
+        - intros x y z Hxy Hyz.  destruct x,y,z; inversion Hyz; inversion Hxy; subst; auto.
+            + constructor. eapply H2 in H6. now apply H6.
+            + constructor.
+    Qed.
+
+    #[global] Instance lt_compat : Proper (eq ==> eq ==> iff) lt. 
+    Proof.
+        pose proof T.lt_compat as HT.
+        compute. intros x y H1 x' y' H2. destruct x,y,x',y'; try contradiction.
+        - specialize (HT t0 t1 H1 t2 t3 H2). split; intros H; inversion H; subst; apply HT in H4; now constructor.
+        - easy.
+        - now repeat constructor. 
+        - now repeat constructor.
+    Qed.
+
+    Definition compare (t1 t2 :t) : comparison := match (t1,t2) with 
+        | (None,None) => Eq 
+        | (None, Some _) => Lt
+        | (Some _ , None) => Gt
+        | (Some x, Some y) => T.compare x y
+    end.
+
+    Lemma compare_spec : forall x y, CompareSpec (eq x y) (lt x y) (lt y x) (compare x y). 
+    Proof.
+        intros. unfold compare. destruct x eqn:X,y eqn:Y; repeat constructor.
+        pose proof T.compare_spec t0 t1. inversion H; subst; try now repeat constructor.
+    Qed. 
+End OptionOrderedType.
+
+
 Module MMapsEnv(K: OrderedType).
     
     Module M  := OrdList.Make(K).
@@ -255,6 +335,7 @@ Module MSetEnv(T: OrderedType).
 End MSetEnv.
 
 Module StringSet := MSetEnv(String_as_OT).
+Module IntSet := MSetEnv(Z_as_OT).
 
 
 Module MWSetEnv(T: DecidableType).
