@@ -210,22 +210,22 @@ Module Translation (Oracle : Oracle).
     simpl in *; Tactics.program_simplify; CoreTactics.equations_simpl; try Tactics.program_solve_wf ;
     red ;red ; cbn ;  try (constructor 2; auto with arith); try now apply args_size_lt_in.
     
-    Equations? translate_fsl {A B C D} {P} (t : logic_tr_proto A B C D P) (f : A) (g:B) (e: C) (x : D)  
+    Equations? translate_fsl {A B C D : Type} {P} (t : logic_tr_proto A B C D P) (f : A) (g:B) (e: C) (x : D)  
         : P f g e x by wf (pack f g e x t) rel  := 
 
     (* predicate translation *)
 
     | tr_pred , _, _  , _ , P_True => 
-            c <- fresh_variable ;;
+            c <- fresh_variable ;;;
             let decl := [(c,C_Int)] in
             let code := <{ (Assign c 1) }> in
-            TM.ret (mkSTR gmp_statement (mkTR gmp_statement code e nil) decl (c,C_Int))
+            mkSTR gmp_statement (mkTR gmp_statement code e nil) decl (c,C_Int)
 
     | tr_pred , _, _  , _ , P_False => 
-            c <- fresh_variable ;; 
+            c <- fresh_variable ;;;
             let decl := [(c,C_Int)] in
             let code := <{ (Assign c 0) }> in
-            TM.ret (mkSTR gmp_statement (mkTR gmp_statement code e nil) decl  (c, C_Int))
+            mkSTR gmp_statement (mkTR gmp_statement code e nil) decl  (c, C_Int)
 
     | tr_pred , _, _  , _ , P_Not p =>             
             c <- fresh_variable ;; 

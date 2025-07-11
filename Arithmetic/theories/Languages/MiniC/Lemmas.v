@@ -29,17 +29,17 @@ Section GenericLemmas.
     .
     Proof with (eauto using refl_env_mem_partial_order with rac_hint).
         split...  intro Hderiv. induction Hderiv; intros...
-            constructor. eapply eq_int_env_mem_partial_order...
+        constructor. eapply eq_int_env_partial_order... destruct H1 as [x0 H1]. red in H1. now exists x0.
     Qed.
 
 
     Lemma LC21_weakening_of_statement_semantics : 
         _LC1_weakening_of_expression_semantics exp_sem exist_env_mem_partial_order ->
-        _LC21_weakening_of_statement_semantics exp_sem stmt_sem exist_env_mem_partial_order env_mem_partial_order (fe:=fe) ->
-        _LC21_weakening_of_statement_semantics  generic_exp_sem generic_stmt_sem exist_env_mem_partial_order env_mem_partial_order (fe:=fe)
+        _LC21_weakening_of_statement_semantics exp_sem stmt_sem exist_env_mem_partial_order env_mem_partial_order (fe:=fe) (ext_ty_val:=ext_ty_val) ->
+        _LC21_weakening_of_statement_semantics  generic_exp_sem generic_stmt_sem exist_env_mem_partial_order env_mem_partial_order (fe:=fe) (ext_ty_val:=ext_ty_val)
     .
     Proof with eauto using refl_env_mem_partial_order, env_partial_order_add with rac_hint.
-        intros  Hext_exp Hext_stmt exp_weak ev₀ s ev₁. red in exp_weak.
+        intros  Hext_exp Hext_stmt exp_weak Hdecls ev₀ s ev₁. red in exp_weak.
 
         intro Hderiv.  induction Hderiv using @generic_stmt_sem_full_ind ; intros ev₀' sub Henvmem.
 
@@ -47,8 +47,8 @@ Section GenericLemmas.
         - exists ev₀'. split...
         
         (* assign *) 
-        - exists (ev₀' <| env ; vars ::= {{x \induced (proj1_sig sub) z}} |>). split. 
-            + simpl. pose proof (env_partial_order_add ev ev₀' sub) as H3. simpl in *. now  destruct H3 with x z.
+        - exists (ev₀' <| env ; vars ::= {{x \induced sub z}} |>). split. 
+            + simpl. destruct Henvmem as [Henv Hmem]. now pose proof (env_partial_order_add ev ev₀' sub Henv x z) as H3. 
             + apply S_Assign...
                 -- apply env_same_ty with ev...
                     ++ right. now exists sub.
@@ -82,13 +82,16 @@ Section GenericLemmas.
                 * apply List.Forall2_length in H1. pose proof (List.length_map  (fun x : MI.t => Def (VInt x)) zargs) as Hlength.
                     rewrite Hlength in H1. congruence. 
                 * apply empty_env_mem_refl_any_sub. 
-            + eexists (ev₀' <| env; vars ::= {{c \Def z}} |> <| mstate := b_ev' |>). split.
-                * apply env_mem_partial_order_add_mem... now pose proof (env_partial_order_add ev_args ev₀' _ Henvmem c z).
+            + eexists (ev₀' <| env; vars ::= {{c \Def z}} |> <| mstate := b_ev' |>); simpl. split.
+                * split.
+                    -- now pose proof (env_partial_order_add ev_args ev₀' _ (proj1 Henvmem) c z).
+                    -- exact (proj2 Henvmem2).
                 *  apply S_FCall with b zargs...
                     -- epose proof (List.Forall2_impl (R1:=generic_exp_sem ev_args) (generic_exp_sem ev₀')) as Hforall. red.
                         exists params. repeat split...
                             apply Hforall... intros. apply exp_weak with ev_args... now exists sub.
-                    -- apply eq_int_env_mem_partial_order with b_ev... now exists sub. 
+                    -- apply eq_int_env_partial_order with b_ev... 
+                        destruct Henvmem2 as [Henv2 Hmem2]; now exists sub. 
         
         (* p call *)
         - destruct (IHHderiv (empty_env <| env; vars ::= p_map_addall_back params vals |>) sub) as [b_ev' [H5 Hsem2]]; subst vals.
@@ -96,15 +99,15 @@ Section GenericLemmas.
                 * apply List.Forall2_length in H1. pose proof (List.length_map  (fun x : MI.t => Def (VInt x)) zargs) as H5.
                     rewrite H5 in H1. congruence. 
                 * apply empty_env_mem_refl_any_sub. 
-            + exists (ev₀' <| mstate := b_ev' |>). split.
-                * apply env_mem_partial_order_add_mem...
+            + destruct Henvmem as [Henv Hmem]. exists (ev₀' <| mstate := b_ev' |>). split.
+                * split...  now destruct H5.
                 *  apply S_PCall with b zargs...
                     epose proof (List.Forall2_impl (R1:=generic_exp_sem ev_args) (generic_exp_sem ev₀')) as Hforall. red. exists params. repeat split...
                     apply Hforall... intros. apply exp_weak with ev_args... now exists sub.
     
         (* return *)
         - exists (ev₀' <| env ; vars ::= {{res_f \Def z}} |>). split.
-            + now pose proof (env_partial_order_add ev ev₀' sub Henvmem).
+            + destruct Henvmem as [Henv Hmem]. split... apply (env_partial_order_add ev ev₀' sub Henv).
             + apply S_Return... apply (exp_weak e ev z)... now exists sub.
 
         (* assert *)
@@ -112,24 +115,63 @@ Section GenericLemmas.
             apply (exp_weak e ev z)... now exists sub.
 
         (* scope *)
-        - edestruct IHHderiv as [ev₁' [Henvmem' Hsem']].
-            + admit.
-            + exists (ev₀' <| mstate := ev₁'|>). split.
-                * apply env_mem_partial_order_add_mem...
-                * clear IHHderiv. inversion H; subst.
-                    -- apply S_Scope with ev₀'... constructor.
-                    -- eapply S_Scope; admit. (* need induction on H *)
+        - (* we show we can add the declaration to the new env such that 
+                 the relation is preserved *)
+            eassert (Hev₀_s' : 
+                exists  ev₀_s', declare_vars ev₀' decls ev₀_s' /\
+                env_mem_partial_order ev_s ev₀_s' sub ).
+            {
+                clear IHHderiv Hderiv. induction H.
+                - exists ev₀'.  split; [constructor|assumption]. 
+                - destruct IHdeclare_vars as (ev₀_s' & Hev₀_s' & Henvmem').
+                    inversion H0; subst. exists (ev₀_s' <| env; vars ::= {{x \Undef (induced sub u)}} |>); split.
+                    + constructor 2 with ev₀_s'.
+                        * apply Hev₀_s'.
+                        * (* if we can define x in e', x was not previously bound in e'
+                                we must show that x cannot also be bound in ev₀_s'.
+                                This is one of our hypothesis.
+                            *) 
+                        constructor; [|apply H2]. red in Hdecls.
+                        eassert (Hd: exists e0', generic_decl_sem e' (C_Decl t x) e0') by eauto.
+                        now specialize (Hdecls _ _ _ _ _ Henvmem' Hd). 
+                        
+                    + destruct Henvmem' as [Henv' Hmem']. split... now apply (env_partial_order_add _ _ _ Henv' x u).
+            }
+            destruct Hev₀_s' as (ev₀_s' & Hev₀_s' & Hp).
+            specialize (IHHderiv _ _ Hp) as (ev₁_s' & Hp' & Hderiv').
+            (* from the induction hypothesis, we obtain the new state from s. Only the resulting mstate 
+            is used to update ev₀' as we return from the scope *)
+            exists (ev₀' <| mstate := ev₁_s' |>). split.
+            + destruct Hp' as [Hp'env Hp'mem], Henvmem as [Henv Hmem]. now split.
+            + apply S_Scope with ev₀_s'; [apply Hev₀_s' | apply Hderiv'].
 
         (* other cases *)
-        - red in Hext_stmt. specialize (Hext_stmt Hext_exp ev (S_Ext s) ev').
+        - red in Hext_stmt. specialize (Hext_stmt Hext_exp Hdecls ev (S_Ext s) ev').
             eapply Hext_stmt in H... destruct H as [ev'' [Hrel2 Hderiv2]]...                  
-    Admitted.
+    Qed.
 
 
     Lemma LC21_weakening_of_statement_semantics_strong : 
         _LC1_weakening_of_expression_semantics exp_sem exist_env_mem_partial_order ->
-        _LC21_weakening_of_statement_semantics exp_sem stmt_sem exist_strong_env_mem_partial_order strong_env_mem_partial_order (fe:=fe) ->
-        _LC21_weakening_of_statement_semantics  generic_exp_sem generic_stmt_sem exist_env_mem_partial_order env_mem_partial_order (fe:=fe).
+        _LC21_weakening_of_statement_semantics exp_sem stmt_sem exist_strong_env_mem_partial_order strong_env_mem_partial_order (fe:=fe) (ext_ty_val := ext_ty_val) ->
+        _LC21_weakening_of_statement_semantics generic_exp_sem generic_stmt_sem exist_env_mem_partial_order strong_env_mem_partial_order (fe:=fe) (ext_ty_val := ext_ty_val).
+    Proof.
+        (* intros Hext_exp Hext_stmt. pose proof strong_env_mem_stronger as Hstronger. apply LC21_weakening_of_statement_semantics; auto.
+        intros exp_weak Hdecls ev₀ s ev₁ Hderiv.
+        assert (Hstrong_ext: _LC1_weakening_of_expression_semantics exp_sem exist_strong_env_mem_partial_order).
+        {
+            intros e env x. specialize (Hext_exp e env x). split; intros.
+            - destruct H0 as [sub H0]. apply strong_env_mem_stronger in H0.  apply Hext_exp; auto. now exists sub.
+            - apply H. pose proof _refl_env_partial_order_strong. now  exists f_id.
+        }
+        eassert (Hstrongdecls : well_formed_decls strong_env_mem_partial_order). 
+        {
+            admit.
+        }
+        intros. specialize (Hext_stmt Hstrong_ext Hstrongdecls _ _ _ Hderiv ev₀' sub).
+        destruct Hext_stmt.
+        - admit.
+        - exists x. destruct H0. split; auto. *)
     Admitted.
 
 
@@ -253,7 +295,7 @@ Section GenericLemmas.
 
 
 
-    Lemma LC23_weakening_of_statement_semantics : 
+    Lemma LC23_weakening_of_statement_semantics_strong : 
         _LC1_weakening_of_expression_semantics_3 exp_sem strong_env_mem_partial_order -> 
         _LC23_weakening_of_statement_semantics stmt_sem strong_env_mem_partial_order (ext_used_stmt_vars:=ext_used_stmt_vars) (fe:=fe) -> 
         _LC23_weakening_of_statement_semantics generic_stmt_sem strong_env_mem_partial_order  (ext_used_stmt_vars:=ext_used_stmt_vars) (fe:=fe)
@@ -262,8 +304,8 @@ Section GenericLemmas.
         intros ext_exp_weak ext_stmt_weak.
         epose proof (LC1_weakening_of_expression_semantics_3 ext_exp_weak) as exp_weak.
         epose proof (determinist_stmt_eval _ _determinist_stmt_eval) as stmt_deter.
-        intros ev₀ s ev₁ sub Hderiv.
-        induction Hderiv using @generic_stmt_sem_full_ind; intros ev₀' Hrel [Henv Hmem]. 
+        intros ev₀ s ev₁ sub Hderiv. revert sub.
+        induction Hderiv using @generic_stmt_sem_full_ind; intros sub ev₀' Hrel Henv Hmem. 
         
         (* skip *)
         - exists ev₀'. constructor.
@@ -278,9 +320,8 @@ Section GenericLemmas.
 
         (* if true *)
         - edestruct IHHderiv... 
-            + split. 
-                * intros v Hdom. specialize (Henv v Hdom). simpl in Henv. StringSet.D.fsetdec.
-                * intros l Hdom. apply Hmem in Hdom as [l' Hdom]. simpl in Hdom |- *. exists l'. destruct Hdom.  split...
+            + intros v Hdom. specialize (Henv v Hdom). simpl in Henv. StringSet.D.fsetdec.
+            + intros l Hdom. apply Hmem in Hdom as [l' Hdom]. simpl in Hdom |- *. exists l'. destruct Hdom.  split...
                     StringSet.D.fsetdec. 
             + exists x. apply S_IfTrue with z...
                 split... eapply LC1_weakening_of_expression_semantics_3... split.
@@ -291,9 +332,8 @@ Section GenericLemmas.
 
         (* if false *)
         - edestruct IHHderiv... 
-            + split. 
-                * intros v Hdom. apply Henv in Hdom. simpl in Hdom |- *. StringSet.D.fsetdec.
-                * intros l Hdom. apply Hmem in Hdom as [l' Hdom]. simpl in Hdom |- *. exists l'. destruct Hdom.  split...
+            + intros v Hdom. apply Henv in Hdom. simpl in Hdom |- *. StringSet.D.fsetdec.
+            + intros l Hdom. apply Hmem in Hdom as [l' Hdom]. simpl in Hdom |- *. exists l'. destruct Hdom.  split...
                     StringSet.D.fsetdec. 
             + exists x. apply S_IfFalse...
                 eapply LC1_weakening_of_expression_semantics_3... split.
@@ -302,42 +342,63 @@ Section GenericLemmas.
                     StringSet.D.fsetdec. 
 
         (* while *)
-        - edestruct IHHderiv... split.
+        - edestruct IHHderiv...
             + intros v Hdom. apply Henv in Hdom. simpl in Hdom |- *. StringSet.D.fsetdec.
             + intros l Hdom. apply Hmem in Hdom as [l' Hdom]. simpl in Hdom |- *. exists l'. destruct Hdom.  split...
                 StringSet.D.fsetdec. 
             
 
         (* seq *)
-        - admit. 
+        -  destruct IHHderiv1 with sub ev₀'...
+            + intros v Hdom. apply Henv in Hdom. simpl in Hdom |- *. StringSet.D.fsetdec.
+            + intros l Hdom. apply Hmem in Hdom as [l' Hdom]. simpl in Hdom |- *. exists l'. destruct Hdom.  split...
+                StringSet.D.fsetdec.
+            + 
+                assert (Henv': forall v : 𝔏, (dom ev - dom ev₀')%dom_ v -> ~ StringSet.In v (used_stmt_vars ext_used_stmt_vars s')).
+                {
+                    intros v Hdom. apply Henv in Hdom. simpl in Hdom |- *. StringSet.D.fsetdec.
+                }
+                (* assert (Hmem': forall x : location, (dom ev'.(mstate) - dom ev₀''.(mstate))%dom_ x -> exists v : 𝔏, ev' v = Some (induced sub (VMpz x)) /\ ~ StringSet.In v (used_stmt_vars ext_used_stmt_vars s')).
+                {
+                    intros l Hdom. apply Hmem in Hdom as [l' Hdom]. simpl in Hdom |- *. exists l'. destruct Hdom.  split... 
+                    - admit.
+                    - StringSet.D.fsetdec.
+                } *)
+            
+            rename x into ev₀''. edestruct IHHderiv2 with sub ev₀''...
+                * admit.
+                * intros v Hdom. apply Henv'. admit. 
+                * intros l Hdom. admit.
+                
 
         (* fcall *)
-        - destruct IHHderiv with ((empty_env <| env; vars ::= p_map_addall_back params vals |>))...
-            + admit. (* need refl env *)
-            + split.
-                * intros. exfalso.  apply (d_sub_d_empty (empty_env <| env; vars ::= p_map_addall_back params vals |>)).
-                    now exists v.
-                * intros. exfalso.  apply (d_sub_d_empty (empty_env <| env; vars ::= p_map_addall_back params vals |>).(mstate)). 
-                    now exists x.
+        - (* arguments are limited to integers, so no need to use adress substitution *)
+            destruct IHHderiv with sub ((empty_env <| env; vars ::= p_map_addall_back params vals |>))...
+            + admit. (* need to show by induction that each value is indeed the same (induced sub does nothing on ints) *)
+            
+            (* both env have the same parameters *)
+            + intros. exfalso. apply (d_sub_d_empty (empty_env <| env; vars ::= p_map_addall_back params vals |>)). now exists v.
+            + intros. exfalso. apply (d_sub_d_empty (empty_env <| env; vars ::= p_map_addall_back params vals |>).(mstate)). now exists x.
+            
             + clear IHHderiv. exists (ev₀' <| env ; vars ::= {{c\Def z}} |> <| mstate := x |>). econstructor...
-                * exists params. repeat split... 
+                * exists params. repeat split...
                     eapply (List.Forall2_impl (R1:=generic_exp_sem ev_args) (generic_exp_sem ev₀'))...
-                    intros. eapply LC1_weakening_of_expression_semantics_3... split.
-                    -- intros v Hdom. apply Henv in Hdom. simpl in Hdom |- *. StringSet.D.fsetdec || admit.
-                    -- intros l Hdom. apply Hmem in Hdom as [l' Hdom]. simpl in Hdom |- *. exists l'. destruct Hdom.  split...
-                        StringSet.D.fsetdec || admit.
-
+                        intros. eapply LC1_weakening_of_expression_semantics_3... split.
+                        -- intros v Hdom. apply Henv in Hdom. simpl in Hdom |- *. StringSet.D.fsetdec || admit.
+                        -- intros l Hdom. apply Hmem in Hdom as [l' Hdom]. simpl in Hdom |- *. exists l'. destruct Hdom.  split...
+                            StringSet.D.fsetdec || admit.
 
                 * apply stmt_deter in Hderiv...
                     -- apply Hderiv in H4. now subst. 
                     -- apply determinist_exp_eval.
         (* pcall *)
-        - destruct IHHderiv with ((empty_env <| env; vars ::= p_map_addall_back params vals |>))...
-            + admit. (* need refl env *)
-            + split.
-                * intros. exfalso.  apply (d_sub_d_empty (empty_env <| env; vars ::= p_map_addall_back params vals |>)).
+        - destruct IHHderiv with sub ((empty_env <| env; vars ::= p_map_addall_back params vals |>)).
+            + clear. revert vals. induction params.
+                * destruct vals; [easy| now autounfold with rac_hint].
+                * admit.
+            + intros. exfalso. apply (d_sub_d_empty (empty_env <| env; vars ::= p_map_addall_back params vals |>)).
                     now exists v.
-                * intros. exfalso.  apply (d_sub_d_empty (empty_env <| env; vars ::= p_map_addall_back params vals |>).(mstate)). 
+            + intros. exfalso.  apply (d_sub_d_empty (empty_env <| env; vars ::= p_map_addall_back params vals |>).(mstate)). 
                     now exists x.
             + clear IHHderiv. exists (ev₀' <| mstate := x |>). econstructor...  exists params. repeat split...
                 eapply (List.Forall2_impl (R1:=generic_exp_sem ev_args) (generic_exp_sem ev₀'))...
@@ -387,6 +448,6 @@ Definition weakening_of_c_statements_semantics_2 {S T} f ext_ty :=
 
 
 Definition weakening_of_c_statements_semantics_3 {S T} f ext_ty := 
-    @LC23_weakening_of_statement_semantics S T f Empty_ext_used ext_ty (@Empty_exp_sem T) (@Empty_stmt_sem S T) 
+    @LC23_weakening_of_statement_semantics_strong S T f Empty_ext_used ext_ty (@Empty_exp_sem T) (@Empty_stmt_sem S T) 
     (weakening_of_empty_expression_semantics_3 strong_env_mem_partial_order) 
     (weakening_of_empty_statement_semantics_3 strong_env_mem_partial_order Empty_ext_used f). 

@@ -171,9 +171,35 @@ Definition apply_mem (a : Ω) (l : 𝔏) : option Z := a.(binds) l.
 (* Coercion apply_mem : Ω >-> Funclass. *) (* can't use same coercion path *)
 
 
-Definition fresh_location (e:Env) (l:location) : Prop := forall v, e v <> Some (Def (VMpz (Some l))).
+Definition fresh_location (e:Ω) (l:location) : Prop := forall v, e v <> Some (Def (VMpz (Some l))).
 
-Definition σ : Type := {f : location -> location | Bijective f}.
+(* substitution function
+    must be bijective and preserve fresh addresses
+*)
+Definition Bijective_wit {A B : Type} (f : A -> B) (g: B -> A) : Prop := (forall x : A, g (f x) = x) /\ (forall y : B, f (g y) = y).
+
+Fact bij_wit_is_bij {A B : Type} : forall (f: A -> B), Bijective f <-> exists f_rev, Bijective_wit f f_rev.
+Proof.
+    split; eauto.
+Qed.  
+
+Record σ : Type := {
+    f :> location -> location ; 
+    f_rev : location -> location ; 
+    Hbij : Bijective_wit f f_rev;
+}.
+
+Definition sub_fresh_location (e e':Ω) (s:σ) : Prop :=  forall l, fresh_location e l -> fresh_location e' (s l).
+
+(* Record σ' (e e': Ω) : Type := {
+    s :> σ;
+    Hbij_f_fresh : sub_fresh_location e e' s
+}.
+
+Arguments s {e e'}.
+Arguments Hbij_f_fresh {e e'}. *)
+
+(* Definition σ_eq {e1 e1' e2 e2'} (s1 : σ' e1 e1') (s2: σ' e2 e2') := s1.(s) = s2.(s).  *)
 
 Definition induced (f: location -> location) : 𝕍 -> 𝕍 := fun value => match value with
 | Def (VMpz (Some l)) => Def (VMpz (Some (f l)))
@@ -181,8 +207,7 @@ Definition induced (f: location -> location) : 𝕍 -> 𝕍 := fun value => matc
 end.
 
 
-
-Inductive param_env_partial_order (env env':Ω) (var: 𝓥) (f:σ) : Prop :=
+Inductive param_env_partial_order (env env':Ω) (var: 𝓥) (f : σ) : Prop :=
 | EsameInt n : 
     env var = Some (Def (VInt n))
     ->  env' var = Some (Def (VInt n))
@@ -190,7 +215,7 @@ Inductive param_env_partial_order (env env':Ω) (var: 𝓥) (f:σ) : Prop :=
 | EsameMpz (l:location) : 
     (* if the mpz is not a null pointer, we must have a corresponding adress *)
     env var = Some (Def (VMpz l)) ->
-    env' var = Some (Def (VMpz (proj1_sig f l)))
+    env' var = Some (Def (VMpz (f l)))
     -> param_env_partial_order env env' var f
 | ENullPtr : 
     (* if the mpz is a null pointer, it must stay null *)
@@ -206,13 +231,13 @@ Inductive param_env_partial_order (env env':Ω) (var: 𝓥) (f:σ) : Prop :=
 | Enone : env var = None -> param_env_partial_order env env' var f
 .
 
-Definition param_mem_partial_order (mem mem':𝓜)  (l: location) (f:σ) : Prop := 
-    forall i, mem l = Some i ->  (mem' (proj1_sig f l)) = Some i.
+Definition param_mem_partial_order (mem mem':𝓜)  (l: location) (f: σ) : Prop := 
+    forall i, mem l = Some i ->  (mem' (f l)) = Some i.
 
 
 (* stronger constraints *)
 Definition strong_param_env_partial_order (env env':Ω) (var: 𝓥) (f:σ) : Prop :=
-    forall v x, env v = Some x ->  env' v = Some (induced (proj1_sig f) x).
+    forall v x, env v = Some x ->  env' v = Some (induced f x).
 
 
 
@@ -220,10 +245,14 @@ Definition strong_param_env_partial_order (env env':Ω) (var: 𝓥) (f:σ) : Pro
 
 Declare Scope env_scope.
 Delimit Scope env_scope with env.
+Declare Scope strong_env_scope.
+Delimit Scope strong_env_scope with s_env.
 Declare Scope mem_scope.
 Delimit Scope mem_scope with mem.
 Declare Scope env_mem_scope.
 Delimit Scope env_mem_scope with envmem.
+Declare Scope strong_env_mem_scope.
+Delimit Scope strong_env_mem_scope with s_envmem.
 
 Definition existify {A} (p: A -> Prop) : Prop := exists a, p a. 
 
@@ -232,23 +261,24 @@ Definition exist_env_partial_order env env' := existify (env_partial_order env e
 Infix "⊑" := exist_env_partial_order : env_scope.
 
 
-Definition mem_partial_order env env' := fun f => forall l, param_mem_partial_order env env' l f.
-Definition exist_mem_partial_order env env' := existify (mem_partial_order env env').
+Definition mem_partial_order mem mem' := fun f => forall l, param_mem_partial_order mem mem' l f.
+Definition exist_mem_partial_order mem mem' := existify (mem_partial_order mem mem').
 Infix "⊑" := exist_mem_partial_order : mem_scope.
 
 
-Definition env_mem_partial_order e e' f := 
+Definition env_mem_partial_order e e' (f : σ) := 
     env_partial_order e.(env) e'.(env) f /\ mem_partial_order e.(mstate) e'.(mstate) f.
 Definition exist_env_mem_partial_order env env' := existify (env_mem_partial_order env env').
 Infix "⊑" := exist_env_mem_partial_order : env_mem_scope.
 
-
 Definition strong_env_partial_order env env' := fun f => forall v, strong_param_env_partial_order env env' v f.
 Definition exist_strong_env_partial_order env env' := existify (strong_env_partial_order env env').
+Infix "⊑" := exist_strong_env_partial_order : strong_env_scope.
 
 Definition strong_env_mem_partial_order e e' f := 
         strong_env_partial_order e.(env) e'.(env) f /\ mem_partial_order e.(mstate) e'.(mstate) f.
 Definition exist_strong_env_mem_partial_order env env' := existify (strong_env_mem_partial_order env env').
+Infix "⊑" := exist_strong_env_mem_partial_order : strong_env_mem_scope.
 
 
 

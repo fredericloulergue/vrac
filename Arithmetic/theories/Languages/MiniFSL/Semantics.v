@@ -92,8 +92,7 @@ Notation "Ω '|=' t => v" := (fun f => fsl_pred_sem f Ω t v) : fsl_psem_scope.
 
 Scheme fsl_term_sem_mut := Induction for fsl_term_sem Sort Prop 
 with fsl_pred_sem_mut := Induction for fsl_pred_sem Sort Prop.
-
-
+Combined Scheme fsl_mut_ind from fsl_term_sem_mut,fsl_pred_sem_mut.
 
 (* in the article, logical assert is part of mini-c but because we make mini_c extendable,
  the logical assert is now in fsl semantics *)

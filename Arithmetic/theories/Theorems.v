@@ -388,7 +388,7 @@ Module Theorems(Or:Oracle).
                 ). {
                     specialize (Ht1 fenv') as (Hsemt1 & Hmt1 & Hzt1).
                     simpl in Hsemt1.
-                    pose proof LC21_weakening_of_gmp_statement_semantics (fe:=fenv') as LC21.
+                    pose proof LC21_weakening_of_gmp_statement_semantics_strong (fe:=fenv') as LC21.
                     unfold translate_term in Hsemt1. rewrite <- Heqtrans1 in Hsemt1.
 
                     specialize (LC21 env_gt1 t1_res.(tr).(chunk) env't1 Hsemt1 env_gt t1sub Hrel_t1).

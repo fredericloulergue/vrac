@@ -59,17 +59,17 @@ Class EqDecC X := {eq_dec : EqDec X }.
 #[global] Instance eqdec_v : EqDecC 𝓥 := {eq_dec := string_dec}.
 #[global] Instance eqdec_l : EqDecC 𝔏 := {eq_dec := string_dec}.
 
-Definition p_map_front {X Y : Type} `{EqDecC X}  (f: X -> option Y) (xy:X ⨉ Y)   : X -> option Y :=
+Definition p_map_add {X Y : Type} `{EqDecC X}  (f: X -> option Y) (xy:X ⨉ Y)   : X -> option Y :=
     fun i => if eq_dec (fst xy) i then Some (snd xy) else f i.
 
-Definition p_map_back {X Y : Type} `{EqDecC X}  (xy:X ⨉ Y) (f: X -> option Y)  : X -> option Y :=
-    p_map_front f xy.
+Definition p_add_map {X Y : Type} `{EqDecC X}  (xy:X ⨉ Y) (f: X -> option Y)  : X -> option Y :=
+    p_map_add f xy.
 
-#[global] Hint Unfold p_map_back : rac_hint.
+#[global] Hint Unfold p_add_map : rac_hint.
 
 Notation "x '\' y" := (x,y) (in custom pmap at level 0, x constr, y constr) : utils_scope.
-Notation "f { xy , .. , xy' }" :=  (p_map_front .. (p_map_front f xy') .. xy ) : utils_scope.
-Notation "'{{' xy , .. , xy' '}}'" := (fun f => p_map_back xy' .. (p_map_back xy f) .. ) : utils_scope. (* fixme: make same as the other*)
+Notation "f { xy , .. , xy' }" :=  (p_map_add .. (p_map_add f xy') .. xy ) : utils_scope.
+Notation "'{{' xy , .. , xy' '}}'" := (fun f => p_add_map xy' .. (p_add_map xy f) .. ) : utils_scope. (* fixme: make same as the other*)
 
 
 
@@ -92,7 +92,7 @@ Proof. auto. Qed.
 
 Fact p_map_not_same {X T : Type } `{EqDecC X}: forall f (x x' : X) (v : T), x <> x' -> f{x'\v} x = f x.
 Proof.
-    intros. unfold p_map_front. simpl. destruct eq_dec.
+    intros. unfold p_map_add. simpl. destruct eq_dec.
     - now destruct H0. 
     - easy.
 Qed.
@@ -112,7 +112,7 @@ Qed.
 
 Fact p_map_same {X T : Type } `{EqDecC X}: forall f (x : X) (v : T), f{x\v} x = Some v.
 Proof.
-    intros. unfold p_map_front. simpl. now destruct eq_dec.
+    intros. unfold p_map_add. simpl. now destruct eq_dec.
 Qed.
 
 #[global] Hint Resolve p_map_same : rac_hint.

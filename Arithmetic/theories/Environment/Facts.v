@@ -56,21 +56,6 @@ Proof.
 Qed.
 
 
-Fact id_bijective {T:Type} : @Bijective T T (fun T => T). 
-Proof.
-    now exists (fun x => x).
-Qed.
-
-Fact bijective_comp_bijective {A B C: Type} (fa: {f: A -> B | Bijective f}) (fb: {f: B -> C | Bijective f}) : 
-    Bijective (fun x => (proj1_sig fb) (proj1_sig fa x)).
-Proof. 
-    destruct fa as [a [a_inv [a1 a2]]] ,fb as [b [b_inv [b1 b2]]].
-    exists (fun x => a_inv (b_inv x)). simpl in *. split ; congruence. 
-Qed.
-
-
-
-
 (* strong Environment relation facts *)
 
 Fact strong_env_mem_stronger : forall e e' f, 
@@ -87,50 +72,35 @@ Qed.
 
 
 Fact strong_reverse_dom_same_env : forall (ev' ev : Env)  (x :𝓥) (v: 𝕍) (s rev : location -> location) 
-    (H1 :forall x, rev (s x) = x ) (H2: forall y, s (rev y) = y),
+    (Hbij: Bijective_wit s rev),
 
-    strong_env_mem_partial_order ev' ev 
-        (exist (fun f => Bijective f) s
-                (ex_intro
-                    (fun g =>
-                        (forall x, g (s x) = x) /\ (forall y, s (g y) = y)
-                    )
-                    rev (conj H1 H2)
-                )
-        ) ->
+    strong_env_mem_partial_order ev' ev {|f:=s; f_rev:=rev; Hbij:=Hbij|} ->
     ev x = Some v ->
     (dom ev')%utils x ->
     ev' x = Some (induced rev v)
 .
 Proof.
-    intros ev' ev x v s rev H1 H2 [Hrenv _] Hevx [v' Hdom].  
+    intros ev' ev x v s rev Hbij  [Hrenv _] Hevx [v' Hdom].  inversion Hbij.
     specialize (Hrenv x).  apply Hrenv in Hdom as H4. destruct v, v'; simpl in * ; try congruence. 
     - destruct v , v0; simpl in H4; try congruence.
-        + destruct l; simpl in H4; try congruence.
-        + destruct l, l0; simpl in H4; try congruence.
-    - destruct v; simpl in H4; try congruence.
-        destruct l; simpl in H4; try congruence.
+        + destruct l; simpl in H4;  congruence.
+        + destruct l, l0; simpl in H4; congruence.  
+    - destruct v; simpl in H4;  try congruence.
+        destruct l; simpl in H4;  congruence.
 Qed.
 
 
 Fact strong_reverse_dom_same_mem : forall (ev' ev : Env) (x:location) (v: mpz_val) (s rev : location -> location) 
-    (H1 :forall x, rev (s x) = x ) (H2: forall y, s (rev y) = y),
+    (Hbij: Bijective_wit s rev), 
 
-    strong_env_mem_partial_order ev' ev 
-        (exist (fun f => Bijective f) s
-                (ex_intro
-                    (fun g =>
-                        (forall x, g (s x) = x) /\ (forall y, s (g y) = y)
-                    )
-                    rev (conj H1 H2)
-                )
-        ) ->
+    strong_env_mem_partial_order ev' ev {|f:=s; f_rev:=rev; Hbij:=Hbij|}  ->
+
     ev.(mstate) x = Some v ->
     (dom ev'.(mstate))%utils (rev x) ->
     ev'.(mstate) (rev x) = Some v
 .
 Proof.
-    intros ev' ev x v s rev H1 H2 [_ Hrmem] Hevx [v' Hdom]. red in Hrmem.  
+    intros ev' ev x v s rev Hbij [_ Hrmem] Hevx [v' Hdom]. inversion Hbij. red in Hrmem.  
     specialize (Hrmem (rev x)). apply Hrmem in Hdom as H4.  simpl in *. congruence.
 Qed.
 
@@ -138,15 +108,19 @@ Qed.
 
 (* Environment relation facts *)
 
-Fact _refl_env_partial_order : reflexive Ω (fun e e' => env_partial_order e e' (exist _ _ id_bijective)).
+Program Definition f_id: σ := {|f :=fun x => x ; f_rev := fun x => x|}.
+Final Obligation. red. easy. Qed.
 
+Fact _refl_env_partial_order : 
+    reflexive Ω (fun e e' => env_partial_order e e' f_id).
 Proof.
-    intros [v l] var. destruct (v var) as [val |] eqn:res.
+    intros [v l]. 
+    intros var. destruct (v var) as [val |] eqn:res.
     - destruct val.
         + destruct v0.
             * now apply EsameInt with n.
             * destruct l0 as [l0|].
-                -- now apply EsameMpz with l0. 
+                -- now  apply EsameMpz with l0. 
                 -- now apply ENullPtr.
         + destruct uv.
             * apply EundefInt with u; eauto.
@@ -155,16 +129,45 @@ Proof.
 Qed.
 
 Corollary refl_env_partial_order :  reflexive Ω (fun e e' => e ⊑ e')%env.
-Proof. 
-    eexists. apply _refl_env_partial_order.
+Proof.
+    pose proof _refl_env_partial_order. red in H.
+    intros e. specialize (H e). now eexists.
 Qed.
+
+Fact _refl_env_partial_order_strong : 
+    reflexive Ω (fun e e' => strong_env_partial_order e e' f_id).
+Proof.
+    intros [v l] x y val' Hval'.
+    destruct val'.
+    + destruct v0.
+        * assumption.
+        * destruct l0 as [l0|]; assumption.
+    + destruct uv; assumption.
+Qed.
+
+
+Corollary refl_env_partial_order_strong :  reflexive Ω exist_strong_env_partial_order.
+Proof.
+    pose proof _refl_env_partial_order_strong. red in H.
+    intros e. specialize (H e). now eexists.
+Qed.
+
+Program Definition f_trans (f1: σ) (f2 : σ) : σ := {|f:=fun x => f2 (f1 x) ; f_rev:=fun x => f1.(f_rev) (f2.(f_rev) x)|}.
+Final Obligation.
+    destruct f1, f2. destruct Hbij, Hbij0. simpl. split; congruence.
+Qed. 
+
+(* Program Definition f_trans' (e1 e2 e3: Ω) (f1: σ' e1 e2) (f2 : σ' e2 e3) : σ' e1 e3 := {|s:=f_trans f1 f2 |}. 
+Final Obligation.
+    destruct f1,f2. simpl in *. apply Hbij_f_fresh in H.  apply Hbij_f_fresh0 in H. now specialize (H v).
+Qed. *)
 
 Fact _trans_env_partial_order : forall (x y z:Ω) f1 f2, 
     env_partial_order x y f1 ->
     env_partial_order y z f2 -> 
-    env_partial_order x z (exist _ _ (bijective_comp_bijective f1 f2)).
+    env_partial_order x z (f_trans f1 f2).
 Proof.
-    intros  e e' e''  sub1 sub2 Hrel1 Hrel2 var. destruct Hrel1 with var ; specialize (Hrel2 var).
+    intros  e1 e2 e3 sub1 sub2 Hrel1 Hrel2 var. destruct Hrel1 with var ; specialize (Hrel2 var).
     - apply EsameInt with n;[easy|]. inversion Hrel2 ; congruence.
     - apply EsameMpz with l ; inversion Hrel2; simpl in * ; try congruence.
         + rewrite H0 in H1. inversion H1. now subst.
@@ -174,7 +177,7 @@ Proof.
         + assumption.
         + inversion Hrel2 ; destruct H0 ; eauto ; try congruence ; try (destruct H0 ; congruence).
     - apply EundefMpz with u;[easy|].  inversion Hrel2; destruct H0; try congruence || (destruct H0 ; congruence) ;simpl in *.
-        + right. now exists (proj1_sig sub2 l).
+        + right. now exists (sub2 l).
         + destruct H0. right. now exists None.
     - now apply Enone.
 Qed.
@@ -182,8 +185,8 @@ Qed.
 
 Fact trans_env_partial_order : transitive Ω (fun e e' => e ⊑ e')%env.
 Proof.
-    intros e e' e'' [f1 H1] [f2 H2]. exists (exist _ _ (bijective_comp_bijective f1 f2)).
-    now apply _trans_env_partial_order with e'. 
+    intros e1 e2 e3 [f1 H1] [f2 H2]. exists (f_trans f1 f2).
+    now eapply _trans_env_partial_order. 
 Qed.
 
 
@@ -208,32 +211,35 @@ Qed. *)
     transitivity proved by trans_env_partial_order as Renv.
 
 
+#[global] Add Relation Ω exist_strong_env_partial_order
+    reflexivity proved by refl_env_partial_order_strong
+    (* transitivity proved by trans_env_partial_order *)  as Renvstrong.
 
-Fact _refl_mem_partial_order : reflexive 𝓜  (fun e e' => mem_partial_order e e' (exist _ _ id_bijective)).
+Fact _refl_mem_partial_order: reflexive 𝓜  (fun m m' => mem_partial_order m m' f_id).
 Proof.
     easy.
 Qed.    
 
-Corollary refl_mem_partial_order : reflexive 𝓜  (fun e e' => e ⊑ e')%mem.
+Corollary refl_mem_partial_order: reflexive 𝓜  exist_mem_partial_order.
 Proof.
     eexists. apply _refl_mem_partial_order.
 Qed.    
 
 
-Fact _trans_mem_partial_order : forall (x y z: 𝓜) f1 f2, 
-    mem_partial_order x y f1 ->
-    mem_partial_order y z f2 -> 
-    mem_partial_order x z (exist _ _ (bijective_comp_bijective f1 f2)).
+Fact _trans_mem_partial_order: forall (m1 m2 m3: 𝓜) f1 f2, 
+    mem_partial_order m1 m2 f1 ->
+    mem_partial_order m2 m3 f2 -> 
+    mem_partial_order m1 m3 (f_trans f1 f2).
 Proof.
     intros mem mem' mem'' sub1 sub2 Hrel1 Hrel2 l i H. simpl in *.
     specialize (Hrel1 l i). apply Hrel1 in H as HH.
-    specialize (Hrel2 (proj1_sig sub1 l) i). now apply Hrel2 in HH.
+    specialize (Hrel2 (sub1 l) i). now apply Hrel2 in HH.
 Qed.
 
 
-Corollary trans_mem_partial_order : transitive 𝓜 (fun e e' => e ⊑ e')%mem.
+Corollary trans_mem_partial_order: transitive 𝓜 exist_mem_partial_order.
 Proof.
-    intros e e' e'' [f1 H1] [f2 H2]. exists (exist _ _ (bijective_comp_bijective f1 f2)). now apply _trans_mem_partial_order with e'.
+    intros m m' m'' [f1 H1] [f2 H2]. exists (f_trans f1 f2). now apply _trans_mem_partial_order with m'.
 Qed.
 
 (* Fact antisym_mem_partial_order : forall mem mem', 
@@ -252,33 +258,33 @@ Qed. *)
     transitivity proved by trans_mem_partial_order as mem.
 
     
-Fact _refl_env_mem_partial_order : reflexive Env (fun e e' => env_mem_partial_order e e' (exist _ _ id_bijective))%envmem.
+Fact _refl_env_mem_partial_order : 
+    reflexive Env (fun e e' => env_mem_partial_order e e' f_id).
 Proof.
-    intros e.  split.
-    - apply _refl_env_partial_order.
-    - apply _refl_mem_partial_order.
+    intros e. now pose proof (_refl_env_partial_order e).
 Qed.
 
 
 Corollary refl_env_mem_partial_order : reflexive Env (fun e e' => e ⊑ e')%envmem.
-    eexists. apply _refl_env_mem_partial_order.
+    pose proof _refl_env_mem_partial_order. red in H.
+    intros e. specialize (H e) as [Hbij Hp]. now exists f_id.
 Qed.
 
 
 Fact _trans_env_mem_partial_order : forall (x y z: Env) f1 f2, 
     env_mem_partial_order x y f1 ->
     env_mem_partial_order y z f2 -> 
-    env_mem_partial_order x z (exist _ _ (bijective_comp_bijective f1 f2)).
+    env_mem_partial_order x z (f_trans f1 f2).
 Proof.
-    intros e e' e'' f1 f2 [Henv1 Hmem1] [Henv2 Hmem2]. split.
-    - now apply _trans_env_partial_order with e'.
+    intros e e' e'' f1 f2 [Henv1 Hmem1] [Henv2 Hmem2]. split. 
+    - now eapply _trans_env_partial_order.
     - now eapply _trans_mem_partial_order.
 Qed.
 
 Fact trans_env_mem_partial_order : transitive Env (fun e e' => e ⊑ e')%envmem.
 Proof.
-        intros e e' e'' [f1 H1] [f2 H2].   exists (exist _ _ (bijective_comp_bijective f1 f2)).
-        now apply _trans_env_mem_partial_order with e'.
+        intros e1 e2 e3 [f1 H1] [f2 H2]. exists (f_trans f1 f2).
+        now apply _trans_env_mem_partial_order with e2.
 Qed.
 
 
@@ -313,26 +319,26 @@ Proof.
         - apply empty_mem_refl_any_sub.
 Qed.
 
-Fact eq_int_env_mem_partial_order :  forall e e' v n, (e ⊑ e')%envmem -> 
+Fact eq_int_env_partial_order :  forall e e' v n, (e ⊑ e')%env -> 
     e v = Some (Def (VInt n)) -> e' v = Some (Def (VInt n)).
 Proof.
-    intros e e' v z [f [He Hm]] Hsome. destruct (He v); congruence.  
+    intros e e' v z [f He] Hsome. destruct (He v); congruence.  
 Qed.
 
 
 
-Fact eq_mpz_env_mem_partial_order :  forall e e' sub, 
-    env_mem_partial_order e e' sub -> 
-    forall v mpz, e v = Some (Def (VMpz mpz)) -> e' v = Some (induced (proj1_sig sub) (VMpz mpz)).
+Fact eq_mpz_env_partial_order :  forall e e' sub, 
+    env_partial_order e e' sub -> 
+    forall v mpz, e v = Some (Def (VMpz mpz)) -> e' v = Some (induced sub (VMpz mpz)).
 Proof.
-    intros e e' sub [He Hm] v l Hsome. destruct (He v); try congruence.
+    intros e e' sub He v l Hsome. destruct (He v); try congruence.
     - rewrite Hsome in H. now inversion H.
     - destruct l;  simpl ; rewrite Hsome in H; now inversion H.
 Qed.
 
 Fact eq_defined_mpz_mem_partial_order : forall e e' sub, 
     env_mem_partial_order e e' sub -> 
-    forall (l:location) z, e.(mstate) l = Some (Defined z) -> e'.(mstate) (proj1_sig sub l) = Some (Defined z).
+    forall (l:location) z, e.(mstate) l = Some (Defined z) -> e'.(mstate) (sub l) = Some (Defined z).
 Proof.
     intros e e' sub [_ Hmem] l z H. specialize (Hmem l).  now destruct Hmem with z.
 Qed.
@@ -381,91 +387,87 @@ Proof.
 Qed. *)
 
 
-Fact mem_def_partial_order_add : forall e e' sub, env_mem_partial_order e e' sub -> 
-
-    (forall (l:location) (z : mpz_val),
-
-            env_mem_partial_order 
-                (e <| mstate ::={{l \ z}} |>) 
-                (e' <| mstate ::={{proj1_sig sub l \ z}} |>) sub
-
-    ).
+Fact mem_partial_order_add : forall m m' (l:location) (z : mpz_val)
+    (sub : σ),
+    mem_partial_order m m' sub -> 
+    mem_partial_order (m {l \ z}) (m' {sub l \ z}) sub.
 Proof.
-        intros e e' sub [Henv Hmem] l z. split; [trivial|].
-        intros l'.  intros mpz H. simpl in *. destruct (eq_dec l l').
-        - subst. unfold p_map_back in H. rewrite p_map_same in H. inversion H. subst.
-            unfold p_map_back. apply p_map_same.
-        - unfold p_map_back in H. rewrite p_map_not_same in H; [|auto]. apply p_map_not_same_eq.
-            * destruct sub. simpl in *. now rewrite <- bijective_eq_iff_f_eq. 
-            * specialize (Hmem l'). now apply Hmem in H. 
+    intros e e' l z sub Hmem.
+    intros l'.  intros mpz H. simpl in *. destruct (eq_dec l l').
+    - subst. rewrite p_map_same in H. inversion H. subst. apply p_map_same.
+    - rewrite p_map_not_same in H; [|easy]. apply p_map_not_same_eq.
+        + destruct sub. simpl in *. rewrite <- bijective_eq_iff_f_eq; [easy|].
+            now exists f_rev.
+        + specialize (Hmem l'). now apply Hmem in H. 
 Qed.
 
 
 Fact env_partial_order_add : forall Ω₀ Ω₀' sub, 
-    env_mem_partial_order Ω₀ Ω₀' sub -> 
+    env_partial_order Ω₀ Ω₀' sub -> 
     (forall var' z, 
-    env_mem_partial_order (Ω₀ <| env; vars ::= {{var' \ z}} |>) (Ω₀' <| env ; vars ::= {{var' \ induced (proj1_sig sub) z}} |>) sub
+    env_partial_order (Ω₀ <| vars ::= {{var' \ z}} |>) (Ω₀' <| vars ::= {{var' \ induced sub z}} |>) sub
     )%envmem.
 Proof with eauto with rac_hint.
-    intros [v l][v' l'] sub H x z.  split.
-    - intros var. destruct (string_dec x var) as [Heq|Hneq].
-        -- subst. simpl. destruct z. 
-            + destruct v0.
-                * apply EsameInt with n ;  apply p_map_same.
-                * destruct l0 eqn:L0.
-                    ++ apply EsameMpz with l1; apply p_map_same.
-                    ++ apply ENullPtr; simpl; now apply p_map_same.
-            + destruct uv.
-                ++ apply EundefInt with u; autounfold with rac_hint; simpl...
-                ++ apply EundefMpz with u; autounfold with rac_hint; simpl...
+    intros [v l][v' l'] sub Henv x z ; simpl in *.
+    intros var. destruct (string_dec x var) as [Heq|Hneq].
+    - subst. simpl. destruct z. 
+        + destruct v0.
+            * apply EsameInt with n ;  apply p_map_same.
+            * destruct l0 eqn:L0.
+                ++ apply EsameMpz with l1; apply p_map_same.
+                ++ apply ENullPtr; simpl; now apply p_map_same.
+        + destruct uv.
+            ++ apply EundefInt with u; autounfold with rac_hint; simpl...
+            ++ apply EundefMpz with u; autounfold with rac_hint; simpl...
 
-        -- apply not_eq_sym in Hneq. epose proof (p_map_not_same v var x ?[z] Hneq) as H0. simpl. remember (v var) as res. destruct res as [z'|] eqn:RES.
-            * destruct z' eqn:Z.
-                + { 
-                    destruct v0.
-                    - apply EsameInt with n ; simpl.
-                        + apply H0.
-                        + autounfold with rac_hint. apply p_map_not_same_eq...  apply (eq_int_env_mem_partial_order (mkEnv v l) (mkEnv v' l') var n)... now exists sub.
-                    - destruct l0.
-                        + apply EsameMpz with l0; simpl...
-                            autounfold with rac_hint. apply p_map_not_same_eq...
-                            now apply (eq_mpz_env_mem_partial_order  (mkEnv v l) (mkEnv v' l') sub H var (Some l0)).
-                        + apply ENullPtr... simpl.  apply p_map_not_same_eq...
-                         now apply (eq_mpz_env_mem_partial_order  (mkEnv v l) (mkEnv v' l') sub H var None).
-                }
+    - apply not_eq_sym in Hneq. epose proof (p_map_not_same v var x ?[z] Hneq) as H0. simpl. remember (v var) as res. destruct res as [z'|] eqn:RES.
+        + destruct z' eqn:Z; subst.
+            * {
+                set (mkEnv (mkΩ v l) empty_env) as env;
+                set (mkEnv (mkΩ v' l') empty_env) as env'.  
+                destruct v0.
+                - apply EsameInt with n ; simpl.
+                    + apply H0.
+                    + apply p_map_not_same_eq... 
+                        apply (eq_int_env_partial_order env env' var n)... now exists sub.
+                - destruct l0.
+                    + apply EsameMpz with l0; simpl...
+                        autounfold with rac_hint. apply p_map_not_same_eq...
+                        now apply (eq_mpz_env_partial_order env env' sub Henv var (Some l0)).
+                    + apply ENullPtr... simpl.  apply p_map_not_same_eq...
+                        now apply (eq_mpz_env_partial_order env env' sub Henv var None).
+            }
 
-                + {
-                    destruct uv.
-                    - apply EundefInt with u;subst ;simpl. 
-                        + apply H0.
-                        + destruct H. specialize (H var). simpl in *. destruct H; try congruence. destruct H2 as [[n H2]|[n H2]].
-                            ++ left. exists n. now apply p_map_not_same_eq.
-                            ++ right. exists n. now apply p_map_not_same_eq.
-                    - apply EundefMpz with u; subst ; simpl.
-                        + apply H0.
-                        + destruct H. specialize (H var). simpl in *. destruct H; try congruence. destruct H2 as [[n H2]|[n H2]].
-                            ++ left. exists n. now apply p_map_not_same_eq.
-                            ++ right. exists n. now apply p_map_not_same_eq.
-                }
-            * now apply Enone.
-
-    - intros loc. intros mpz Hloc. simpl in *. destruct  H as [_ H]. specialize (H loc mpz). now destruct H. 
+            * { 
+                specialize (Henv var). destruct uv.
+                - apply EundefInt with u;subst ;simpl in *. 
+                    + apply H0.
+                    + inversion Henv; simpl in *; try congruence. destruct H1 as [[n H1]|[n H1]].
+                        ++ left. exists n. now apply p_map_not_same_eq.
+                        ++ right. exists n. now apply p_map_not_same_eq.
+                - apply EundefMpz with u; subst ; simpl in *.
+                    + apply H0.
+                    + destruct Henv; simpl in *; try congruence. destruct H1 as [[n H1]|[n H1]].
+                        ++ left. exists n. now apply p_map_not_same_eq.
+                        ++ right. exists n. now apply p_map_not_same_eq.
+            }
+            + now apply Enone.
 Qed.
 
 
-
-
-
-Fact env_mem_partial_order_add_mem : forall e1 e1' e2 e2' sub, 
-    env_mem_partial_order e1 e2 sub  -> 
-    env_mem_partial_order e1' e2' sub -> 
-    env_mem_partial_order (e1 <| mstate := e1' |>) (e2 <| mstate := e2' |>) sub.
-    
-Proof with auto with rac_hint.
-    intros e1 e1' e2 e2' sub [H1e H1m] [H2e H2m]. now split.
+Fact env_partial_order_add_strong : forall Ω₀ Ω₀' sub, 
+    strong_env_partial_order Ω₀ Ω₀' sub -> 
+    (forall x z, 
+    strong_env_partial_order (Ω₀ <| vars ::= {{x \ z}} |>) (Ω₀' <| vars ::= {{x \ induced sub z}} |>) sub
+    )%envmem.
+Proof.
+    intros * Henv *. 
+    intros x1 x2 v H. destruct (eq_dec x x2).
+    - subst. simpl in H. rewrite <- p_map_single_back_front_eq, p_map_same  in H; inversion H. 
+        apply p_map_same.
+    - simpl in H. apply p_map_not_same_eq in H; [| easy]. apply p_map_not_same_eq; [easy|]. 
+    now apply Henv.
 Qed.
-
-
 
 Fact same_int_any_sub :  forall e e' xargs zargs sub, 
     List.length xargs = List.length zargs -> 
@@ -475,9 +477,9 @@ Fact same_int_any_sub :  forall e e' xargs zargs sub,
         (e <| env; vars ::= p_map_addall_back xargs vargs |>)
         (e' <| env; vars ::= p_map_addall_back xargs vargs |>) sub.
 Proof.
-    intros e e' xargs. simpl. induction xargs; intros  zargs sub H Henv.
-    - simpl in H. symmetry in H. apply List.length_zero_iff_nil in H. subst. simpl.
-        unfold p_map_addall_back. unfold p_map_addall_front. simpl.   admit. (* should be able to use Henv *)
+  intros e e' xargs. simpl. induction xargs; intros  zargs sub H Henv.
+    - simpl in H. symmetry in H. apply List.length_zero_iff_nil in H. subst. simpl.    
+        unfold p_map_addall_back. unfold p_map_addall_front. simpl. admit. (* should be able to use Henv *)
     - simpl in *.  destruct zargs as [| zargs_hd zargs_tl] eqn:zargsEqn; [discriminate|].  
         destruct (IHxargs zargs_tl sub) as [Hindenv _]; auto. clear IHxargs. simpl in *.
         unfold p_map_addall_back. unfold p_map_addall_front. simpl. admit.
@@ -490,7 +492,7 @@ Proof.
 Qed.
 
 
-Fact induced_ty_same v (sub:σ) : type_of_value (Some (induced (proj1_sig sub) v)) = type_of_value (Some v).
+Fact induced_ty_same v (sub:σ) : type_of_value (Some (induced sub v)) = type_of_value (Some v).
 Proof.
     destruct v; simpl; [|trivial]. destruct v; simpl; [trivial|]. now destruct l. 
 Qed.

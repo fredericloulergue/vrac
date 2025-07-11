@@ -1,9 +1,10 @@
+From Ltac2 Require Import Ltac2.
 From Coq Require Import Strings.String ZArith.ZArith.
 From Coq Require Export Program.Basics.
 From Equations Require Export Equations.
 
 
-#[warnings="-notation-incompatible-prefix"] From RecordUpdate Require Export RecordUpdate.
+From RecordUpdate Require Export RecordUpdate.
 
 #[export] Set Printing Projections. (* use r.(Field) notation for record projection *)
 (* #[export] Set Loose Hint Behavior "Strict". don't allow not imported hint to be used *)

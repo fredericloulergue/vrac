@@ -43,8 +43,8 @@ N/P : Non-Provable
 | :----------------: | :----: | :------: | 
 | **C.1**            | $\checkmark$ | N/A |
 | **C.1-3 (strong)** | $\checkmark$ | N/A |
-| **C.2.1**          | $\approx$ 90% | N/P |
-| **C.2.1 (strong)** | $\times$ | $\approx$ 40% |
+| **C.2.1**          | $\checkmark$ | N/P |
+| **C.2.1 (strong)** | $\times$ | $\checkmark$ |
 | **C.2.2**          |$\approx$ 60% | N/P |
 | **C.2.2 (strong)** | $\times$ | $\times$ |
 | **C.2.3** | N/P | N/P |

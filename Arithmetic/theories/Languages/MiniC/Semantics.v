@@ -360,14 +360,25 @@ Section GenericSemantics.
             ext_exp_sem ev e x <-> (forall ev', rel ev ev' -> ext_exp_sem ev' e x)
         .
 
+        (* because we had to introducing scoping, we must be certain
+            that any newly declared variable has not been declared earlier
+        *)
+        Definition well_formed_decls : Prop :=
+            forall e0 e1 sub t x, 
+            rel_s e0 e1 sub ->
+            (exists e0', generic_decl_sem e0 (C_Decl t x) e0') ->
+            e1 x = None
+        .
+
         Definition _LC21_weakening_of_statement_semantics : Prop := 
             (*
             should be in both directions according to the article but right to left does not work :
             We will see if the 'bad' direction is used in the proof 
-            If this is the cast, one direction is trying to add to have a new env_01 = ev_0 + a and a new env_02 = ev_0 + b so that 
+            If this is the case, one direction is trying to add to have a new env_01 = ev_0 + a and a new env_02 = ev_0 + b so that 
                 (ev0 + a) inter ev0 + b) = ev1
             *)  
             _LC1_weakening_of_expression_semantics  ->
+            well_formed_decls ->
             forall ev₀ s ev₁,
             ext_stmt_sem fe ev₀ s ev₁ ->
             ( forall ev₀' sub, rel_s ev₀ ev₀' sub ->
@@ -385,7 +396,7 @@ Section GenericSemantics.
                 (* if v is a compiler variable, i.e. a function return value, v can change*)
                 (forall (v:𝓥), (v ∉ ev₀) /\ is_comp_var v = false  -> ev₀' v = ev₁' v)%dom_
                 /\
-                (forall (x:location), fresh_location ev₀ x -> ev₀'.(mstate) (proj1_sig sub x) = ev₁'.(mstate) (proj1_sig sub x))
+                (forall (x:location), fresh_location ev₀ x -> ev₀'.(mstate) (sub x) = ev₁'.(mstate) (sub x))
             )
         .
 
@@ -398,7 +409,7 @@ Section GenericSemantics.
             (
                 (forall v, (dom ev - dom ev') v -> ~ StringSet.In v (used_exp_vars e))
                 /\
-                (forall x, (dom ev.(mstate) - dom ev'.(mstate)) x -> (exists v, ev v = Some (induced (proj1_sig sub) (Def (VMpz x))) /\ ~ StringSet.In v (used_exp_vars e)))
+                (forall x, (dom ev.(mstate) - dom ev'.(mstate)) x -> (exists v, ev v = Some (induced sub (Def (VMpz x))) /\ ~ StringSet.In v (used_exp_vars e)))
             )%dom_ ->
 
             ext_exp_sem  ev' e z
@@ -409,15 +420,11 @@ Section GenericSemantics.
             ext_stmt_sem fe ev₀ s ev₁ -> 
 
             forall ev₀', rel_s ev₀' ev₀ sub ->
-            (
-                (forall v, (dom ev₀ - dom ev₀') v -> ~ StringSet.In v (used_stmt_vars ext_used_stmt_vars s))
-                /\
-                (
-                    forall x, (dom ev₀.(mstate) - dom ev₀'.(mstate)) x -> 
-                    (exists v, ev₀ v = Some (induced (proj1_sig sub) (Def (VMpz x))) 
-                    /\ ~ StringSet.In v (used_stmt_vars ext_used_stmt_vars s))
-                )
-            )%dom_ ->
+            (forall v, (dom ev₀ - dom ev₀')%dom_ v -> ~ StringSet.In v (used_stmt_vars ext_used_stmt_vars s)) ->
+            (forall x, (dom ev₀.(mstate) - dom ev₀'.(mstate))%dom_ x -> 
+                (exists v, ev₀ v = Some (induced sub (Def (VMpz x))) 
+                /\ ~ StringSet.In v (used_stmt_vars ext_used_stmt_vars s))
+            ) ->
 
             exists ev₁', ext_stmt_sem fe ev₀' s ev₁'
         .
@@ -457,8 +464,8 @@ Proof.
 Qed.
 
 
-Fact weakening_of_empty_statement_semantics_1 {S T} rel rel_s f exp_sem:
-    @_LC21_weakening_of_statement_semantics S T exp_sem (@Empty_stmt_sem S T) rel rel_s f.
+Fact weakening_of_empty_statement_semantics_1 {S T ext_ty_val} rel rel_s f exp_sem:
+    @_LC21_weakening_of_statement_semantics S T exp_sem (@Empty_stmt_sem S T) rel rel_s ext_ty_val f.
 Proof.
     easy. 
 Qed.

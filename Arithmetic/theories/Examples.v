@@ -298,22 +298,23 @@ Definition p : predicate := (P_BinOp (T_Id "x" FSL_Int) FSL_Gt (T_Id "y" FSL_Int
 
 (* Definition greaterThan : predicate := P_Call "greaterThan" [T_Id "x" FSL_Int; T_Z 3]. *)
 
-(* Compute ( 
+
+Compute ( 
         let z := (C_Id "z" C_Int) in 
         T.translate_program 
-        ([] : list _c_decl,
+        ([] : list c_decl,
         [<[ /*@ predicate "greaterThan"(x,y) = p  */ ]>;
         <[
             fun int "add" ((C_Decl C_Int "z")) [
                 (C_Decl C_Int "nothing") ; 
 
                  <{
-                    "x" = z + 3  ;
+                    "x" :=  (z + 3) ;
                     /*@ assert p  */ ;
-                    "x" = 2
+                    "x" := 2
                  }> 
             ]
          ]> 
         ]
         ) 
-).  *)
+). 
