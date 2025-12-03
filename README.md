@@ -14,4 +14,3 @@ VRAC is a set of C code generators from C code annotated with ACSL (ANSI/ISO C S
 - Frédéric Loulergue, Université d'Orléans, LIFO, LMV Team
 - Yohan Boichut, Université d'Orléans, LIFO, LMV Team
 - Térence Clastres, Université d'Orléans, LIFO, LMV Team
-- Nicolas Schivre, Université d'Orléans, LIFO, LMV Team
