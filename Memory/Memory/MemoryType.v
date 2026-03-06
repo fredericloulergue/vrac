@@ -36,7 +36,7 @@ Module BaseMtyp.
     
 End BaseMtyp.
 
-Module Mtyp := (Full BaseMtyp).
+Module Mtyp := Full BaseMtyp.
  
 Definition sizeof: mtyp -> Z :=
   fun type => match type with
