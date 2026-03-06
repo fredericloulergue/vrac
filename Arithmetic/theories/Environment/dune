@@ -1,5 +1,5 @@
 (coq.theory
- (name RAC)
- (theories RecordUpdate MMaps Equations)
+(name RAC.Environment)
+(theories RAC)
  (flags :standard -set "Warnings=-notation-incompatible-prefix")
 )

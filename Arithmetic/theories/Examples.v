@@ -1,15 +1,18 @@
-Require Import RAC.Definitions.
-Require Import RAC.Notations.
-Require Import RAC.Utils.
-Require Import RAC.Semantics.
-Require Import RAC.Translation.
-Require Import ZArith.ZArith.
-Require Import String.
-From Coq Require Import Lists.List.
-Import ListNotations.
-Open Scope string_scope.
-Open Scope list_scope.
-Open Scope Z_scope.
+From Coq Require Import ZArith.ZArith Lists.List String.
+
+From RAC Require Import Utils Environment Translation.
+From RAC.Languages Require Import Syntax Semantics.
+
+
+Import ListNotations FunctionalEnv Domain.
+
+#[local] Open Scope string_scope.
+#[local] Open Scope list_scope.
+#[local] Open Scope Z_scope.
+#[local] Open Scope utils_scope.
+#[local] Open Scope mini_c_scope.
+#[local] Open Scope list.
+
 
 
 Definition two := VInt (2 ⁱⁿᵗ eq_refl).
@@ -18,9 +21,46 @@ Definition five := VInt (5 ⁱⁿᵗ eq_refl).
 Definition ten := VInt (10 ⁱⁿᵗ eq_refl).
 Definition fifteen := VInt (15 ⁱⁿᵗ eq_refl).
 
-#[local] Coercion gmp_id (var:id) : _c_exp := C_Id var C_Int (T:=Empty_set).
+#[local] Coercion gmp_id (var:id) : c_exp := C_Id var C_Int (T:=Empty_set).
 
-Definition funs  := ⊥{"test"\(["a";"b"] , <{ return ("b") }> : c_statement)} .
+Definition funs {S} := ⊥{"test"\(["a";"b"] , <{ return ("b") }> : c_statement (S:=S))} .
+
+
+
+
+Goal forall s1 s2 s3 s4, between s1 s2 s4  (Seq (Seq s1 (Seq s2 s3)) s4).
+Proof.
+    intros. eapply (Between_add_r s3 (Seq s1 (Seq s2 s3))).
+    - now constructor.
+    - auto.
+Qed.
+
+Goal forall s1 s2 s3 s4, between s1 s2 s4  (Seq s1 (Seq s2 (Seq s3 s4))).
+Proof.
+    intros. eapply (Between_add_r s3 (Seq s1 (Seq s2 s3))).
+    - now constructor.
+    - simpl. now repeat rewrite <- List.app_assoc.
+Qed.
+
+Goal forall s1 s2 s3 s4, between s1 s3 s4  (Seq s1 (Seq s2 (Seq s3 s4))).
+Proof.
+    intros. eapply (Between_add_l s2 <{s2;s3;s4}>).
+    - now constructor. 
+    - simpl. now repeat rewrite <- List.app_assoc.
+Qed.
+
+
+Goal forall s1 s2 s3 s4, between s1 s2 s4  (Seq (Seq s1 s2) (Seq s3 s4)).
+    intros. eapply (Between_add_r s3 (Seq (Seq s1 s2) s3)).
+    - constructor. simpl. now rewrite <- List.app_assoc.
+    - simpl. now repeat rewrite <- List.app_assoc.  
+Qed.
+
+(* Compute (flatten  (Seq (Seq (Assign "x" 1) (Assign "x" 2)) (Assign "x" 3))).
+Compute (flatten  (Seq (Assign "x" 1) (Seq  (Assign "x" 2) (Assign "x" 3)))).
+Compute flatten ((Seq (Seq (Assign "x" 1) (Assign "x" 2)) (Seq (Assign "x" 3) (Assign "x" 4)))). *)
+
+
 
 (* Open Scope mini_c_decl_scope. *)
 (*
@@ -44,8 +84,6 @@ mfrakA : 𝔄
 mbfscrA : 𝓐
 *)
 
-Open Scope c_sem_scope.
-Open Scope mini_gmp_scope.
 
 (* Example stmt_test :
     forall v l m,     
@@ -135,50 +173,134 @@ Proof.
      }
 Qed. *)
 
-Example test_dom : 2 ∉ (fun x => if x>?2 then Some (x*2) else None).
+
+#[local] Open Scope domain_scope.
+Example test_dom : 2 ∉ (fun x => if x>?2 then Some (Z.mul x 2) else None).
 Proof. easy. Qed.
+Close Scope domain_scope.
 
 
-
-Close Scope Z_scope.
+#[local] Open Scope nat.
 
 (* monad *)
-Export CounterMonad.
+
+Module TMNotations := MonadNotations(TranslationMonad).
+
+Import TMNotations.
 (* Compute (exec (n <- fresh ;;; n)). *)
 
-Fixpoint test (x:  list bool) : state := match x with
-  | i::t => c <- (if i then fresh else ret 9) ;; let v := (i,c) in x <- test t ;;; v::x
-  | nil => ret nil 
+Fixpoint test (x:  list bool) := match x with
+  | i::t => c <- (if i then TranslationMonad.fresh else TranslationMonad.ret 9) ;; let v := (i,c) in x <- test t ;;; v::x
+  | nil => TranslationMonad.ret nil 
 end.
 (* Compute (exec (test (true::true::false::false::true::false::nil))). *)
 
 
-Open Scope Z_scope.
-Open Scope mini_gmp_scope.
+
+
+Example add_var_int : forall (ir3 :MI.inRange 3),  empty_env +++ (C_Int, "y", 3) (empty_env  <| env ; vars := ⊥{"y"\Def (VInt ( 3ⁱⁿᵗ ir3))} |>).
+Proof. now constructor. Qed.
+
+
+Example add_var_mpz  : 
+add_z_var empty_env Mpz "y" 3  
+    ( empty_env 
+        <| env ; vars := ⊥{"y"\Def 1%nat} |>
+        <| mstate := ⊥{(1%nat)\(Defined 3)} |>
+    )
+.
+Proof.
+    assert (ir3: MI.inRange 3) by easy.
+    now apply typeMpz.
+Qed.
+
+
+From Coq Require Import Sets.Ensembles.
+Close Scope nat_scope.
+
+Example envaddnil : add_z_vars empty_env (Empty_set _) empty_env.
+Proof.
+ constructor.
+Qed.
+
+
+Example envaddone : add_z_vars empty_env  (Singleton _ (T_Ext Mpz, "y", 3))
+    (empty_env 
+        <| env ; vars := ⊥{"y"\Def (VMpz 1%nat)} |>
+        <| mstate := ⊥{1%nat\(Defined 3)} |>
+    )
+.
+Proof.
+    replace (Singleton _ (T_Ext Mpz, "y", 3)) with (Add _ (Empty_set _) (T_Ext Mpz, "y", 3)).
+    - assert (ir3: MI.inRange 3) by easy.
+        apply (add_z_vars_cons empty_env (Empty_set _) (T_Ext Mpz) "y" 3) .
+        apply (typeMpz empty_env Mpz "y" 3 1%nat).
+        * reflexivity.
+        * intro v. intro contra. inversion contra.
+    - apply Extensionality_Ensembles. split. 
+      * autounfold with sets. intros. destruct H.
+        + inversion H.
+        + auto with sets.
+      * autounfold with sets. intros. now constructor.
+Qed.
 
 
 
-Definition dummy_iop : ϴ := fun i => Mpz. 
-Definition dummy_oracle : 𝓘 := fun t li => mkInterval (-10) 10.
 
-Definition dummy_tinf : type_inf := 
-    {| oracle := dummy_oracle; t_env := ⊥; i_op := dummy_iop|}.
+Module DummyOracle : Oracle.Oracle.
+    Definition interval := Z ⨉ Z.
+    
+    Definition Γᵢ : Type :=  StringMap.t interval. 
+
+    Definition get_Γᵢ : fsl_pgrm -> Γᵢ := fun _ => StringMap.empty.
+
+    Definition oracle : ℨ ⨉ Γᵢ -> interval := fun _ => (-10,10).
+
+    Definition ty_from_interval : interval -> 𝔗 := fun _ => Mpz. 
+
+    Definition get_ty : ℨ ⨉ Γᵢ -> 𝔗 := fun x =>  ty_from_interval (oracle x).
+
+    Parameter ty_funcall_is_ty_body: 
+    forall (f : fsl_prog_fenv) fname xargs (targs:list ℨ) (iargs:list interval) b, 
+    StringMap.find fname f.(lfuns) = Some (xargs,b) ->
+    forall te,
+    List.Forall2 (fun e i => oracle (e,te) = i) targs iargs ->
+        get_ty (T_Call fname targs,te) = get_ty (b,StringMap.add_all xargs iargs StringMap.empty).
+
+    Inductive fits (z:Z) : 𝔗 -> Prop := 
+    | InInt : MI.inRange z -> fits z C_Int
+    | InMpz : fits z (T_Ext Mpz)
+    .
+
+    Parameter ϴ_int_or_mpz : forall i, ty_from_interval i = C_Int \/  ty_from_interval i = T_Ext Mpz.
+
+    Parameter get_ty_prog_var : forall x i, get_ty (T_Id x FSL_Int, i) = C_Int.
+
+    Parameter type_soundness : forall env te f t z, 
+    fsl_term_sem f env t z -> fits z (get_ty (t,te)).
+
+    Parameter convergence_of_lfuns_ty : 
+    forall fname (targs:list ℨ) (iargs:list interval), 
+    forall (typing_envs : Ensembles.Ensemble Γᵢ)  (fe:Γᵢ), Ensembles.In Γᵢ typing_envs fe ->
+    (exists ty te, get_ty (T_Call fname targs,te) = ty) -> 
+    Finite_sets.Finite _ typing_envs
+    .
+
+End DummyOracle.
 
 
-Definition dummy_bindings : Γᵥ := ⊥.
-
-Definition dummy_defs : ψ := ⊥.
+Module T := Translation.Translation(DummyOracle).
 
 Definition x := FSL_Decl (T_Ext Mpz) "x".
 Definition y := FSL_Decl (T_Ext Mpz) "y".
 
 Definition p : predicate := (P_BinOp (T_Id "x" FSL_Int) FSL_Gt (T_Id "y" FSL_Int)). 
 
-Definition greaterThan : predicate := P_Call "greaterThan" [T_Id "x" FSL_Int; T_Z 3].
+(* Definition greaterThan : predicate := P_Call "greaterThan" [T_Id "x" FSL_Int; T_Z 3]. *)
 
-Compute ( 
+(* Compute ( 
         let z := (C_Id "z" C_Int) in 
-        translate_program (Build_fenv _fsl_statement Empty_set ⊥ ⊥ ⊥ ⊥) dummy_bindings dummy_tinf  
+        T.translate_program 
         ([] : list _c_decl,
         [<[ /*@ predicate "greaterThan"(x,y) = p  */ ]>;
         <[
@@ -193,5 +315,5 @@ Compute (
             ]
          ]> 
         ]
-        )
-). 
+        ) 
+).  *)
