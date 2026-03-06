@@ -9,7 +9,7 @@
 (* (see LICENSE file for the text of the license)                       *) 
 (************************************************************************)
 
-Require Import Arith ZArith List Bool.
+From Stdlib Require Import Arith ZArith List Bool.
 
 Ltac destruct_and_hyp := 
   match goal with

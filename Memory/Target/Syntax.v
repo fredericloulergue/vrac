@@ -9,7 +9,7 @@
 (* (see LICENSE file for the text of the license)                       *) 
 (************************************************************************)
 
-Require Import ZArith Structures.Equalities String.
+From Stdlib Require Import ZArith Structures.Equalities String.
 
 From Vrac.Lib Require Import Error Option Tactics.
 From Vrac.Memory Require Import MemoryType.

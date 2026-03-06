@@ -9,8 +9,8 @@
 (* (see LICENSE file for the text of the license)                       *) 
 (************************************************************************)
 
-Require Import ZArith Arith Lia.
-Require Import List. Import ListNotations.
+From Stdlib Require Import ZArith Arith Lia.
+From Stdlib Require Import List. Import ListNotations.
 
 From Vrac.Lib Require Import Option Eqb.
 From Vrac.Memory Require Import MemoryType.

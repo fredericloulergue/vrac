@@ -9,7 +9,7 @@
 (* (see LICENSE file for the text of the license)                       *) 
 (************************************************************************)
 
-Require Import Arith ZArith Lia List Structures.Equalities.
+From Stdlib Require Import Arith ZArith Lia List Structures.Equalities.
 
 From Vrac.Memory Require Import MemoryType ExecutionMemoryModel Context.
 From Vrac.Common Require Import Syntax.

@@ -9,7 +9,7 @@
 (* (see LICENSE file for the text of the license)                       *) 
 (************************************************************************)
 
-Require Import Bool Arith.
+From Stdlib Require Import Bool Arith.
   
   Module Type EQB.
     Parameter t : Type.

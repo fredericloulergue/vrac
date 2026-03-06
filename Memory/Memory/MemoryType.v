@@ -9,7 +9,7 @@
 (* (see LICENSE file for the text of the license)                       *) 
 (************************************************************************)
 
-Require Import Arith ZArith.
+From Stdlib Require Import Arith ZArith.
 From Vrac.Lib Require Import Tactics Eqb.
 
 Inductive mtyp := i8 | i16 | i32 | i64.

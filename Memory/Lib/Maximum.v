@@ -9,7 +9,7 @@
 (* (see LICENSE file for the text of the license)                       *) 
 (************************************************************************)
 
-Require Import List Arith Lia. Import ListNotations.
+From Stdlib Require Import List Arith Lia. Import ListNotations.
 
 Fixpoint maximum support :=
   match support with

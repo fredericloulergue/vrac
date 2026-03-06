@@ -9,7 +9,7 @@
 (* (see LICENSE file for the text of the license)                       *) 
 (************************************************************************)
 
-Require Import String.
+From Stdlib Require Import String.
 
 Declare Scope error_monad_scope.
 

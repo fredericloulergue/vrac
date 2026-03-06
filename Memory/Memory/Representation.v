@@ -9,7 +9,7 @@
 (* (see LICENSE file for the text of the license)                       *) 
 (************************************************************************)
 
-Require Import Arith ZArith Lia List Structures.Equalities Logic.FinFun.
+From Stdlib Require Import Arith ZArith Lia List Structures.Equalities Lists.Finite.
 
 From Vrac.Lib Require Import Option Tactics Eqb.
 From Vrac.Memory Require Import MemoryType

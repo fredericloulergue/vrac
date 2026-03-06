@@ -9,7 +9,7 @@
 (* (see LICENSE file for the text of the license)                       *) 
 (************************************************************************)
 
-Require Import ZArith Structures.Equalities List Lia.
+From Stdlib Require Import ZArith Structures.Equalities List Lia.
 Import ListNotations.
 
 From Vrac.Lib Require Import Error Option Tactics Maximum.
